@@ -21,21 +21,29 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # SEGREDO DE ASSINATURA
 # ---------------------------------------------------------------------------
-# O segredo NÃO vive neste ficheiro. Vive em tres sítios, por ordem:
+# O segredo NÃO vive neste ficheiro, nem no git. Procura em
+# tres sítios, por ordem:
 #
-#   1. _segredo_gerado.py  — gerado no build, embutido dentro do .exe
-#   2. _segredo.txt        — ficheiro local do fornecedor (nunca no git)
-#   3. $CONVERSOR_SEGREDO  — variavel de ambiente
+#   1. _segredo_gerado.py  — gerado no build, embutido no .exe
+#   2. ficheiro fora do repo — define CONVERSOR_SECRETDIR com o
+#      caminho da pasta que contém _segredo.txt (fornecedor)
+#   3. $CONVERSOR_SEGREDO  — variável de ambiente
 #
-# Assim o repositorio pode ser publicado sem que a protecao deixe de
-# funcionar, e o .exe do cliente continua a conseguir validar licencas.
-# Ver build_release.py, que faz a geracao do ponto 1.
+# O ficheiro do fornecedor fica, por exemplo:
+#   C:\SegredosConversor\_segredo.txt
+# e aponta-se com:
+#   set CONVERSOR_SECRETDIR=C:\SegredosConversor
+#
+# build_release.py gera ambos automaticamente no PC do fornecedor.
 
-_SEGREDO_FILE = Path(__file__).parent / "_segredo.txt"
+_SEGREDO_FILE = Path(os.environ.get(
+    "CONVERSOR_SECRETDIR",
+    str(Path.home() / "AppData" / "Local" / "ConversorJumpseller"),
+)) / "_segredo.txt"
 
 
 def _load_secret() -> str:
-    # 1. modulo gerado no build (esta e a via dentro do .exe)
+    # 1. modulo gerado no build (dentro do .exe)
     try:
         from _segredo_gerado import SEGREDO  # type: ignore
 
@@ -44,7 +52,7 @@ def _load_secret() -> str:
     except ImportError:
         pass
 
-    # 2. ficheiro local do fornecedor
+    # 2. ficheiro do fornecedor (fora do repo)
     try:
         if _SEGREDO_FILE.is_file():
             texto = _SEGREDO_FILE.read_text(encoding="utf-8").strip()
