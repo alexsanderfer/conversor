@@ -1,0 +1,29 @@
+# --- SEGREDO: NUNCA ENVIAR NADA DESTES ---
+_segredo.txt
+_segredo_gerado.py
+issue_license.py
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# --- build ---
+build/
+dist/
+*.spec.bak
+
+# --- artefactos antigos ---
+ConversorJumpseller.zip
+
+# --- IDE / SO ---
+.idea/
+.vscode/
+Thumbs.db
+desktop.ini
+
+# --- dados de teste ---
+*.lic
