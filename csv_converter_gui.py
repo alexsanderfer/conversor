@@ -25,6 +25,8 @@ from tkinterdnd2 import DND_FILES, Tk
 
 from license_dialog import LicenseDialog
 from license_manager import check_license, load_license_state
+from stripe_integration import open_stripe_checkout
+from updater import check_for_updates
 from theme import (
     BG_WINDOW,
     ERROR_BG,
@@ -34,6 +36,7 @@ from theme import (
     GRAY_600,
     GRAY_800,
     GREEN_100,
+    GREEN_500,
     GREEN_700,
     WHITE,
     apply_theme,
@@ -283,8 +286,32 @@ STATE_FILENAME = "_jumpseller_precos.json"
 
 
 def _read_csv_any_delimiter(input_path: str):
-    with open(input_path, newline="", encoding="utf-8-sig") as f:
-        texto = f.read()
+    # Try multiple encodings since store files can be UTF-16
+    encodings = ["utf-8-sig", "utf-16", "utf-16le", "utf-16be"]
+    texto = None
+
+    for encoding in encodings:
+        try:
+            with open(input_path, newline="", encoding=encoding) as f:
+                texto = f.read()
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if texto is None:
+        # Fallback to binary read and try to detect
+        with open(input_path, "rb") as f:
+            raw = f.read()
+        for encoding in encodings:
+            try:
+                texto = raw.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        if texto is None:
+            # Last resort: replace errors
+            texto = raw.decode("utf-8", errors="replace")
+
     texto = texto.lstrip("﻿")
     candidatos = [";", ","]
     melhor = None
@@ -452,10 +479,48 @@ class App(Tk):
     def _build_ui(self):
         apply_theme(self)
 
+        # container superior com logo, botão de compra e botão de atualização
+        top_container = tk.Frame(self, bg=BG_WINDOW)
+        top_container.pack(fill="x", pady=(0, 4))
+
         # logo (graceful: se o asset faltar, o label nao aparece)
         self._logo_label = self._load_logo()
         if self._logo_label:
-            self._logo_label.pack(anchor="w", pady=(0, 4))
+            self._logo_label.pack(in_=top_container, anchor="w", pady=(0, 4))
+
+        # botão comprar licença
+        self._buy_license_btn = tk.Button(
+            top_container,
+            text="Comprar Licença",
+            command=self._open_stripe_checkout,
+            bg=GREEN_700,
+            fg=WHITE,
+            activebackground=GREEN_500,
+            activeforeground=WHITE,
+            relief="flat",
+            font=("Segoe UI", 9, "bold"),
+            padx=12,
+            pady=4,
+            cursor="hand2",
+        )
+        self._buy_license_btn.pack(in_=top_container, side="right", padx=(0, 8), pady=(0, 4))
+
+        # botão verificar atualizações
+        self._check_updates_btn = tk.Button(
+            top_container,
+            text="Verificar Atualizações",
+            command=self._check_for_updates,
+            bg=GRAY_100,
+            fg=GRAY_800,
+            activebackground="#E0E0E0",
+            activeforeground=GRAY_800,
+            relief="flat",
+            font=("Segoe UI", 9),
+            padx=12,
+            pady=4,
+            cursor="hand2",
+        )
+        self._check_updates_btn.pack(in_=top_container, side="right", pady=(0, 4))
 
         # barra de separadores
         self.tabs = ttk.Notebook(self)
@@ -811,10 +876,20 @@ class App(Tk):
                 pass
         messagebox.showinfo(
             "Licença",
-            f"Aplicação Conversations Jumpseller.{detail}\n\n"
+            f"Aplicação Conversor Jumpseller.{detail}\n\n"
             "Para activar ou renovar, arraste o novo ficheiro .lic para a janela.",
             parent=self,
         )
+
+    def _open_stripe_checkout(self):
+        """Botão 'Comprar Licença': abre a página de pagamento Stripe."""
+        from stripe_integration import open_stripe_checkout
+        open_stripe_checkout()
+
+    def _check_for_updates(self):
+        """Botão 'Verificar Atualizações': verifica se há novas versões."""
+        from updater import check_for_updates
+        check_for_updates(show_message=True, parent=self)
 
     def _convert(self):
         if not self._ensure_license():
