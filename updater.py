@@ -30,7 +30,7 @@ def _parse_version(v: str) -> tuple[int, ...]:
 def get_github_release_info() -> dict | None:
     """Consulta a API do GitHub para a última release. Retorna None em caso de erro."""
     try:
-        url = "https://api.github.com/repos/alexsanderfernandes/conversor-jumpseller/releases/latest"
+        url = "https://api.github.com/repos/alexsanderfer/conversor/releases/latest"
         req = urllib.request.Request(
             url, headers={"User-Agent": "ConversorJumpseller-Updater"}
         )
@@ -101,6 +101,6 @@ def check_for_updates(show_message: bool = True, parent=None) -> tuple[bool, str
 
 def open_releases_page():
     """Abre a página de releases no navegador."""
-    url = "https://github.com/alexsanderfernandes/conversor-jumpseller/releases"
+    url = "https://github.com/alexsanderfer/conversor/releases"
     import webbrowser
     webbrowser.open(url)
