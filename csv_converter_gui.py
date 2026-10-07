@@ -733,6 +733,15 @@ class App(Tk):
                 lic_status = "Inválida"
         ttk.Label(frm, text=lic_status, font=("Segoe UI", 10)).pack(anchor="w")
 
+        ttk.Label(frm, text="Desenvolvedor", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(16, 4))
+        ttk.Label(frm, text="Alexsander Fernandes", font=("Segoe UI", 10)).pack(anchor="w")
+        ttk.Label(frm, text="alexsanderfer@gmail.com", font=("Segoe UI", 10)).pack(anchor="w")
+        ttk.Label(frm, text="WhatsApp: +351 910 000 000", font=("Segoe UI", 10)).pack(anchor="w")
+
+        ttk.Label(frm, text="Contacto", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(16, 4))
+        ttk.Label(frm, text="GitHub: github.com/alexsanderfer/conversor", font=("Segoe UI", 10)).pack(anchor="w")
+        ttk.Label(frm, text="Releases: github.com/alexsanderfer/conversor/releases", font=("Segoe UI", 10)).pack(anchor="w")
+
         btn_lic = tk.Button(
             frm,
             text="Renovar Licença",
@@ -882,10 +891,16 @@ class App(Tk):
             LICENSE_DIR,
             reason=reason,
             on_submit=self._accept_license,
-            on_cancel=lambda: None,
+            on_cancel=self._deny_license,
         )
         self.wait_window(dialog.win)
         return self._licensed
+
+    def _deny_license(self):
+        """Chamado quando o utilizador clica em 'Sair' no diálogo de licença."""
+        self._licensed = False
+        # Forçar fechamento da aplicação — não permite usar sem licença
+        self.after(100, self.destroy)
 
     def _stored_license_path(self) -> Path:
         """Licença guardada na ultima activacao, ou o caminho por defeito."""
