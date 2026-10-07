@@ -529,11 +529,14 @@ class App(Tk):
 
         self.tab_novo = ttk.Frame(self.tabs, padding=8)
         self.tab_update = ttk.Frame(self.tabs, padding=8)
+        self.tab_sobre = ttk.Frame(self.tabs, padding=8)
         self.tabs.add(self.tab_novo, text="  Novo ficheiro  ")
         self.tabs.add(self.tab_update, text="  Atualizar loja  ")
+        self.tabs.add(self.tab_sobre, text="  Sobre  ")
 
         self._build_tab_novo()
         self._build_tab_update()
+        self._build_tab_sobre()
         self._build_footer()
 
     # -- logo -----------------------------------------------------------
@@ -682,6 +685,61 @@ class App(Tk):
             frm_bot, text="Atualizar loja", command=self._merge, width=20
         )
         self.merge_btn.pack(side="right")
+
+    def _build_tab_sobre(self):
+        """Constrói a aba 'Sobre' com informações da aplicação."""
+        frm = ttk.Frame(self.tab_sobre, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, text="Conversor Jumpseller", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+        ttk.Label(frm, text=f"Versão {get_current_version()}", font=("Segoe UI", 10)).pack(anchor="w", pady=(0, 16))
+
+        ttk.Label(frm, text="Notas de versão", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 4))
+        notas = tk.Text(
+            frm,
+            height=10,
+            relief="flat",
+            bg=BG_WINDOW,
+            fg=GRAY_800,
+            font=("Segoe UI", 10),
+            borderwidth=0,
+            wrap="word",
+            padx=0,
+            pady=0,
+        )
+        notas.pack(fill="both", expand=True)
+        notas.insert("1.0", """
+        v0.2.0 (2026-10-07)
+        - Correção de encoding UTF-16 em arquivos de loja
+        - Botão Comprar Licença desativado até integração com Stripe
+        - Botão Verificar Atualizações
+        - Licença não pede novamente se válida
+
+        v0.1.0 (2026-10-03)
+        - Versão inicial com licença offline
+        - Conversão de CSV para Jumpseller
+        - Atualização de loja com cruza de dados
+        """)
+        notas.config(state="disabled")
+
+        ttk.Label(frm, text="Licença", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(16, 4))
+        lic_path = self._stored_license_path()
+        lic_status = "Não detectada"
+        if lic_path.is_file():
+            try:
+                data = json.loads(lic_path.read_text(encoding="utf-8"))
+                lic_status = f"Válida até: {data.get('expires', '—')}"
+            except (OSError, ValueError):
+                lic_status = "Inválida"
+        ttk.Label(frm, text=lic_status, font=("Segoe UI", 10)).pack(anchor="w")
+
+        btn_lic = ttk.Button(
+            frm,
+            text="Renovar Licença",
+            command=self._open_license_window,
+            style="TButton.Tonal",
+        )
+        btn_lic.pack(anchor="w", pady=(12, 0))
 
     # -- handlers -------------------------------------------------------
 
