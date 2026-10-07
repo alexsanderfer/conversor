@@ -488,7 +488,7 @@ class App(Tk):
         if self._logo_label:
             self._logo_label.pack(in_=top_container, anchor="w", pady=(0, 4))
 
-        # botão comprar licença
+        # botão comprar licença (desativado até integrar Stripe)
         self._buy_license_btn = tk.Button(
             top_container,
             text="Comprar Licença",
@@ -502,6 +502,7 @@ class App(Tk):
             padx=12,
             pady=4,
             cursor="hand2",
+            state="disabled",
         )
         self._buy_license_btn.pack(in_=top_container, side="right", padx=(0, 8), pady=(0, 4))
 
