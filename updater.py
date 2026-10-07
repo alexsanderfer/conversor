@@ -1,19 +1,34 @@
 """
-Placeholder for update checking functionality.
-Will be implemented to check for new releases from GitHub.
+Verificação de atualizações — não afeta licenças válidas.
+
+Consulta a API do GitHub para obter informações da última release.
+A verificação de licença é totalmente independente: se a licença
+for válida, o programa simplesmente prossegue; a atualização é
+apenas informativa.
 """
 
 import json
+import re
 import urllib.request
 from pathlib import Path
 from tkinter import messagebox
 
 
+def _parse_version(v: str) -> tuple[int, ...]:
+    """Extrai partes numericas de uma string de versão."""
+    m = re.match(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", v)
+    if not m:
+        return (0,)
+    parts = [int(m.group(1))]
+    if m.group(2) is not None:
+        parts.append(int(m.group(2)))
+    if m.group(3) is not None:
+        parts.append(int(m.group(3)))
+    return tuple(parts)
+
+
 def get_github_release_info() -> dict | None:
-    """
-    Consulta a API do GitHub para obter informações da última release.
-    Retorna None em caso de erro.
-    """
+    """Consulta a API do GitHub para a última release. Retorna None em caso de erro."""
     try:
         url = "https://api.github.com/repos/alexsanderfernandes/conversor-jumpseller/releases/latest"
         req = urllib.request.Request(
@@ -26,11 +41,7 @@ def get_github_release_info() -> dict | None:
 
 
 def get_current_version() -> str:
-    """
-    Obtém a versão actual do programa.
-    Tentar ler de um ficheiro VERSION.txt na pasta do programa,
-    ou usar um fallback.
-    """
+    """Obtém a versão actual do programa (de VERSION.txt ou fallback)."""
     version_file = Path(__file__).parent / "VERSION.txt"
     if version_file.is_file():
         return version_file.read_text(encoding="utf-8").strip()
@@ -40,11 +51,11 @@ def get_current_version() -> str:
 def check_for_updates(show_message: bool = True, parent=None) -> tuple[bool, str]:
     """
     Verifica se há atualizações disponíveis.
+    NÃO afeta licenças válidas — apenas lê a API do GitHub e
+    mostra mensagem ao utilizador.
 
     Returns:
         tuple: (has_update, message)
-        - has_update: True se houver nova versão disponível
-        - message: mensagem descritiva
     """
     current = get_current_version()
     release = get_github_release_info()
@@ -66,9 +77,8 @@ def check_for_updates(show_message: bool = True, parent=None) -> tuple[bool, str
             messagebox.showwarning("Atualização", message, parent=parent)
         return False, message
 
-    # Comparação simples de versões (supostamente semver)
-    current_parts = [int(x) for x in current.split(".") if x.isdigit()]
-    latest_parts = [int(x) for x in latest_tag.split(".") if x.isdigit()]
+    current_parts = _parse_version(current)
+    latest_parts = _parse_version(latest_tag)
 
     if current_parts and latest_parts and latest_parts > current_parts:
         message = (
@@ -83,10 +93,7 @@ def check_for_updates(show_message: bool = True, parent=None) -> tuple[bool, str
                 webbrowser.open(latest_url)
         return True, message
 
-    message = (
-        f"Já está na última versão: {current}\n"
-        f"Próxima: {latest_tag}"
-    )
+    message = f"Já está na última versão: {current}"
     if show_message:
         messagebox.showinfo("Atualização", message, parent=parent)
     return False, message

@@ -808,6 +808,7 @@ class App(Tk):
         lic_path = self._stored_license_path()
         ok, reason = check_license(lic_path)
         if ok:
+            # Licença válida: não abre dialog, devolve diretamente
             return True
 
         # primeira tentativa: explicar porquê, se houver cached path
