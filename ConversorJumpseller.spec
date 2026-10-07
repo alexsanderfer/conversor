@@ -5,7 +5,7 @@ a = Analysis(
     ['csv_converter_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('VERSION.txt', '.')],
     hiddenimports=['tkinterdnd2', 'openpyxl', 'stripe_integration', 'updater'],
     hookspath=[],
     hooksconfig={},
@@ -35,4 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    version='version_info.txt',
 )
