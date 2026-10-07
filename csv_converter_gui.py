@@ -26,7 +26,7 @@ from tkinterdnd2 import DND_FILES, Tk
 from license_dialog import LicenseDialog
 from license_manager import check_license, load_license_state
 from stripe_integration import open_stripe_checkout
-from updater import check_for_updates
+from updater import check_for_updates, get_current_version
 from theme import (
     BG_WINDOW,
     ERROR_BG,
@@ -952,7 +952,7 @@ class App(Tk):
 
     def _check_for_updates(self):
         """Botão 'Verificar Atualizações': verifica se há novas versões."""
-        from updater import check_for_updates
+        from updater import check_for_updates, get_current_version
         check_for_updates(show_message=True, parent=self)
 
     def _convert(self):
