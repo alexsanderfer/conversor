@@ -733,11 +733,18 @@ class App(Tk):
                 lic_status = "Inválida"
         ttk.Label(frm, text=lic_status, font=("Segoe UI", 10)).pack(anchor="w")
 
-        btn_lic = ttk.Button(
+        btn_lic = tk.Button(
             frm,
             text="Renovar Licença",
             command=self._open_license_window,
-            style="TButton.Tonal",
+            bg=GRAY_100,
+            fg=GRAY_800,
+            activebackground="#E0E0E0",
+            relief="flat",
+            font=("Segoe UI", 10),
+            padx=12,
+            pady=4,
+            cursor="hand2",
         )
         btn_lic.pack(anchor="w", pady=(12, 0))
 
