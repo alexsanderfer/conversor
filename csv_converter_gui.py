@@ -864,9 +864,13 @@ class App(Tk):
 
     def _open_license_window(self):
         """Botao 'Licença…': mostra a licencia activa ou permite renovar."""
-        current = load_license_state()
-        detail = ""
         lic_path = self._stored_license_path()
+        ok, reason = check_license(lic_path)
+        if ok:
+            # Licença válida: fecha o diálogo sem mostrar popup
+            self._licensed = True
+            return
+        detail = ""
         if lic_path.is_file():
             try:
                 data = json.loads(lic_path.read_text(encoding="utf-8"))
