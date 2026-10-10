@@ -19,7 +19,7 @@ import tkinter as tk
 import unicodedata
 from collections import OrderedDict
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from tkinterdnd2 import DND_FILES, Tk
 
@@ -42,7 +42,11 @@ from theme import (
     apply_theme,
     style_drop_area,
 )
-from field_mapping import load_field_mapping, get_mapped_value, save_field_mapping, DEFAULT_FIELD_MAPPING
+from field_mapping import (
+    load_field_mapping, get_mapped_value, save_field_mapping, DEFAULT_FIELD_MAPPING,
+    list_profiles, get_active_profile, set_active_profile,
+    get_profile_mapping, save_profile, delete_profile,
+)
 
 # ---------------------------------------------------------------------------
 # CONFIGURACAO: colunas de destino na ordem exata do Jumpseller
@@ -542,7 +546,7 @@ class FieldMappingDialog:
 
     def _build(self):
         self.win = tk.Toplevel(self.parent)
-        self.win.title("Field Mapping")
+        self.win.title(f"Field Mapping — {get_active_profile()}")
         self.win.geometry("600x480")
         self.win.resizable(False, False)
         self.win.transient(self.parent)
@@ -806,6 +810,26 @@ class App(Tk):
         )
         self.mapping_btn.pack(side="right", padx=(0, 8))
         self.path_entry.bind("<Return>", lambda ev: self._convert())
+
+        # Seletor de fornecedor / perfil de mapeamento
+        frm_for = ttk.Frame(self.tab_novo)
+        frm_for.pack(fill="x", pady=(6, 2))
+        ttk.Label(frm_for, text="Fornecedor:").grid(
+            row=0, column=0, sticky="w", padx=(0, 8)
+        )
+        self.profile_var = tk.StringVar(value=get_active_profile())
+        self.profile_combo = ttk.Combobox(
+            frm_for, textvariable=self.profile_var, state="readonly", width=26
+        )
+        self.profile_combo.grid(row=0, column=1, sticky="w", padx=(0, 6))
+        self.profile_combo.bind("<<ComboboxSelected>>", self._on_profile_change)
+        ttk.Button(
+            frm_for, text="Novo", width=7, command=self._new_profile
+        ).grid(row=0, column=2, sticky="w", padx=(0, 4))
+        ttk.Button(
+            frm_for, text="Apagar", width=7, command=self._delete_profile
+        ).grid(row=0, column=3, sticky="w")
+        self._refresh_profile_combo()
 
     def _build_tab_update(self):
         self.export_var = tk.StringVar()
@@ -1239,6 +1263,66 @@ class App(Tk):
         """Botão 'Verificar Atualizações': verifica se há novas versões."""
         from updater import check_for_updates, get_current_version
         check_for_updates(show_message=True, parent=self)
+
+    def _refresh_profile_combo(self):
+        """Actualiza a lista de fornecedores na dropdown."""
+        profiles = list_profiles()
+        self.profile_combo["values"] = profiles
+        active = get_active_profile()
+        if active not in profiles:
+            active = profiles[0] if profiles else _PROFILE_DEFAULT
+            set_active_profile(active)
+        self.profile_var.set(active)
+
+    def _on_profile_change(self, _event=None):
+        """Chamado quando o utilizador troca o fornecedor na dropdown."""
+        name = self.profile_var.get().strip()
+        if name:
+            set_active_profile(name)
+            messagebox.showinfo(
+                "Fornecedor alterado",
+                f"Fornecedor definido para: {name}\n"
+                "A próxima conversão usará o mapeamento deste fornecedor.",
+                parent=self,
+            )
+
+    def _new_profile(self):
+        """Cria um novo perfil de fornecedor."""
+        name = simpledialog.askstring(
+            "Novo fornedor",
+            "Nome do novo fornedor:",
+            parent=self,
+        )
+        if not name:
+            return
+        name = name.strip()
+        if not name:
+            return
+        if save_profile(name, {}):
+            set_active_profile(name)
+            self._refresh_profile_combo()
+            messagebox.showinfo(
+                "Fornedor criado",
+                f"Perfil '{name}' criado (mapeamento vazio).\n"
+                "Use o botão 'Mapear Campos...' para configurar os campos.",
+                parent=self,
+            )
+        else:
+            messagebox.showerror("Erro", "Nao foi possivel criar o perfil.", parent=self)
+
+    def _delete_profile(self):
+        """Apaga o perfil de fornedor atualmente selecionado."""
+        name = self.profile_var.get().strip()
+        if not name:
+            return
+        if delete_profile(name):
+            self._refresh_profile_combo()
+            messagebox.showinfo("Fornedor apagado", f"Perfil '{name}' foi removido.", parent=self)
+        else:
+            messagebox.showwarning(
+                "Nao foi possivel apagar",
+                "Nao e possivel apagar o unico perfil existente.", parent=self,
+            )
 
     def _open_field_mapping(self):
         """Botão 'Mapear Campos...': abre o diálogo de mapeamento de campos."""
