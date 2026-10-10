@@ -42,6 +42,7 @@ from theme import (
     apply_theme,
     style_drop_area,
 )
+from field_mapping import load_field_mapping, get_mapped_value, save_field_mapping, DEFAULT_FIELD_MAPPING
 
 # ---------------------------------------------------------------------------
 # CONFIGURACAO: colunas de destino na ordem exata do Jumpseller
@@ -181,10 +182,23 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 
-def build_description(row: dict) -> str:
+def build_description(row: dict, mapping: dict = None) -> str:
+    """
+    Build product description from description fields using field mapping.
+    
+    Args:
+        row: Dictionary with CSV column names as keys
+        mapping: Optional field mapping dictionary
+    
+    Returns:
+        str: Combined description text
+    """
+    if mapping is None:
+        mapping = load_field_mapping()
+    
     parts = []
     for i in range(1, 7):
-        val = row.get(f"desc{i}", "") or ""
+        val = get_mapped_value(row, f"desc{i}", mapping)
         for linha in re.split(r"[\r\n]+", val):
             cleaned = clean_text(linha)
             if cleaned:
@@ -192,10 +206,23 @@ def build_description(row: dict) -> str:
     return ". ".join(parts)
 
 
-def build_categories(row: dict) -> str:
-    familia = row.get("familia_principal", "").strip()
-    sub_familia = row.get("sub_familia", "").strip()
-    sub_sub_familia = row.get("sub_sub_familia", "").strip()
+def build_categories(row: dict, mapping: dict = None) -> str:
+    """
+    Build category hierarchy using field mapping.
+    
+    Args:
+        row: Dictionary with CSV column names as keys
+        mapping: Optional field mapping dictionary
+    
+    Returns:
+        str: Comma-separated category paths
+    """
+    if mapping is None:
+        mapping = load_field_mapping()
+    
+    familia = get_mapped_value(row, "familia_principal", mapping)
+    sub_familia = get_mapped_value(row, "sub_familia", mapping)
+    sub_sub_familia = get_mapped_value(row, "sub_sub_familia", mapping)
     categories = []
     if familia:
         categories.append(familia)
@@ -206,39 +233,55 @@ def build_categories(row: dict) -> str:
     return ",".join(categories)
 
 
-def convert_row(row: dict) -> dict:
+def convert_row(row: dict, mapping: dict = None) -> dict:
+    """
+    Convert a CSV row to Jumpseller format using field mapping.
+    
+    Args:
+        row: Dictionary with CSV column names as keys
+        mapping: Optional field mapping dictionary (uses default if None)
+    
+    Returns:
+        dict: Row in Jumpseller format
+    """
+    if mapping is None:
+        mapping = load_field_mapping()
+    
     dest_row = OrderedDict()
     for dest_col in DEST_COLUMNS:
         dest_row[dest_col] = ""
-    name = row.get("design", "").strip()
+    
+    # Get values using field mapping
+    name = get_mapped_value(row, "design", mapping)
     if name.startswith("=") and len(name) > 1:
         name = name[1:].strip()
+    
     dest_row["Permalink"] = ""
     dest_row["Name"] = name
-    dest_row["Description"] = build_description(row)
+    dest_row["Description"] = build_description(row, mapping)
     dest_row["Meta Title"] = clean_text(name)
-    dest_row["Meta Description"] = build_description(row)
-    width, length, height = parse_dimensions(row.get("dimensoes", ""))
+    dest_row["Meta Description"] = build_description(row, mapping)
+    width, length, height = parse_dimensions(get_mapped_value(row, "dimensoes", mapping))
     dest_row["Width"] = width
     dest_row["Length"] = length
     dest_row["Height"] = height
-    dest_row["Brand"] = row.get("marca", "").strip()
-    dest_row["Barcode"] = row.get("codigo", "").strip()
-    dest_row["Categories"] = build_categories(row)
-    dest_row["Images"] = row.get("imagem", "").strip()
+    dest_row["Brand"] = get_mapped_value(row, "marca", mapping)
+    dest_row["Barcode"] = get_mapped_value(row, "codigo", mapping)
+    dest_row["Categories"] = build_categories(row, mapping)
+    dest_row["Images"] = get_mapped_value(row, "imagem", mapping)
     dest_row["Digital"] = "NO"
     dest_row["Featured"] = "NO"
-    stock_val = parse_stock(row.get("stock", ""))
+    stock_val = parse_stock(get_mapped_value(row, "stock", mapping))
     dest_row["Status"] = "available" if stock_val > 0 else "not-available"
-    dest_row["SKU"] = row.get("ref", "").strip()
-    dest_row["Weight"] = row.get("peso", "").strip()
+    dest_row["SKU"] = get_mapped_value(row, "ref", mapping)
+    dest_row["Weight"] = get_mapped_value(row, "peso", mapping)
     dest_row["Cost per item"] = ""
     dest_row["Compare at price"] = ""
     dest_row["Stock"] = str(stock_val)
     dest_row["Stock Unlimited"] = "NO"
     dest_row["Stock Notification"] = "YES"
     dest_row["Stock Threshold"] = ""
-    dest_row["Price"] = _calc_price(row.get("preco", ""))
+    dest_row["Price"] = _calc_price(get_mapped_value(row, "preco", mapping))
     return dest_row
 
 
@@ -254,6 +297,7 @@ def process_csv(input_path: str, output_dir: str = None):
     if not os.path.isfile(input_path):
         raise FileNotFoundError(f"Arquivo nao encontrado: '{input_path}'")
     output_path = get_output_path(input_path, output_dir)
+    mapping = load_field_mapping()
     with open(input_path, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f, delimiter=";")
         rows = []
@@ -265,7 +309,7 @@ def process_csv(input_path: str, output_dir: str = None):
             }
             if not any(v.strip() for v in row.values()):
                 continue
-            rows.append(convert_row(row))
+            rows.append(convert_row(row, mapping))
     with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(
             f, fieldnames=DEST_COLUMNS, delimiter=";", quoting=csv.QUOTE_ALL
@@ -368,6 +412,7 @@ def save_price_state(output_dir: str, state: dict):
 
 def _read_fornecedor_rows(fornecedor_path: str):
     out = []
+    mapping = load_field_mapping()
     with open(fornecedor_path, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f, delimiter=";")
         for raw_row in reader:
@@ -378,7 +423,7 @@ def _read_fornecedor_rows(fornecedor_path: str):
             }
             if not any(v.strip() for v in row.values()):
                 continue
-            out.append((convert_row(row), _parse_pt_number(row.get("preco", ""))))
+            out.append((convert_row(row, mapping), _parse_pt_number(row.get("preco", ""))))
     return out
 
 
@@ -458,6 +503,141 @@ def _write_xlsx_preview(rows, path):
         ws.append([str(row.get(col, "") or "") for col in DEST_COLUMNS])
     wb.save(path)
     return path
+
+
+# ---------------------------------------------------------------------------
+# DIALOGO DE MAPEAMENTO DE CAMPOS
+# ---------------------------------------------------------------------------
+
+class FieldMappingDialog:
+    """Dialog to edit the CSV field mapping."""
+
+    # All mappable fields: (expected_name, description)
+    MAPPABLE_FIELDS = [
+        ("design", "Product name (design)"),
+        ("dimensoes", "Dimensions (dimensoes)"),
+        ("codigo", "Barcode (codigo)"),
+        ("ref", "SKU / Reference (ref)"),
+        ("peso", "Weight (peso)"),
+        ("familia_principal", "Main category (familia_principal)"),
+        ("sub_familia", "Sub category (sub_familia)"),
+        ("sub_sub_familia", "Sub-sub category (sub_sub_familia)"),
+        ("desc1", "Description 1 (desc1)"),
+        ("desc2", "Description 2 (desc2)"),
+        ("desc3", "Description 3 (desc3)"),
+        ("desc4", "Description 4 (desc4)"),
+        ("desc5", "Description 5 (desc5)"),
+        ("desc6", "Description 6 (desc6)"),
+        ("marca", "Brand (marca)"),
+        ("imagem", "Image URL (imagem)"),
+        ("stock", "Stock (stock)"),
+        ("preco", "Price (preco)"),
+    ]
+
+    def __init__(self, parent, mapping=None):
+        self.parent = parent
+        self.mapping = dict(mapping) if mapping else {}
+        self.result = None
+        self._build()
+
+    def _build(self):
+        self.win = tk.Toplevel(self.parent)
+        self.win.title("Field Mapping")
+        self.win.geometry("600x480")
+        self.win.resizable(False, False)
+        self.win.transient(self.parent)
+        self.win.grab_set()
+
+        # Instructions
+        tk.Label(
+            self.win,
+            text=(
+                "Map the columns of your CSV to the expected fields.\n"
+                "Leave blank to use the expected name as-is.\n"
+                "Type '-' to skip a field."
+            ),
+            justify="left", bg=BG_WINDOW, fg=GRAY_800,
+            font=("Segoe UI", 9),
+        ).pack(fill="x", padx=12, pady=(10, 6))
+
+        # Frame with scrollbar
+        canvas = tk.Canvas(self.win, bg=BG_WINDOW, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self.win, orient="vertical", command=canvas.yview)
+        self.scroll_frame = ttk.Frame(canvas)
+
+        self.scroll_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=self.scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True, padx=(12, 0), pady=(0, 10))
+        scrollbar.pack(side="right", fill="y", pady=(0, 10))
+
+        # Build field rows
+        self.entries = {}
+        for row_idx, (field, desc) in enumerate(self.MAPPABLE_FIELDS):
+            row_frame = ttk.Frame(self.scroll_frame)
+            row_frame.pack(fill="x", pady=1)
+
+            # Expected field label
+            lbl = ttk.Label(row_frame, text=desc, width=38, anchor="w")
+            lbl.pack(side="left", padx=(0, 6))
+
+            # Arrow
+            arrow = ttk.Label(row_frame, text="<-", width=3)
+            arrow.pack(side="left")
+
+            # Source column entry
+            var = tk.StringVar(value=self.mapping.get(field, ""))
+            entry = ttk.Entry(row_frame, textvariable=var, width=28)
+            entry.pack(side="left", padx=(2, 0))
+            self.entries[field] = var
+
+        # Buttons
+        btn_frame = ttk.Frame(self.win)
+        btn_frame.pack(fill="x", padx=12, pady=(0, 12))
+
+        ttk.Button(
+            btn_frame, text="Reset to default", command=self._reset
+        ).pack(side="left")
+        ttk.Button(
+            btn_frame, text="Cancel", command=self._cancel
+        ).pack(side="right", padx=(0, 6))
+        ttk.Button(
+            btn_frame, text="Save", command=self._save
+        ).pack(side="right")
+
+        # Bind Escape
+        self.win.bind("<Escape>", lambda e: self._cancel())
+        # Bind Enter on entries
+        for var in self.entries.values():
+            pass  # entries already created
+
+    def _reset(self):
+        for field, var in self.entries.items():
+            var.set(DEFAULT_FIELD_MAPPING.get(field, ""))
+
+    def _cancel(self):
+        self.result = None
+        self.win.destroy()
+
+    def _save(self):
+        # Collect values
+        new_mapping = {}
+        for field, var in self.entries.items():
+            val = var.get().strip()
+            if val:
+                new_mapping[field] = val
+        self.result = new_mapping
+        save_field_mapping(new_mapping)
+        self.win.destroy()
+
+    def show(self):
+        self.parent.wait_window(self.win)
+        return self.result
 
 
 # ---------------------------------------------------------------------------
@@ -619,7 +799,12 @@ class App(Tk):
         self.convert_btn = ttk.Button(
             frm_bot, text="Converter", command=self._convert, width=20
         )
-        self.convert_btn.pack(side="right")
+        self.convert_btn.pack(side="right", padx=(0, 8))
+        # Botão de mapeamento de campos
+        self.mapping_btn = ttk.Button(
+            frm_bot, text="Mapear Campos...", command=self._open_field_mapping, width=20
+        )
+        self.mapping_btn.pack(side="right", padx=(0, 8))
         self.path_entry.bind("<Return>", lambda ev: self._convert())
 
     def _build_tab_update(self):
@@ -684,7 +869,12 @@ class App(Tk):
         self.merge_btn = ttk.Button(
             frm_bot, text="Atualizar loja", command=self._merge, width=20
         )
-        self.merge_btn.pack(side="right")
+        self.merge_btn.pack(side="right", padx=(0, 8))
+        # Botão de mapeamento de campos (também disponível na aba de atualização)
+        self.mapping_btn2 = ttk.Button(
+            frm_bot, text="Mapear Campos...", command=self._open_field_mapping, width=20
+        )
+        self.mapping_btn2.pack(side="right", padx=(0, 8))
 
     def _build_tab_sobre(self):
         """Constrói a aba 'Sobre' com informações da aplicação."""
@@ -721,7 +911,31 @@ class App(Tk):
         - Atualização de loja com cruza de dados
         """)
         notas.config(state="disabled")
+        
+        ttk.Label(frm, text="Mapeamento de Campos", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(16, 4))
+        mapping_info = tk.Text(
+            frm,
+            height=6,
+            relief="flat",
+            bg=BG_WINDOW,
+            fg=GRAY_800,
+            font=("Segoe UI", 9),
+            borderwidth=0,
+            wrap="word",
+            padx=0,
+            pady=0,
+        )
+        mapping_info.pack(fill="both", expand=True)
+        mapping_info.insert("1.0", """
+        v0.3.0 (2026-10-10)
+        - Mapeamento de campos personalizável
+        - Suporte a CSVs com nomes de colunas diferentes
+        - Botão "Mapear Campos..." para configurar
+        - Arquivo de configuração: field_mapping_config.json
 
+        """)
+        mapping_info.config(state="disabled")
+        
         ttk.Label(frm, text="Licença", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(16, 4))
         lic_path = self._stored_license_path()
         lic_status = "Não detectada"
@@ -977,6 +1191,19 @@ class App(Tk):
         from updater import check_for_updates, get_current_version
         check_for_updates(show_message=True, parent=self)
 
+    def _open_field_mapping(self):
+        """Botão 'Mapear Campos...': abre o diálogo de mapeamento de campos."""
+        current_mapping = load_field_mapping()
+        dialog = FieldMappingDialog(self, current_mapping)
+        result = dialog.show()
+        if result is not None:
+            messagebox.showinfo(
+                "Mapeamento atualizado",
+                "O mapeamento de campos foi atualizado.\n"
+                "A próxima conversão usará as novas configurações.",
+                parent=self,
+            )
+
     def _convert(self):
         if not self._ensure_license():
             return
@@ -991,7 +1218,7 @@ class App(Tk):
             n, out = process_csv(raw, out_dir)
             self.last_output = Path(out)
             self._set_drop_text(
-                f"Concluido: {n} linha(s) → {self.last_output.name}",
+                f"Concluido: {n} linha(s) -> {self.last_output.name}",
                 GREEN_100, GREEN_700, widget=self._status_widget,
             )
             self.open_folder_btn.config(state="normal")
