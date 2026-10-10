@@ -899,6 +899,54 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.8 (2026-10-10)
+        - Mapeamento de campos personalizável
+        - Suporte a CSVs com nomes de colunas diferentes dos padrão
+        - Botão "Mapear Campos..." para configurar
+        - Arquivo de configuração: field_mapping_config.json
+
+        v0.3.7 (2026-10-07)
+        - Fix: verificar atualizações usa o site público (version.txt)
+
+        v0.3.6 (2026-10-07)
+        - Fix: repo correto para verificar atualizações
+        - Fix: VERSION.txt embutido no exe
+        - Fix: versão no exe mostra corretamente
+
+        v0.3.5 (2026-10-07)
+        - Fix: VERSION.txt embutido no exe
+        - Fix: versão no exe mostra corretamente
+        - Fix: repo correto para verificar atualizações
+
+        v0.3.4 (2026-10-07)
+        - Fix: versão no exe via version_info.txt
+        - Fix: licença Sair fecha o programa
+        - Fix: Sover com versão, desenvolvedor e contacto
+        - Fix: ttk.Button.Tonal not found
+
+        v0.3.3 (2026-10-07)
+        - Fix: Sair no diálogo de licença fecha o programa
+        - Fix: Sover agora mostra versão correcta
+        - Fix: Sover inclui desenvolvedor e contacto
+        - Fix: ttk.Button.Tonal not found — usar tk.Button
+        - Fix: get_current_version import
+
+        v0.3.2 (2026-10-07)
+        - Fix: ttk.Button.Tonal not found — usar tk.Button
+
+        v0.3.1 (2026-10-07)
+        - Fix: import get_current_version na aba Sover (NameError)
+        - Aba Sover com notas de versão e estado da licença
+        - _open_license_window fecha dialog se licença válida
+        - Botão Comprar Licença desativado
+        - Botão Verificar Atualizações
+
+        v0.3.0 (2026-10-07)
+        - Aba Sover com notas de versão e estado da licença
+        - _open_license_window verifica licença e fecha dialog se válida
+        - Botão Comprar Licença desativado
+        - Botão Verificar Atualizações
+
         v0.2.0 (2026-10-07)
         - Correção de encoding UTF-16 em arquivos de loja
         - Botão Comprar Licença desativado até integração com Stripe
@@ -927,11 +975,12 @@ class App(Tk):
         )
         mapping_info.pack(fill="both", expand=True)
         mapping_info.insert("1.0", """
-        v0.3.0 (2026-10-10)
+        v0.3.8 (2026-10-10)
         - Mapeamento de campos personalizável
         - Suporte a CSVs com nomes de colunas diferentes
         - Botão "Mapear Campos..." para configurar
         - Arquivo de configuração: field_mapping_config.json
+        - Compatibilidade mantida com CSVs antigos (mapeamento vazio por padrão)
 
         """)
         mapping_info.config(state="disabled")
