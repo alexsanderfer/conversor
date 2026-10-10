@@ -146,6 +146,59 @@
             font-size: .94rem
         }
 
+        .accordion {
+            border: 1px solid #cfe6d2;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+            background: var(--white);
+        }
+
+        .accordion summary {
+            cursor: pointer;
+            padding: 12px 16px;
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--green-900);
+            background: var(--green-50);
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .accordion summary::-webkit-details-marker {
+            display: none
+        }
+
+        .accordion summary::after {
+            content: "+";
+            flex: 0 0 auto;
+            font-size: 1.2rem;
+            color: var(--green-700);
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .accordion[open] summary::after {
+            content: "−";
+        }
+
+        .accordion .acc-body {
+            padding: 0 16px 14px 16px;
+            border-top: 1px solid #cfe6d2;
+        }
+
+        .accordion .acc-body ul {
+            margin: 12px 0 0;
+            padding-left: 22px
+        }
+
+        .accordion .acc-body li {
+            margin: 6px 0
+        }
+
         footer {
             border-top: 1px solid var(--gray-100);
             margin-top: 44px;
@@ -213,110 +266,122 @@
         cópia ou revenda por agente não autorizado é proibida.
     </div>
 
-    <h2>Notas de Versão</h2>
-    <div class="card">
-        <h3>v0.3.8 (2026-10-10)</h3>
-        <ul>
+        <h2>Notas de Versão</h2>
+    <details class="accordion" open>
+        <summary>v0.3.8 (2026-10-10)</summary>
+        <div class="acc-body">
+            <ul>
             <li><strong>Mapeamento de campos personalizável</strong> — suporte a CSVs com nomes de colunas diferentes dos padrão</li>
             <li>Botão "Mapear Campos..." na interface para configurar manualmente</li>
             <li>Arquivo de configuração: <code>field_mapping_config.json</code></li>
             <li>Compatibilidade mantida com CSVs antigos (mapeamento vazio por padrão)</li>
-        </ul>
-    </div>
-
-    <div class="card">
-        <h3>v0.3.7 (2026-10-07)</h3>
-        <ul>
+            </ul>
+        </div>
+    </details>
+    <details class="accordion">
+        <summary>v0.3.7 (2026-10-07)</summary>
+        <div class="acc-body">
+            <ul>
             <li>Fix: verificar atualizações usa o site público (version.txt) em vez de API do GitHub</li>
             <li>version.txt criado em docs/ para o site público</li>
-        </ul>
-    </div>
-
-    <div class="card">
-        <h3>v0.3.6 (2026-10-07)</h3>
-        <ul>
+            </ul>
+        </div>
+    </details>
+    <details class="accordion">
+        <summary>v0.3.6 (2026-10-07)</summary>
+        <div class="acc-body">
+            <ul>
             <li>Fix: repo correto para verificar atualizações (alexsanderfer/conversor)</li>
             <li>Fix: VERSION.txt embutido no exe (datas no spec)</li>
             <li>Fix: versão no exe agora mostra corretamente (version_info.txt)</li>
-        </ul>
-    </div>
-
-    <div class="card">
-        <h3>v0.3.5 (2026-10-07)</h3>
-        <ul>
+            </ul>
+        </div>
+    </details>
+    <details class="accordion">
+        <summary>v0.3.5 (2026-10-07)</summary>
+        <div class="acc-body">
+            <ul>
             <li>Fix: VERSION.txt embutido no exe</li>
             <li>Fix: versão no exe agora mostra corretamente</li>
             <li>Fix: repo correto para verificar atualizações</li>
-        </ul>
-    </div>
-
-    <div class="card">
-        <h3>v0.3.4 (2026-10-07)</h3>
-        <ul>
+            </ul>
+        </div>
+    </details>
+    <details class="accordion">
+        <summary>v0.3.4 (2026-10-07)</summary>
+        <div class="acc-body">
+            <ul>
             <li>Fix: versão no exe via version_info.txt</li>
             <li>Fix: licença Sair fecha o programa</li>
             <li>Fix: Sobre com versão, desenvolvedor e contacto</li>
             <li>Fix: ttk.Button.Tonal not found</li>
-        </ul>
-    </div>
-
-    <div class="card">
-        <h3>v0.3.3 (2026-10-07)</h3>
-        <ul>
+            </ul>
+        </div>
+    </details>
+    <details class="accordion">
+        <summary>v0.3.3 (2026-10-07)</summary>
+        <div class="acc-body">
+            <ul>
             <li>Fix: Sair no diálogo de licença fecha o programa</li>
             <li>Fix: Sobre agora mostra versão correcta</li>
             <li>Fix: Sover inclui desenvolvedor e contacto</li>
             <li>Fix: ttk.Button.Tonal not found — usar tk.Button</li>
             <li>Fix: get_current_version import</li>
-        </ul>
-    </div>
-
-    <div class="card">
-        <h3>v0.3.2 (2026-10-07)</h3>
-        <ul>
+            </ul>
+        </div>
+    </details>
+    <details class="accordion">
+        <summary>v0.3.2 (2026-10-07)</summary>
+        <div class="acc-body">
+            <ul>
             <li>Fix: ttk.Button.Tonal not found — usar tk.Button na aba Sover</li>
-        </ul>
-    </div>
-
-    <div class="card">
-        <h3>v0.3.1 (2026-10-07)</h3>
-        <ul>
+            </ul>
+        </div>
+    </details>
+    <details class="accordion">
+        <summary>v0.3.1 (2026-10-07)</summary>
+        <div class="acc-body">
+            <ul>
             <li>Fix: import get_current_version na aba Sover (NameError)</li>
             <li>Aba Sover com notas de versão e estado da licença</li>
             <li>_open_license_window fecha dialog se licença válida</li>
             <li>Botão Comprar Licença desativado</li>
             <li>Botão Verificar Atualizações</li>
-        </ul>
-    </div>
-
-    <div class="card">
-        <h3>v0.3.0 (2026-10-07)</h3>
-        <ul>
+            </ul>
+        </div>
+    </details>
+    <details class="accordion">
+        <summary>v0.3.0 (2026-10-07)</summary>
+        <div class="acc-body">
+            <ul>
             <li>Aba Sover com notas de versão e estado da licença</li>
             <li>_open_license_window verifica licença e fecha dialog se válida</li>
             <li>Botão Comprar Licença desativado</li>
             <li>Botão Verificar Atualizações</li>
-        </ul>
-    </div>
-
-    <div class="card">
-        <h3>v0.2.0 (2026-10-07)</h3>
-        <ul>
+            </ul>
+        </div>
+    </details>
+    <details class="accordion">
+        <summary>v0.2.0 (2026-10-07)</summary>
+        <div class="acc-body">
+            <ul>
             <li>Correção de encoding UTF-16 em arquivos de loja</li>
             <li>Botão Comprar Licença desativado até integração com Stripe</li>
             <li>Botão Verificar Atualizações</li>
             <li>Licença não pede novamente se válida</li>
-        </ul>
-    </div>
-
-    <div class="card">
-        <h3>v0.1.0 (2026-10-03)</h3>
-        <ul>
+            </ul>
+        </div>
+    </details>
+    <details class="accordion">
+        <summary>v0.1.0 (2026-10-03)</summary>
+        <div class="acc-body">
+            <ul>
             <li>Versão inicial com licença offline</li>
             <li>Conversão de CSV para Jumpseller</li>
             <li>Atualização de loja com cruza de dados</li>
-        </ul>
-    </div>
+            </ul>
+        </div>
+    </details>
 
     <h2>Requisitos</h2>
     <ul>
