@@ -25,42 +25,42 @@ def test_default_mapping():
     print("Test 1: Default field mapping...")
     mapping = fm_load()
     
-    # Check key mappings
-    assert mapping.get("design") == "nome", "design should map to nome"
-    assert mapping.get("codigo") == "codbarras", "codigo should map to codbarras"
-    assert mapping.get("ref") == "referencia", "ref should map to referencia"
-    assert mapping.get("familia_principal") == "categoria", "familia_principal should map to categoria"
-    assert mapping.get("sub_familia") == "subcategoria", "sub_familia should map to subcategoria"
-    assert mapping.get("desc1") == "descricao", "desc1 should map to(descricao"
+    # By default, mapping should be empty (no custom mappings)
+    # This means the converter expects CSVs with the expected column names directly
+    assert mapping == {} or all(v == "" for v in mapping.values()), \
+        "Default mapping should be empty or all values empty"
     
-    print("  [OK] Default mapping correct")
+    print("  [OK] Default mapping is empty (backward compatible)")
     return True
 
 def test_get_mapped_value():
     """Test the get_mapped_value function."""
     print("Test 2: get_mapped_value function...")
     
-    # Sample row from produtos.csv
+    # Sample row with expected column names (design, codigo, ref, etc.)
     row = {
-        "referencia": "RE-549005",
-        "nome": "Dell Latitude 5490",
+        "design": "Dell Latitude 5490",
+        "codigo": "123456789",
+        "ref": "RE-549005",
         "marca": "Dell",
-        "categoria": "Recondicionados",
+        "familia_principal": "Recondicionados",
         "preco": "199.90",
         "stock": "1",
     }
     
-    mapping = DEFAULT_FIELD_MAPPING.copy()
+    # With empty mapping, get_mapped_value should use the expected field name directly
+    mapping = {}
     
-    # Test mapped fields
+    # Test fields with expected names
     assert get_mapped_value(row, "design", mapping) == "Dell Latitude 5490"
+    assert get_mapped_value(row, "codigo", mapping) == "123456789"
     assert get_mapped_value(row, "ref", mapping) == "RE-549005"
     assert get_mapped_value(row, "marca", mapping) == "Dell"
     assert get_mapped_value(row, "familia_principal", mapping) == "Recondicionados"
     assert get_mapped_value(row, "preco", mapping) == "199.90"
     assert get_mapped_value(row, "stock", mapping) == "1"
     
-    # Test unmapped field (should use field name as-is)
+    # Test unmapped field (should return empty string if not in row)
     assert get_mapped_value(row, "unmapped_field", mapping) == ""
     
     print("  [OK] get_mapped_value works correctly")
@@ -102,13 +102,14 @@ def test_conversion_with_mapping():
     """Test that conversion uses the field mapping correctly."""
     print("Test 4: Conversion with field mapping...")
     
-    produtos_path = Path("cvs_examples/produtos.csv")
-    if not produtos_path.exists():
-        print("  [SKIP] produtos.csv not found")
+    # Test with a CSV that has expected column names (test_csv.csv)
+    test_csv_path = Path("cvs_examples/test_csv.csv")
+    if not test_csv_path.exists():
+        print("  [SKIP] test_csv.csv not found")
         return True
     
     with tempfile.TemporaryDirectory() as tmpdir:
-        n_rows, output_path = process_csv(str(produtos_path), tmpdir)
+        n_rows, output_path = process_csv(str(test_csv_path), tmpdir)
         
         assert n_rows > 0, "Should convert at least one row"
         assert Path(output_path).exists(), "Output file should exist"
