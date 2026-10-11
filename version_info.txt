@@ -18,12 +18,12 @@ VSVersionInfo(
           [
             StringStruct('CompanyName', 'Alexsander Fernandes'),
             StringStruct('FileDescription', 'Conversor CSV para Jumpseller'),
-            StringStruct('FileVersion', '0.3.9.0'),
+            StringStruct('FileVersion', '0.3.10.0'),
             StringStruct('InternalName', 'ConversorJumpseller'),
             StringStruct('LegalCopyright', '© Alexsander Fernandes. Todos os direitos reservados.'),
             StringStruct('OriginalFilename', 'ConversorJumpseller.exe'),
             StringStruct('ProductName', 'Conversor Jumpseller'),
-            StringStruct('ProductVersion', '0.3.9')
+            StringStruct('ProductVersion', '0.3.10')
           ]
         )
       ]
