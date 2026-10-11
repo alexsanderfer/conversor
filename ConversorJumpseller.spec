@@ -1,5 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+import platform
+
+# Nome do executavel: ConversorJumpseller-vX.Y.Z-Arquitetura.exe
+# Ex.: ConversorJumpseller-v0.3.10-x64.exe
+# __file__ nao esta definido em todos os contextos do PyInstaller, por isso
+# usamos o diretorio de trabalho (onde o spec e executado).
+_VER = open('VERSION.txt').read().strip()
+_ARCH = 'x64' if platform.architecture()[0] == '64bit' else 'x86'
+EXE_NAME = f'ConversorJumpseller-{_VER}-{_ARCH}'
+
 
 a = Analysis(
     ['csv_converter_gui.py'],
@@ -22,7 +33,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='ConversorJumpseller',
+    name=EXE_NAME,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
