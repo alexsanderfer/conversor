@@ -45,7 +45,7 @@ from theme import (
 from field_mapping import (
     load_field_mapping, get_mapped_value, save_field_mapping, DEFAULT_FIELD_MAPPING,
     list_profiles, get_active_profile, set_active_profile,
-    get_profile_mapping, save_profile, delete_profile,
+    get_profile_mapping, save_profile, delete_profile, _PROFILE_DEFAULT,
 )
 
 # ---------------------------------------------------------------------------
@@ -923,6 +923,10 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.10 (2026-10-11)
+        - Fix: NameError no _refresh_profile_combo (_PROFILE_DEFAULT não importado)
+        - Fix: import _PROFILE_DEFAULT do field_mapping na dropdown de fornecedores
+
         v0.3.8 (2026-10-10)
         - Mapeamento de campos personalizável
         - Suporte a CSVs com nomes de colunas diferentes dos padrão
@@ -999,6 +1003,10 @@ class App(Tk):
         )
         mapping_info.pack(fill="both", expand=True)
         mapping_info.insert("1.0", """
+        v0.3.10 (2026-10-11)
+        - Fix: NameError no _refresh_profile_combo (_PROFILE_DEFAULT não importado)
+        - Fix: import _PROFILE_DEFAULT do field_mapping na dropdown de fornecedores
+
         v0.3.8 (2026-10-10)
         - Mapeamento de campos personalizável
         - Suporte a CSVs com nomes de colunas diferentes
