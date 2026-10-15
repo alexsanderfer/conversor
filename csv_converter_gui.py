@@ -46,6 +46,7 @@ from field_mapping import (
     load_field_mapping, get_mapped_value, save_field_mapping, DEFAULT_FIELD_MAPPING,
     list_profiles, get_active_profile, set_active_profile,
     get_profile_mapping, save_profile, delete_profile, _PROFILE_DEFAULT,
+    get_profit_margin,
 )
 
 # ---------------------------------------------------------------------------
@@ -125,7 +126,7 @@ def _calc_price(raw_preco: str) -> str:
     preco = _parse_pt_number(raw_preco)
     if preco is None:
         return ""
-    price = preco * 1.40 * 1.23
+    price = preco * get_profit_margin()
     return str(round(price, 2))
 
 

@@ -49,6 +49,9 @@ DEFAULT_FIELD_MAPPING = {
 # Perfil usado quando o ficheiro de configuração tem o formato antigo (dict plano).
 _PROFILE_DEFAULT = "Padrão"
 
+# Margem de lucro padrão (1.40 = 40% de lucro)
+_DEFAULT_PROFIT_MARGIN = 1.40
+
 
 def _config_path():
     return Path(__file__).parent / "field_mapping_config.json"
@@ -58,24 +61,64 @@ def _read_config():
     """Lê o ficheiro de configuração e devolve a estrutura completa."""
     path = _config_path()
     if not path.is_file():
-        return {"active_profile": _PROFILE_DEFAULT, "profiles": {}}
+        return {
+            "active_profile": _PROFILE_DEFAULT,
+            "profiles": {},
+            "settings": {"profit_margin": _DEFAULT_PROFIT_MARGIN}
+        }
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, ValueError):
-        return {"active_profile": _PROFILE_DEFAULT, "profiles": {}}
+        # Se o arquivo existir mas estiver corrompido, retorna padrão
+        if path.is_file():
+            return {
+                "active_profile": _PROFILE_DEFAULT,
+                "profiles": {},
+                "settings": {"profit_margin": _DEFAULT_PROFIT_MARGIN}
+            }
+        else:
+            return {
+                "active_profile": _PROFILE_DEFAULT,
+                "profiles": {},
+                "settings": {"profit_margin": _DEFAULT_PROFIT_MARGIN}
+            }
 
     # Compatibilidade: formato antigo era um dict plano de mapeamento.
+    needs_write_back = False
     if isinstance(data, dict) and "profiles" not in data:
-        return {
+        data = {
             "active_profile": _PROFILE_DEFAULT,
             "profiles": {_PROFILE_DEFAULT: data},
+            "settings": {"profit_margin": _DEFAULT_PROFIT_MARGIN}
         }
-
-    if not isinstance(data, dict):
-        return {"active_profile": _PROFILE_DEFAULT, "profiles": {}}
-    data.setdefault("active_profile", _PROFILE_DEFAULT)
-    data.setdefault("profiles", {})
+        needs_write_back = True
+    elif not isinstance(data, dict):
+        data = {
+            "active_profile": _PROFILE_DEFAULT,
+            "profiles": {},
+            "settings": {"profit_margin": _DEFAULT_PROFIT_MARGIN}
+        }
+        needs_write_back = True
+    else:
+        # Garantir que todas as seções necessárias existam
+        data.setdefault("active_profile", _PROFILE_DEFAULT)
+        data.setdefault("profiles", {})
+        data.setdefault("settings", {"profit_margin": _DEFAULT_PROFIT_MARGIN})
+        # Garantir que profit_margin exista nas settings
+        if "profit_margin" not in data["settings"]:
+            data["settings"]["profit_margin"] = _DEFAULT_PROFIT_MARGIN
+            needs_write_back = True
+    
+    # Se tivermos que escrever de volta devido a compatibilidade ou settings faltantes
+    if needs_write_back and path.is_file():
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except OSError:
+            # Se não puder escrever, continua com os dados em memória
+            pass
+            
     return data
 
 
@@ -143,6 +186,29 @@ def delete_profile(name: str) -> bool:
     del profiles[name]
     if data["active_profile"] == name:
         data["active_profile"] = next(iter(profiles))
+    return _write_config(data)
+
+
+def get_profit_margin() -> float:
+    """Retorna a margem de lucro configurada pelo usuário.
+    
+    Returns:
+        float: Margem de lucro (padrão: 1.40 para 40%)
+    """
+    return _read_config()["settings"]["profit_margin"]
+
+
+def set_profit_margin(margin: float) -> bool:
+    """Define a margem de lucro a ser utilizada nas conversões.
+    
+    Args:
+        margin: Margem de lucro (ex: 1.40 para 40%)
+        
+    Returns:
+        bool: True se salvo com sucesso
+    """
+    data = _read_config()
+    data["settings"]["profit_margin"] = margin
     return _write_config(data)
 
 

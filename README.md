@@ -17,12 +17,16 @@ produtos.
 
 ### Regras de negócio
 
-- **Preço** = preço de origem × 1,40 (margem) × 1,23 (IVA)
+- **Preço** = preço de origem × 1,40 (margem)
 - **Stock** — `>10` conta como 10; `<5` conta como 0
 - **Descrição** — as colunas `desc1`…`desc6` são juntas numa só, com os
   marcadores de lista (`- `, `* `) removidos para o Excel não os interpretar
   como fórmulas
-- **Números em formato português** — `1.299,00`, `R$ 45,50` e `45,50 €` são
+|- **Números em formato português** — `1.299,00`, `R$ 45,50` e `45,50 €` são
+  |  lidos correctamente
+|
+
+---
   lidos correctamente
 
 ---

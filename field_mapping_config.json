@@ -1,39 +1,42 @@
 {
-    "active_profile": "Greenfever",
-    "profiles": {
-        "Greenfever": {
-            "design": "Name",
-            "desc1": "Description",
-            "marca": "Brand",
-            "imagem": "Images",
-            "preco": "Price",
-            "stock": "Stock",
-            "ref": "SKU",
-            "dimensoes": "Width;Length;Height",
-            "codigo": "Barcode",
-            "familia_principal": "familia_principal",
-            "sub_familia": "sub_familia",
-            "sub_sub_familia": "sub_sub_familia"
-        },
-        "NovaDistribuidora": {
-            "design": "design",
-            "desc1": "desc1",
-            "desc2": "desc2",
-            "desc3": "desc3",
-            "desc4": "desc4",
-            "desc5": "desc5",
-            "desc6": "desc6",
-            "marca": "marca",
-            "imagem": "imagem",
-            "preco": "preco",
-            "stock": "stock",
-            "ref": "ref",
-            "codigo": "codigo",
-            "dimensoes": "dimensoes",
-            "peso": "peso",
-            "familia_principal": "familia_principal",
-            "sub_familia": "sub_familia",
-            "sub_sub_familia": "sub_sub_familia"
-        }
+  "active_profile": "Greenfever",
+  "profiles": {
+    "Greenfever": {
+      "design": "Name",
+      "desc1": "Description",
+      "marca": "Brand",
+      "imagem": "Images",
+      "preco": "Price",
+      "stock": "Stock",
+      "ref": "SKU",
+      "dimensoes": "Width;Length;Height",
+      "codigo": "Barcode",
+      "familia_principal": "familia_principal",
+      "sub_familia": "sub_familia",
+      "sub_sub_familia": "sub_sub_familia"
+    },
+    "NovaDistribuidora": {
+      "design": "design",
+      "desc1": "desc1",
+      "desc2": "desc2",
+      "desc3": "desc3",
+      "desc4": "desc4",
+      "desc5": "desc5",
+      "desc6": "desc6",
+      "marca": "marca",
+      "imagem": "imagem",
+      "preco": "preco",
+      "stock": "stock",
+      "ref": "ref",
+      "codigo": "codigo",
+      "dimensoes": "dimensoes",
+      "peso": "peso",
+      "familia_principal": "familia_principal",
+      "sub_familia": "sub_familia",
+      "sub_sub_familia": "sub_sub_familia"
     }
+  },
+  "settings": {
+    "profit_margin": 1.6
+  }
 }
