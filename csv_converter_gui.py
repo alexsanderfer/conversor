@@ -214,20 +214,24 @@ def build_description(row: dict, mapping: dict = None) -> str:
 def build_categories(row: dict, mapping: dict = None) -> str:
     """
     Build category hierarchy using field mapping.
-    
+
     Args:
         row: Dictionary with CSV column names as keys
         mapping: Optional field mapping dictionary
-    
+
     Returns:
         str: Comma-separated category paths
     """
     if mapping is None:
         mapping = load_field_mapping()
-    
-    familia = get_mapped_value(row, "familia_principal", mapping)
-    sub_familia = get_mapped_value(row, "sub_familia", mapping)
-    sub_sub_familia = get_mapped_value(row, "sub_sub_familia", mapping)
+
+    def normalize(val):
+        return re.sub(r'\s*/\s*', ' e ', val)
+
+    familia = normalize(get_mapped_value(row, "familia_principal", mapping))
+    sub_familia = normalize(get_mapped_value(row, "sub_familia", mapping))
+    sub_sub_familia = normalize(get_mapped_value(row, "sub_sub_familia", mapping))
+
     categories = []
     if familia:
         categories.append(familia)
@@ -924,6 +928,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.11 (2026-10-27)
+        - Fix: Substituir "/" por " e " nos nomes de categorias e subcategorias
+
         v0.3.10 (2026-10-11)
         - Fix: NameError no _refresh_profile_combo (_PROFILE_DEFAULT não importado)
         - Fix: import _PROFILE_DEFAULT do field_mapping na dropdown de fornecedores
