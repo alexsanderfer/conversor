@@ -948,6 +948,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.12 (2026-10-28)
+        - Fix: Limitar categorias a 4 níveis e normalizar "/" por " e " no modo Atualizar loja
+
         v0.3.11 (2026-10-27)
         - Fix: Substituir "/" por " e " nos nomes de categorias e subcategorias
 
