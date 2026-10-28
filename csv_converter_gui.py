@@ -236,9 +236,18 @@ def build_categories(row: dict, mapping: dict = None) -> str:
     if familia:
         categories.append(familia)
     if sub_familia:
-        categories.append(f"{familia}/{sub_familia}")
+        cat2 = f"{familia}/{sub_familia}"
+        # Limitar a 4 níveis máximo
+        parts = cat2.split('/')
+        if len(parts) > 4:
+            cat2 = '/'.join(parts[:4])
+        categories.append(cat2)
     if sub_sub_familia:
-        categories.append(f"{familia}/{sub_familia}/{sub_sub_familia}")
+        cat3 = f"{familia}/{sub_familia}/{sub_sub_familia}"
+        parts = cat3.split('/')
+        if len(parts) > 4:
+            cat3 = '/'.join(parts[:4])
+        categories.append(cat3)
     return ",".join(categories)
 
 
@@ -478,7 +487,18 @@ def merge_update(export_path: str, fornecedor_path: str, output_dir: str):
             row = OrderedDict((col, "") for col in DEST_COLUMNS)
             for col in DEST_COLUMNS:
                 if col in existing:
-                    row[col] = (existing[col] or "").strip()
+                    val = (existing[col] or "").strip()
+                    if col == "Categories":
+                        # Normalizar barras nos nomes de categorias e limitar a 4 níveis
+                        def _norm_cat(c):
+                            c = re.sub(r'\s*/\s*', ' e ', c)
+                            parts = c.split('/')
+                            if len(parts) > 4:
+                                c = '/'.join(parts[:4])
+                            return c
+                        cats = [_norm_cat(c) for c in val.split(",")]
+                        val = ",".join(cats)
+                    row[col] = val
             row["Featured"] = (existing.get("Featured") or "").strip() or "NO"
             merged.append(row)
 
