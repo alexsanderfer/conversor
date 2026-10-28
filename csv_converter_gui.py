@@ -539,28 +539,28 @@ def _write_xlsx_preview(rows, path):
 # ---------------------------------------------------------------------------
 
 class FieldMappingDialog:
-    """Dialog to edit the CSV field mapping."""
+    """Dialogo para mapear colunas do CSV."""
 
-    # All mappable fields: (expected_name, description)
+    # Todos os campos mapeáveis: (nome_esperado, descrição)
     MAPPABLE_FIELDS = [
-        ("design", "Product name (design)"),
-        ("dimensoes", "Dimensions (dimensoes)"),
-        ("codigo", "Barcode (codigo)"),
-        ("ref", "SKU / Reference (ref)"),
-        ("peso", "Weight (peso)"),
-        ("familia_principal", "Main category (familia_principal)"),
-        ("sub_familia", "Sub category (sub_familia)"),
-        ("sub_sub_familia", "Sub-sub category (sub_sub_familia)"),
-        ("desc1", "Description 1 (desc1)"),
-        ("desc2", "Description 2 (desc2)"),
-        ("desc3", "Description 3 (desc3)"),
-        ("desc4", "Description 4 (desc4)"),
-        ("desc5", "Description 5 (desc5)"),
-        ("desc6", "Description 6 (desc6)"),
-        ("marca", "Brand (marca)"),
-        ("imagem", "Image URL (imagem)"),
+        ("design", "Nome do produto (design)"),
+        ("dimensoes", "Dimensões (dimensoes)"),
+        ("codigo", "Código de barras (codigo)"),
+        ("ref", "SKU / Referência (ref)"),
+        ("peso", "Peso (peso)"),
+        ("familia_principal", "Categoria principal (familia_principal)"),
+        ("sub_familia", "Subcategoria (sub_familia)"),
+        ("sub_sub_familia", "Sub-subcategoria (sub_sub_familia)"),
+        ("desc1", "Descrição 1 (desc1)"),
+        ("desc2", "Descrição 2 (desc2)"),
+        ("desc3", "Descrição 3 (desc3)"),
+        ("desc4", "Descrição 4 (desc4)"),
+        ("desc5", "Descrição 5 (desc5)"),
+        ("desc6", "Descrição 6 (desc6)"),
+        ("marca", "Marca (marca)"),
+        ("imagem", "URL da imagem (imagem)"),
         ("stock", "Stock (stock)"),
-        ("preco", "Price (preco)"),
+        ("preco", "Preço (preco)"),
     ]
 
     def __init__(self, parent, mapping=None):
@@ -571,19 +571,19 @@ class FieldMappingDialog:
 
     def _build(self):
         self.win = tk.Toplevel(self.parent)
-        self.win.title(f"Field Mapping — {get_active_profile()}")
+        self.win.title(f"Mapear Campos — {get_active_profile()}")
         self.win.geometry("600x480")
         self.win.resizable(False, False)
         self.win.transient(self.parent)
         self.win.grab_set()
 
-        # Instructions
+        # Instruções
         tk.Label(
             self.win,
             text=(
-                "Map the columns of your CSV to the expected fields.\n"
-                "Leave blank to use the expected name as-is.\n"
-                "Type '-' to skip a field."
+                "Associe as colunas do seu CSV aos campos esperados.\n"
+                "Deixe em branco para usar o nome esperado tal como está.\n"
+                "Digite '-' para ignorar um campo."
             ),
             justify="left", bg=BG_WINDOW, fg=GRAY_800,
             font=("Segoe UI", 9),
@@ -625,18 +625,18 @@ class FieldMappingDialog:
             entry.pack(side="left", padx=(2, 0))
             self.entries[field] = var
 
-        # Buttons
+        # Botões
         btn_frame = ttk.Frame(self.win)
         btn_frame.pack(fill="x", padx=12, pady=(0, 12))
 
         ttk.Button(
-            btn_frame, text="Reset to default", command=self._reset
+            btn_frame, text="Restaurar padrão", command=self._reset
         ).pack(side="left")
         ttk.Button(
-            btn_frame, text="Cancel", command=self._cancel
+            btn_frame, text="Cancelar", command=self._cancel
         ).pack(side="right", padx=(0, 6))
         ttk.Button(
-            btn_frame, text="Save", command=self._save
+            btn_frame, text="Guardar", command=self._save
         ).pack(side="right")
 
         # Bind Escape
@@ -852,7 +852,7 @@ class App(Tk):
             frm_for, text="Novo", width=7, command=self._new_profile
         ).grid(row=0, column=2, sticky="w", padx=(0, 4))
         ttk.Button(
-            frm_for, text="Apagar", width=7, command=self._delete_profile
+            frm_for, text="Eliminar", width=7, command=self._delete_profile
         ).grid(row=0, column=3, sticky="w")
         self._refresh_profile_combo()
 
@@ -948,6 +948,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.13 (2026-10-28)
+        - Tradução do diálogo "Mapear Campos" para português
+
         v0.3.12 (2026-10-28)
         - Fix: Limitar categorias a 4 níveis e normalizar "/" por " e " no modo Atualizar loja
 
