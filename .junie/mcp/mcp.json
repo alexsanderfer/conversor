@@ -1,0 +1,7 @@
+{
+    "mcpServers": {
+        "Stripe": {
+            "url": "https://mcp.stripe.com/sse"
+        }
+    }
+}

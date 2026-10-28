@@ -632,12 +632,17 @@ class FieldMappingDialog:
         ttk.Button(
             btn_frame, text="Restaurar padrão", command=self._reset
         ).pack(side="left")
+
+        # Botões de ação à direita em coluna para evitar truncagem
+        right_btns = ttk.Frame(btn_frame)
+        right_btns.pack(side="right")
+
         ttk.Button(
-            btn_frame, text="Cancelar", command=self._cancel
-        ).pack(side="right", padx=(0, 6))
+            right_btns, text="Cancelar", command=self._cancel, width=15
+        ).pack(side="top", pady=(0, 2))
         ttk.Button(
-            btn_frame, text="Guardar", command=self._save
-        ).pack(side="right")
+            right_btns, text="Guardar", command=self._save, width=15
+        ).pack(side="top")
 
         # Bind Escape
         self.win.bind("<Escape>", lambda e: self._cancel())
@@ -948,10 +953,14 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
-        v0.3.13 (2026-10-28)
-        - Tradução do diálogo "Mapear Campos" para português
+        v0.3.14 (2026-10-28)
+        - Fix: Ajuste de layout no diálogo "Mapear Campos" (evitar truncamento de texto)
 
-        v0.3.12 (2026-10-28)
+        v0.3.14 (2026-10-28)
+        - Fix: Layout dos botões no diálogo de mapeamento (empilhamento vertical)
+        - Tradução completa das instruções de mapeamento para pt-PT
+
+        v0.3.13 (2026-10-28)
         - Fix: Limitar categorias a 4 níveis e normalizar "/" por " e " no modo Atualizar loja
 
         v0.3.11 (2026-10-27)
