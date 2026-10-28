@@ -629,20 +629,16 @@ class FieldMappingDialog:
         btn_frame = ttk.Frame(self.win)
         btn_frame.pack(fill="x", padx=12, pady=(0, 12))
 
+        # Todos os botões empilhados verticalmente para evitar truncagem
         ttk.Button(
-            btn_frame, text="Restaurar padrão", command=self._reset
-        ).pack(side="left")
-
-        # Botões de ação à direita em coluna para evitar truncagem
-        right_btns = ttk.Frame(btn_frame)
-        right_btns.pack(side="right")
-
+            btn_frame, text="Restaurar padrão", command=self._reset, width=18
+        ).pack(fill="x", pady=(0, 2))
         ttk.Button(
-            right_btns, text="Cancelar", command=self._cancel, width=15
-        ).pack(side="top", pady=(0, 2))
+            btn_frame, text="Cancelar", command=self._cancel, width=18
+        ).pack(fill="x", pady=(0, 2))
         ttk.Button(
-            right_btns, text="Guardar", command=self._save, width=15
-        ).pack(side="top")
+            btn_frame, text="Guardar", command=self._save, width=18
+        ).pack(fill="x")
 
         # Bind Escape
         self.win.bind("<Escape>", lambda e: self._cancel())
