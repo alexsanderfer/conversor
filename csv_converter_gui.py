@@ -1119,6 +1119,7 @@ class App(Tk):
             row.pack(fill="x", pady=2)
             ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
             ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True)
+            ttk.Button(row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
         self._cat_apply_all_var = tk.BooleanVar(value=cat_settings.get("apply_to_all", True))
         self._cat_use_parent_var = tk.BooleanVar(value=cat_settings.get("use_parent", True))
@@ -1132,18 +1133,19 @@ class App(Tk):
         prefix_row.pack(fill="x", pady=(8, 4))
         ttk.Label(prefix_row, text="Apenas categorias que contenham:").pack(side="left")
         ttk.Entry(prefix_row, textvariable=self._cat_prefix_var, width=30).pack(side="left", padx=(8, 0))
+        ttk.Button(prefix_row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
         ttk.Label(frm, text="Exemplo: Criar 'Material ESPETÁCULOS' e aplicar a todas → 'Material ESPETÁCULOS/SOM E LUZ/...'", font=("Segoe UI", 8), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(12, 8))
 
-        ttk.Button(frm, text="Guardar configurações de categorias", command=self._save_category_settings, width=40).pack(anchor="w", pady=(8, 0))
+        ttk.Button(frm, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(8, 0))
 
     def _save_category_settings(self):
         try:
             new_cats = [v.get().strip() for v in self._cat_new_vars]
             if set_category_settings(new_categories=new_cats, apply_to_all=self._cat_apply_all_var.get(), selected_prefix=self._cat_prefix_var.get().strip(), use_parent=self._cat_use_parent_var.get()):
-                messagebox.showinfo("Configurações guardadas", "As configurações de categorias foram guardadas com sucesso.", parent=self)
+                messagebox.showinfo("Guardado", "Categorias guardadas com sucesso.", parent=self)
             else:
-                messagebox.showerror("Erro", "Não foi possível guardar as configurações de categorias.", parent=self)
+                messagebox.showerror("Erro", "Não foi possível guardar as categorias.", parent=self)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
 
