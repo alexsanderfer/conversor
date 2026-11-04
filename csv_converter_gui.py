@@ -1344,41 +1344,58 @@ class App(Tk):
 
     def _rebuild_org_tree(self):
         """Reconstrói a árvore visual baseada no estado atual de `self._category_tree`."""
-        for widget in self._org_frame.winfo_children():
-            widget.destroy()
+        try:
+            for widget in self._org_frame.winfo_children():
+                widget.destroy()
+        except Exception:
+            pass
 
         self._category_items = {}
         self._current_y = 10
 
-        # Renderização recursiva
-        def render_level(parent_name, level, indent):
-            children = sorted(list(self._category_tree.get(parent_name, [])))
+        # Renderização recursiva com proteção contra ciclos
+        def render_level(parent_name, level, indent, visited=None):
+            if visited is None:
+                visited = set()
+            try:
+                children = sorted(list(self._category_tree.get(parent_name, [])))
+            except Exception:
+                return
             for child in children:
-                bg_colors = [WHITE, GRAY_100, "#E0E0E0", "#D0D0D0"]
-                bg = bg_colors[min(level, len(bg_colors)-1)]
-                prefix = "📁 " if level == 0 else "  └─ " if level == 1 else "      └─ "
-                display_text = f"{prefix}{child}"
+                if child in visited:
+                    continue
+                try:
+                    bg_colors = [WHITE, GRAY_100, "#E0E0E0", "#D0D0D0"]
+                    bg = bg_colors[min(level, len(bg_colors)-1)]
+                    prefix = "📁 " if level == 0 else "  └─ " if level == 1 else "      └─ "
+                    display_text = f"{prefix}{child}"
 
-                lbl = tk.Label(self._org_frame, text=display_text, bg=bg, fg=GRAY_800,
-                               font=("Segoe UI", 9, "bold" if level==0 else "normal"),
-                               padx=6, pady=3, cursor="hand2", relief="solid", borderwidth=1)
-                lbl.place(x=10 + indent, y=self._current_y)
+                    lbl = tk.Label(self._org_frame, text=display_text, bg=bg, fg=GRAY_800,
+                                   font=("Segoe UI", 9, "bold" if level==0 else "normal"),
+                                   padx=6, pady=3, cursor="hand2", relief="solid", borderwidth=1)
+                    lbl.place(x=10 + indent, y=self._current_y)
 
-                # Binds para drag and drop
-                lbl.bind("<Button-1>", lambda e, c=child, p=parent_name: self._on_drag_start(e, c, p))
-                lbl.bind("<ButtonRelease-1>", lambda e: self._on_drag_end(e))
-                lbl.bind("<B1-Motion>", lambda e: self._on_drag_motion(e))
+                    # Binds para drag and drop
+                    lbl.bind("<Button-1>", lambda e, c=child, p=parent_name: self._on_drag_start(e, c, p))
+                    lbl.bind("<ButtonRelease-1>", lambda e: self._on_drag_end(e))
+                    lbl.bind("<B1-Motion>", lambda e: self._on_drag_motion(e))
 
-                self._category_items[lbl] = {"name": child, "parent": parent_name, "level": level}
-                self._current_y += 35 if level == 0 else 32
+                    self._category_items[lbl] = {"name": child, "parent": parent_name, "level": level}
+                    self._current_y += 35 if level == 0 else 32
 
-                # Recurse
-                render_level(child, level + 1, indent + 25)
+                    new_visited = set(visited)
+                    new_visited.add(child)
+                    if level < 10:  # Limitar profundidade
+                        render_level(child, level + 1, indent + 25, new_visited)
+                except Exception:
+                    continue
 
-        render_level("", 0, 0)
-
-        self._org_canvas.update_idletasks()
-        self._org_canvas.configure(scrollregion=(0, 0, 600, self._current_y + 100))
+        try:
+            render_level("", 0, 0)
+            self._org_canvas.update_idletasks()
+            self._org_canvas.configure(scrollregion=(0, 0, 600, self._current_y + 100))
+        except Exception:
+            pass
 
     def _on_drag_end(self, event):
         if not self._drag_data["item"]:
@@ -1509,6 +1526,22 @@ class App(Tk):
                     tree[k] = v
                 else:
                     tree[k] = set()
+            # Remover ciclos simples
+            def clean_cycles():
+                changed = True
+                while changed:
+                    changed = False
+                    for parent, children in list(tree.items()):
+                        for child in list(children):
+                            if child == parent:
+                                children.discard(child)
+                                changed = True
+                                continue
+                            if child in tree and parent in tree.get(child, set()):
+                                # Remover link direto para quebrar ciclo
+                                children.discard(child)
+                                changed = True
+            clean_cycles()
             return tree
         except Exception:
             return None
