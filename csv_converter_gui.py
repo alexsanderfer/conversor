@@ -1467,7 +1467,19 @@ class App(Tk):
                         f.write(f"[{datetime.datetime.now()}] END ok\n")
             except Exception:
                 pass
+            try:
+                if log_path:
+                    with open(log_path, "a", encoding="utf-8") as f:
+                        f.write(f"[{datetime.datetime.now()}] BEFORE MSG\n")
+            except Exception:
+                pass
             messagebox.showinfo("Carregado", "Categorias carregadas com sucesso.", parent=self)
+            try:
+                if log_path:
+                    with open(log_path, "a", encoding="utf-8") as f:
+                        f.write(f"[{datetime.datetime.now()}] AFTER MSG\n")
+            except Exception:
+                pass
         except Exception as e:
             try:
                 import traceback, datetime
