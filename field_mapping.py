@@ -282,11 +282,18 @@ def set_profit_margin(margin: float) -> bool:
         return False
 
 
-def get_price_settings():
-    """Retorna todas as configurações de preço."""
+def get_price_settings(profile_name=None):
+    """Retorna todas as configurações de preço por perfil."""
     try:
         data = _read_config()
-        settings = data.get("settings", {})
+        if profile_name is None:
+            profile_name = get_active_profile()
+        profiles = data.get("profiles", {})
+        profile = profiles.get(profile_name, {})
+        settings = profile.get("price_settings", {})
+        if not settings:
+            # Fallback para settings globais para compatibilidade
+            settings = data.get("settings", {})
         return {
             "profit_margin": float(settings.get("profit_margin", _DEFAULT_PROFIT_MARGIN)),
             "profit_percentage": float(settings.get("profit_percentage", 40.0)),
@@ -304,21 +311,27 @@ def get_price_settings():
         }
 
 
-def set_price_settings(profit_percentage=None, iva_percentage=None, shipping_cost=None, price_formula=None):
-    """Define configurações de preço."""
+def set_price_settings(profit_percentage=None, iva_percentage=None, shipping_cost=None, price_formula=None, profile_name=None):
+    """Define configurações de preço por perfil."""
     try:
         data = _read_config()
-        settings = data.setdefault("settings", {})
+        if profile_name is None:
+            profile_name = get_active_profile()
+        profiles = data.setdefault("profiles", {})
+        profile = profiles.setdefault(profile_name, {})
+        price_settings = profile.setdefault("price_settings", {})
         if profit_percentage is not None:
             pp = float(profit_percentage)
-            settings["profit_percentage"] = pp
-            settings["profit_margin"] = 1.0 + (pp / 100.0)
+            price_settings["profit_percentage"] = pp
+            price_settings["profit_margin"] = 1.0 + (pp / 100.0)
         if iva_percentage is not None:
-            settings["iva_percentage"] = float(iva_percentage)
+            price_settings["iva_percentage"] = float(iva_percentage)
         if shipping_cost is not None:
-            settings["shipping_cost"] = float(shipping_cost)
+            price_settings["shipping_cost"] = float(shipping_cost)
         if price_formula is not None:
-            settings["price_formula"] = str(price_formula)
+            price_settings["price_formula"] = str(price_formula)
+        profiles[profile_name] = profile
+        data["profiles"] = profiles
         return _write_config(data)
     except Exception:
         return False

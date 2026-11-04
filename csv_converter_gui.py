@@ -128,7 +128,8 @@ def _calc_price(raw_preco: str) -> str:
     if preco is None:
         return ""
     try:
-        settings = get_price_settings()
+        from field_mapping import get_active_profile
+        settings = get_price_settings(get_active_profile())
         formula = settings.get("price_formula", "margin")
         if formula == "detailed":
             profit_pct = float(settings.get("profit_percentage", 40.0))
@@ -143,8 +144,11 @@ def _calc_price(raw_preco: str) -> str:
             price = preco * get_profit_margin()
             return str(round(price, 2))
     except Exception:
-        price = preco * get_profit_margin()
-        return str(round(price, 2))
+        try:
+            price = preco * get_profit_margin()
+            return str(round(price, 2))
+        except Exception:
+            return str(round(preco, 2))
 
 
 def parse_stock(raw: str):
@@ -1077,11 +1081,15 @@ class App(Tk):
         frm = ttk.Frame(self.tab_lucro, padding=12)
         frm.pack(fill="both", expand=True)
 
-        ttk.Label(frm, text="Configuração de Preços (aplicado ao perfil ativo)", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
+        ttk.Label(frm, text="Configuração de Preços (por perfil)", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
         frm_preco = ttk.Frame(frm)
         frm_preco.pack(fill="x", pady=(0, 8))
 
-        price_settings = get_price_settings()
+        try:
+            from field_mapping import get_active_profile
+            price_settings = get_price_settings(get_active_profile())
+        except Exception:
+            price_settings = get_price_settings()
         self._price_profit_var = tk.StringVar(value=str(price_settings.get("profit_percentage", 40.0)))
         self._price_iva_var = tk.StringVar(value=str(price_settings.get("iva_percentage", 0.0)))
         self._price_shipping_var = tk.StringVar(value=str(price_settings.get("shipping_cost", 0.0)))
@@ -1099,7 +1107,7 @@ class App(Tk):
         formula_combo.grid(row=1, column=1, sticky="w", padx=(4, 12), pady=(4, 0))
         ttk.Button(frm_preco, text="Guardar", command=self._save_price_settings, width=10).grid(row=1, column=2, sticky="w", pady=(4, 0))
 
-        ttk.Label(frm, text="As configurações são guardadas e aplicadas apenas quando definidas.\nValores vazios ou zero não são aplicados.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
+        ttk.Label(frm, text="As configurações são guardadas por perfil e aplicadas apenas quando definidas.\nValores vazios ou zero não são aplicados.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
 
     def _build_tab_categorias(self):
         """Constrói a aba 'Categorias' com mapeamento de categorias."""
@@ -1608,8 +1616,9 @@ class App(Tk):
                     pass
 
             formula = self._price_formula_var.get().strip()
-            if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula=formula):
-                messagebox.showinfo("Configurações guardadas", "As configurações de preços foram guardadas com sucesso.", parent=self)
+            from field_mapping import get_active_profile
+            if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula=formula, profile_name=get_active_profile()):
+                messagebox.showinfo("Guardado", "Configurações de preços guardadas para este perfil.", parent=self)
             else:
                 messagebox.showerror("Erro", "Não foi possível guardar as configurações de preços.", parent=self)
         except Exception as e:
@@ -1641,12 +1650,19 @@ class App(Tk):
         if name:
             try:
                 set_active_profile(name)
-                messagebox.showinfo(
-                    "Fornecedor alterado",
-                    f"Fornecedor definido para: {name}\n"
-                    "A próxima conversão usará o mapeamento deste fornecedor.",
-                    parent=self,
-                )
+                # Reload price settings for the new profile
+                try:
+                    price_settings = get_price_settings(name)
+                    if hasattr(self, '_price_profit_var'):
+                        self._price_profit_var.set(str(price_settings.get("profit_percentage", 40.0)))
+                    if hasattr(self, '_price_iva_var'):
+                        self._price_iva_var.set(str(price_settings.get("iva_percentage", 0.0)))
+                    if hasattr(self, '_price_shipping_var'):
+                        self._price_shipping_var.set(str(price_settings.get("shipping_cost", 0.0)))
+                    if hasattr(self, '_price_formula_var'):
+                        self._price_formula_var.set(price_settings.get("price_formula", "margin"))
+                except Exception:
+                    pass
             except Exception as e:
                 messagebox.showerror("Erro", f"Erro ao alterar perfil:\n{e}", parent=self)
 
