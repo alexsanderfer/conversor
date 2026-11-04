@@ -1441,8 +1441,20 @@ class App(Tk):
                     tree = getattr(self, '_category_tree', {}) or {}
                     self._category_tree = {"": set(list(tree.get("", set()))[:30])}
                     self._rebuild_org_tree()
-                except Exception:
-                    pass
+                except Exception as ex2:
+                    try:
+                        import traceback, datetime
+                        try:
+                            base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
+                            base_dir.mkdir(parents=True, exist_ok=True)
+                            log_path = base_dir / "debug_organizer.log"
+                            with open(log_path, "a", encoding="utf-8") as f:
+                                f.write(f"[{datetime.datetime.now()}] rebuild second err {ex2}\n")
+                                f.write(traceback.format_exc())
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
             messagebox.showinfo("Carregado", "Categorias carregadas com sucesso.", parent=self)
         except Exception as e:
             try:
