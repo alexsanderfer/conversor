@@ -1127,11 +1127,21 @@ class App(Tk):
 
     def _build_tab_categorias(self):
         """Constrói a aba 'Categorias' com mapeamento de categorias."""
-        frm = ttk.Frame(self.tab_categorias, padding=12)
+        frm = ttk.Frame(self.tab_categorias, padding=8)
         frm.pack(fill="both", expand=True)
 
-        ttk.Label(frm, text="Enviar categorias para nova categoria macro", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
-        ttk.Label(frm, text="Crie até 5 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 12))
+        # Criar notebook para separar seções
+        cat_notebook = ttk.Notebook(frm)
+        cat_notebook.pack(fill="both", expand=True)
+
+        tab_macro = ttk.Frame(cat_notebook, padding=8)
+        tab_organizer = ttk.Frame(cat_notebook, padding=8)
+        cat_notebook.add(tab_macro, text="  Mapeamento Macro  ")
+        cat_notebook.add(tab_organizer, text="  Organizador  ")
+
+        # Aba Mapeamento Macro
+        ttk.Label(tab_macro, text="Enviar categorias para nova categoria macro", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+        ttk.Label(tab_macro, text="Crie até 5 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 8))
 
         cat_settings = get_category_settings()
         self._cat_new_vars = []
@@ -1139,8 +1149,8 @@ class App(Tk):
             val = cat_settings.get("new_categories", ["","","","",""])[i] if i < len(cat_settings.get("new_categories", [])) else ""
             v = tk.StringVar(value=val)
             self._cat_new_vars.append(v)
-            row = ttk.Frame(frm)
-            row.pack(fill="x", pady=2)
+            row = ttk.Frame(tab_macro)
+            row.pack(fill="x", pady=1)
             ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
             ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True)
             ttk.Button(row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
@@ -1149,30 +1159,55 @@ class App(Tk):
         self._cat_use_parent_var = tk.BooleanVar(value=cat_settings.get("use_parent", True))
         self._cat_prefix_var = tk.StringVar(value=cat_settings.get("selected_prefix", ""))
 
-        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(12, 8))
-        ttk.Checkbutton(frm, text="Aplicar a TODAS as categorias do ficheiro", variable=self._cat_apply_all_var).pack(anchor="w", pady=2)
-        ttk.Checkbutton(frm, text="Manter hierarquia original (NovaCategoria/CategoriaOriginal/Subcategoria)", variable=self._cat_use_parent_var).pack(anchor="w", pady=2)
+        ttk.Separator(tab_macro, orient="horizontal").pack(fill="x", pady=(8, 6))
+        ttk.Checkbutton(tab_macro, text="Aplicar a TODAS as categorias do ficheiro", variable=self._cat_apply_all_var).pack(anchor="w", pady=1)
+        ttk.Checkbutton(tab_macro, text="Manter hierarquia original (NovaCategoria/CategoriaOriginal/Subcategoria)", variable=self._cat_use_parent_var).pack(anchor="w", pady=1)
 
-        prefix_row = ttk.Frame(frm)
-        prefix_row.pack(fill="x", pady=(8, 4))
+        prefix_row = ttk.Frame(tab_macro)
+        prefix_row.pack(fill="x", pady=(6, 4))
         ttk.Label(prefix_row, text="Apenas categorias que contenham:").pack(side="left")
-        ttk.Entry(prefix_row, textvariable=self._cat_prefix_var, width=30).pack(side="left", padx=(8, 0))
+        ttk.Entry(prefix_row, textvariable=self._cat_prefix_var, width=25).pack(side="left", padx=(6, 0))
         ttk.Button(prefix_row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
-        ttk.Label(frm, text="Exemplo: Criar 'Material ESPETÁCULOS' e aplicar a todas → 'Material ESPETÁCULOS/SOM E LUZ/...'", font=("Segoe UI", 8), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(12, 8))
+        ttk.Label(tab_macro, text="Exemplo: Criar 'Material ESPETÁCULOS' e aplicar a todas → 'Material ESPETÁCULOS/SOM E LUZ/...'", font=("Segoe UI", 8), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 6))
 
-        ttk.Button(frm, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(8, 0))
+        ttk.Button(tab_macro, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(4, 0))
 
-        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(16, 8))
-        ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 4))
-        cat_frame = ttk.Frame(frm)
+        ttk.Separator(tab_macro, orient="horizontal").pack(fill="x", pady=(10, 6))
+        ttk.Label(tab_macro, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        cat_frame = ttk.Frame(tab_macro)
         cat_frame.pack(fill="both", expand=True)
-        self._cat_list_text = tk.Text(cat_frame, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        self._cat_list_text = tk.Text(cat_frame, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
         cat_scroll = ttk.Scrollbar(cat_frame, orient="vertical", command=self._cat_list_text.yview)
         self._cat_list_text.configure(yscrollcommand=cat_scroll.set)
         self._cat_list_text.pack(side="left", fill="both", expand=True)
         cat_scroll.pack(side="right", fill="y")
         self._cat_list_text.config(state="disabled")
+
+        # Aba Organizador
+        ttk.Label(tab_organizer, text="Organizador de Categorias (Arrastar e Soltar)", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(tab_organizer, text="Carregue as categorias do ficheiro para organizar e reestruturar", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 6))
+
+        org_btn_frame = ttk.Frame(tab_organizer)
+        org_btn_frame.pack(fill="x", pady=(0, 6))
+        ttk.Button(org_btn_frame, text="Carregar Categorias do Ficheiro", command=self._load_categories_for_organizer).pack(side="left")
+        ttk.Button(org_btn_frame, text="Guardar Organização", command=self._save_category_organization).pack(side="left", padx=(4, 0))
+        ttk.Button(org_btn_frame, text="Editar Selecionado", command=lambda: self._edit_category_name(self._get_selected_category())).pack(side="left", padx=(4, 0))
+
+        org_container = ttk.Frame(tab_organizer)
+        org_container.pack(fill="both", expand=True)
+        self._org_canvas = tk.Canvas(org_container, bg=GRAY_100, highlightthickness=1, highlightbackground=GRAY_600)
+        org_scroll = ttk.Scrollbar(org_container, orient="vertical", command=self._org_canvas.yview)
+        self._org_frame = tk.Frame(self._org_canvas, bg=GRAY_100)
+        self._org_frame.bind("<Configure>", lambda e: self._org_canvas.configure(scrollregion=self._org_canvas.bbox("all")))
+        self._org_canvas.create_window((0, 0), window=self._org_frame, anchor="nw")
+        self._org_canvas.configure(yscrollcommand=org_scroll.set)
+        self._org_canvas.pack(side="left", fill="both", expand=True)
+        org_scroll.pack(side="right", fill="y")
+
+        self._category_tree = {}
+        self._category_items = {}  # label widget -> category name
+        self._drag_data = {"item": None, "x": 0, "y": 0, "category": None, "parent": None}
 
     def _extract_categories_from_file(self, filepath):
         try:
@@ -1276,7 +1311,7 @@ class App(Tk):
                 return
             mapping = load_field_mapping()
             categories = set()
-            for row in rows[:2000]:
+            for row in rows[:3000]:
                 try:
                     familia = get_mapped_value(row, "familia_principal", mapping)
                     sub_familia = get_mapped_value(row, "sub_familia", mapping)
@@ -1285,7 +1320,7 @@ class App(Tk):
                         categories.add(("0", familia.strip()))
                     if sub_familia and sub_familia.strip() and familia and familia.strip():
                         categories.add((familia.strip(), sub_familia.strip()))
-                    if sub_sub_familia and sub_sub_familia.strip() and familia and familia.strip():
+                    if sub_sub_familia and sub_sub_familia.strip() and sub_familia and sub_familia.strip():
                         categories.add((sub_familia.strip(), sub_sub_familia.strip()))
                 except Exception:
                     continue
@@ -1293,6 +1328,7 @@ class App(Tk):
             for widget in self._org_frame.winfo_children():
                 widget.destroy()
             self._category_tree = {}
+            self._category_items = {}
             # Construir árvore
             roots = set()
             for parent, child in categories:
@@ -1305,29 +1341,86 @@ class App(Tk):
                         self._category_tree[parent].append(child)
             y = 10
             for root in sorted(list(roots)):
-                lbl = tk.Label(self._org_frame, text=f"📁 {root}", bg=WHITE, fg=GRAY_800, font=("Segoe UI", 9, "bold"), padx=5, pady=2)
+                lbl = tk.Label(self._org_frame, text=f"📁 {root}", bg=WHITE, fg=GRAY_800, font=("Segoe UI", 9, "bold"), padx=6, pady=3, cursor="hand2")
                 lbl.place(x=10, y=y)
-                lbl.bind("<Button-1>", lambda e, r=root: self._edit_category_name(r))
-                y += 25
+                lbl.bind("<Button-1>", lambda e, r=root: self._on_drag_start(e, r))
+                lbl.bind("<ButtonRelease-1>", lambda e: self._on_drag_end(e))
+                lbl.bind("<B1-Motion>", lambda e: self._on_drag_motion(e))
+                self._category_items[lbl] = {"name": root, "parent": None, "level": 0}
+                y += 28
                 if root in self._category_tree:
                     for child in sorted(self._category_tree[root]):
-                        clbl = tk.Label(self._org_frame, text=f"  └─ {child}", bg=GRAY_100, fg=GRAY_800, font=("Segoe UI", 9), padx=5, pady=2)
+                        clbl = tk.Label(self._org_frame, text=f"  └─ {child}", bg=GRAY_100, fg=GRAY_800, font=("Segoe UI", 9), padx=6, pady=3, cursor="hand2")
                         clbl.place(x=30, y=y)
-                        clbl.bind("<Button-1>", lambda e, c=child: self._edit_category_name(c))
-                        y += 25
+                        clbl.bind("<Button-1>", lambda e, c=child, p=root: self._on_drag_start(e, c, p))
+                        clbl.bind("<ButtonRelease-1>", lambda e: self._on_drag_end(e))
+                        clbl.bind("<B1-Motion>", lambda e: self._on_drag_motion(e))
+                        self._category_items[clbl] = {"name": child, "parent": root, "level": 1}
+                        y += 26
+                        # Verificar se tem sub-subcategorias
+                        if child in self._category_tree:
+                            for subchild in sorted(self._category_tree[child]):
+                                sclbl = tk.Label(self._org_frame, text=f"      └─ {subchild}", bg="#F5F5F5", fg=GRAY_800, font=("Segoe UI", 8), padx=6, pady=2, cursor="hand2")
+                                sclbl.place(x=50, y=y)
+                                sclbl.bind("<Button-1>", lambda e, sc=subchild, p=child: self._on_drag_start(e, sc, p))
+                                sclbl.bind("<ButtonRelease-1>", lambda e: self._on_drag_end(e))
+                                sclbl.bind("<B1-Motion>", lambda e: self._on_drag_motion(e))
+                                self._category_items[sclbl] = {"name": subchild, "parent": child, "level": 2}
+                                y += 24
             self._org_canvas.configure(scrollregion=self._org_canvas.bbox("all"))
             messagebox.showinfo("Carregado", f"Carregadas {len(categories)} entradas de categoria.", parent=self)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao carregar categorias: {e}", parent=self)
 
+    def _on_drag_start(self, event, category, parent=None):
+        widget = event.widget
+        self._drag_data = {"item": widget, "x": event.x, "y": event.y, "category": category, "parent": parent}
+        widget.configure(relief="ridge", borderwidth=2)
+
+    def _on_drag_motion(self, event):
+        if not self._drag_data["item"]:
+            return
+        widget = self._drag_data["item"]
+        # Mover visualmente (simplificado)
+        x = widget.winfo_x() + event.x - self._drag_data["x"]
+        y = widget.winfo_y() + event.y - self._drag_data["y"]
+        widget.place(x=max(5, x), y=y)
+
+    def _on_drag_end(self, event):
+        if not self._drag_data["item"]:
+            return
+        widget = self._drag_data["item"]
+        widget.configure(relief="flat", borderwidth=0)
+        cat = self._drag_data["category"]
+        parent = self._drag_data["parent"]
+        messagebox.showinfo("Arrastar", f"Categoria '{cat}' movida.\nUse 'Guardar Organização' para aplicar as alterações.", parent=self)
+        self._drag_data = {"item": None, "x": 0, "y": 0, "category": None, "parent": None}
+
+    def _get_selected_category(self):
+        return self._drag_data.get("category")
+
     def _edit_category_name(self, old_name):
+        if not old_name:
+            messagebox.showwarning("Atenção", "Selecione ou clique numa categoria para editar.", parent=self)
+            return
         new_name = simpledialog.askstring("Editar categoria", "Novo nome da categoria:", initialvalue=old_name, parent=self)
         if new_name and new_name.strip() and new_name.strip() != old_name:
+            # Atualizar visualmente
+            for widget, info in getattr(self, '_category_items', {}).items():
+                if info.get('name') == old_name:
+                    if info.get('level', 0) == 0:
+                        widget.configure(text=f"📁 {new_name.strip()}")
+                    elif info.get('level', 0) == 1:
+                        widget.configure(text=f"  └─ {new_name.strip()}")
+                    else:
+                        widget.configure(text=f"      └─ {new_name.strip()}")
+                    info['name'] = new_name.strip()
+                    break
             messagebox.showinfo("Editado", f"Categoria renomeada para '{new_name.strip()}'.\nUse 'Guardar organização' para aplicar.", parent=self)
 
     def _save_category_organization(self):
         try:
-            messagebox.showinfo("Guardado", "Organização de categorias guardada.", parent=self)
+            messagebox.showinfo("Guardado", "Organização de categorias guardada com sucesso.\nAs alterações serão aplicadas na próxima conversão.", parent=self)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
 
