@@ -1139,6 +1139,53 @@ class App(Tk):
 
         ttk.Button(frm, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(8, 0))
 
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(16, 8))
+        ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 4))
+        cat_frame = ttk.Frame(frm)
+        cat_frame.pack(fill="both", expand=True)
+        self._cat_list_text = tk.Text(cat_frame, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        cat_scroll = ttk.Scrollbar(cat_frame, orient="vertical", command=self._cat_list_text.yview)
+        self._cat_list_text.configure(yscrollcommand=cat_scroll.set)
+        self._cat_list_text.pack(side="left", fill="both", expand=True)
+        cat_scroll.pack(side="right", fill="y")
+        self._cat_list_text.config(state="disabled")
+
+    def _extract_categories_from_file(self, filepath):
+        try:
+            if not filepath or not os.path.isfile(filepath):
+                return
+            headers, rows = _read_csv_any_delimiter(filepath)
+            if not headers:
+                return
+            mapping = load_field_mapping()
+            cats_set = set()
+            for row in rows[:1000]:  # Limitar para performance
+                try:
+                    familia = get_mapped_value(row, "familia_principal", mapping)
+                    sub_familia = get_mapped_value(row, "sub_familia", mapping)
+                    sub_sub_familia = get_mapped_value(row, "sub_sub_familia", mapping)
+                    def normalize(val):
+                        return re.sub(r'\s*/\s*', ' e ', val)
+                    familia_n = normalize(familia)
+                    sub_familia_n = normalize(sub_familia)
+                    sub_sub_familia_n = normalize(sub_sub_familia)
+                    if familia_n:
+                        cats_set.add(familia_n)
+                    if sub_familia_n and familia_n:
+                        cats_set.add(f"{familia_n}/{sub_familia_n}")
+                    if sub_sub_familia_n and familia_n and sub_familia_n:
+                        cats_set.add(f"{familia_n}/{sub_familia_n}/{sub_sub_familia_n}")
+                except Exception:
+                    continue
+            if hasattr(self, '_cat_list_text') and cats_set:
+                cats_list = sorted(list(cats_set))
+                self._cat_list_text.config(state="normal")
+                self._cat_list_text.delete("1.0", "end")
+                self._cat_list_text.insert("1.0", "\n".join(cats_list))
+                self._cat_list_text.config(state="disabled")
+        except Exception:
+            pass
+
     def _save_category_settings(self):
         try:
             new_cats = [v.get().strip() for v in self._cat_new_vars]
@@ -1324,6 +1371,7 @@ class App(Tk):
         if path:
             self.path_var.set(path)
             self._update_drop_text(path)
+            self._extract_categories_from_file(path)
 
     def _browse_export(self):
         path = filedialog.askopenfilename(
@@ -1340,6 +1388,7 @@ class App(Tk):
         )
         if path:
             self.fornecedor_var.set(path)
+            self._extract_categories_from_file(path)
 
     def _merge(self):
         out_dir = self.out_dir_var.get().strip()
@@ -1393,6 +1442,7 @@ class App(Tk):
         if csv_found:
             self.path_var.set(csv_found)
             self._update_drop_text(csv_found)
+            self._extract_categories_from_file(csv_found)
         else:
             messagebox.showwarning("Arquivo invalido", "Arraste apenas um arquivo .csv.", parent=self)
 
