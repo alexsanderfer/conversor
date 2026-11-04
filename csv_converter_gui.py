@@ -1315,21 +1315,34 @@ class App(Tk):
             saved = self._load_saved_category_organization()
             if saved is not None:
                 try:
-                    self._category_tree = saved
+                    self._category_tree = {}
+                    if isinstance(saved, dict):
+                        for k, v in saved.items():
+                            if isinstance(v, set):
+                                self._category_tree[k] = set(v)
+                            elif isinstance(v, list):
+                                self._category_tree[k] = set(v)
+                            else:
+                                self._category_tree[k] = set()
                     if "" not in self._category_tree:
                         self._category_tree[""] = set()
                     # Quebrar ciclos
-                    # Garantir que não há pai apontando para filho que aponta de volta
-                    for _ in range(10):
+                    for _ in range(20):
                         fixed = False
                         for parent, children in list(self._category_tree.items()):
                             for child in list(children):
-                                if child == parent:
-                                    children.discard(child)
+                                if child == parent or child == "":
+                                    try:
+                                        children.discard(child)
+                                    except Exception:
+                                        pass
                                     fixed = True
                                     continue
                                 if child in self._category_tree and parent in self._category_tree.get(child, set()):
-                                    children.discard(child)
+                                    try:
+                                        children.discard(child)
+                                    except Exception:
+                                        pass
                                     fixed = True
                         if not fixed:
                             break
@@ -1376,17 +1389,27 @@ class App(Tk):
         self._category_items = {}
         self._current_y = 10
 
-        # Renderização recursiva com proteção contra ciclos
-        def render_level(parent_name, level, indent, visited=None):
-            if visited is None:
-                visited = set()
-            try:
-                children = sorted(list(self._category_tree.get(parent_name, [])))
-            except Exception:
-                return
-            for child in children:
-                if child in visited:
+        try:
+            tree = getattr(self, '_category_tree', {}) or {}
+            items = []
+            stack_dfs = [("", 0, 0, frozenset())]
+            while stack_dfs:
+                try:
+                    parent_name, level, indent, visited = stack_dfs.pop()
+                    if level > 15:
+                        continue
+                    children = tree.get(parent_name, set()) or set()
+                    for child in sorted(list(children)):
+                        if child in visited or child == parent_name or child == "":
+                            continue
+                        items.append((parent_name, child, level, indent))
+                        new_visited = set(visited)
+                        new_visited.add(child)
+                        stack_dfs.append((child, level + 1, indent + 25, frozenset(new_visited)))
+                except Exception:
                     continue
+
+            for parent_name, child, level, indent in items:
                 try:
                     bg_colors = [WHITE, GRAY_100, "#E0E0E0", "#D0D0D0"]
                     bg = bg_colors[min(level, len(bg_colors)-1)]
@@ -1398,23 +1421,15 @@ class App(Tk):
                                    padx=6, pady=3, cursor="hand2", relief="solid", borderwidth=1)
                     lbl.place(x=10 + indent, y=self._current_y)
 
-                    # Binds para drag and drop
                     lbl.bind("<Button-1>", lambda e, c=child, p=parent_name: self._on_drag_start(e, c, p))
                     lbl.bind("<ButtonRelease-1>", lambda e: self._on_drag_end(e))
                     lbl.bind("<B1-Motion>", lambda e: self._on_drag_motion(e))
 
                     self._category_items[lbl] = {"name": child, "parent": parent_name, "level": level}
                     self._current_y += 35 if level == 0 else 32
-
-                    new_visited = set(visited)
-                    new_visited.add(child)
-                    if level < 10:  # Limitar profundidade
-                        render_level(child, level + 1, indent + 25, new_visited)
                 except Exception:
                     continue
 
-        try:
-            render_level("", 0, 0)
             self._org_canvas.update_idletasks()
             self._org_canvas.configure(scrollregion=(0, 0, 600, self._current_y + 100))
         except Exception:
