@@ -1303,20 +1303,24 @@ class App(Tk):
             import traceback, datetime
             log_path = None
             try:
-                # Sempre gravar no desktop para facilitar acesso
-                desktop = Path.home() / "Desktop"
-                if not desktop.exists():
-                    desktop = Path(__file__).parent
-                log_path = desktop / "debug_organizer.log"
+                base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
+                base_dir.mkdir(parents=True, exist_ok=True)
+                log_path = base_dir / "debug_organizer.log"
                 with open(log_path, "a", encoding="utf-8") as f:
                     f.write(f"[{datetime.datetime.now()}] START _load_categories_for_organizer\n")
             except Exception:
                 try:
-                    log_path = Path(__file__).parent / "debug_organizer.log"
+                    desktop = Path.home() / "Desktop"
+                    log_path = desktop / "debug_organizer.log"
                     with open(log_path, "a", encoding="utf-8") as f:
                         f.write(f"[{datetime.datetime.now()}] START _load_categories_for_organizer\n")
                 except Exception:
-                    pass
+                    try:
+                        log_path = Path(__file__).parent / "debug_organizer.log"
+                        with open(log_path, "a", encoding="utf-8") as f:
+                            f.write(f"[{datetime.datetime.now()}] START _load_categories_for_organizer\n")
+                    except Exception:
+                        pass
 
             selected_file = self.path_var.get().strip().strip('"').strip("'")
             try:
