@@ -1256,9 +1256,46 @@ class App(Tk):
             mapping = load_field_mapping()
             count = learn_from_file_rows(rows, mapping)
             self._refresh_rules_list()
+            if hasattr(self, '_category_settings_cache'):
+                self._category_settings_cache = None
             messagebox.showinfo("Aprendido", f"Aprendidas {count} novas regras com base no ficheiro.", parent=self)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao aprender: {e}", parent=self)
+
+    def _preview_classification(self):
+        try:
+            selected_file = self.path_var.get().strip().strip('"').strip("'")
+            if not selected_file or not os.path.isfile(selected_file):
+                selected_file = self.fornecedor_var.get().strip().strip('"').strip("'")
+            if not selected_file or not os.path.isfile(selected_file):
+                messagebox.showwarning("Atenção", "Selecione ou arraste um ficheiro CSV primeiro.", parent=self)
+                return
+            headers, rows = _read_csv_any_delimiter(selected_file)
+            if not rows:
+                messagebox.showwarning("Atenção", "Não foi possível ler o ficheiro ou está vazio.", parent=self)
+                return
+            mapping = load_field_mapping()
+            lines = []
+            for i, row in enumerate(rows[:15]):
+                try:
+                    product_name = get_mapped_value(row, "design", mapping)
+                    current_cat = get_mapped_value(row, "familia_principal", mapping)
+                    suggested = classify_product(product_name, current_cat)
+                    if suggested and not current_cat:
+                        lines.append(f"{i+1}. {product_name[:40]:40} -> {suggested}")
+                    elif current_cat:
+                        lines.append(f"{i+1}. {product_name[:40]:40} [ATUAL: {current_cat}]")
+                    else:
+                        lines.append(f"{i+1}. {product_name[:40]:40} -> (sem sugestão)")
+                except Exception:
+                    continue
+            if hasattr(self, '_preview_text'):
+                self._preview_text.config(state="normal")
+                self._preview_text.delete("1.0", "end")
+                self._preview_text.insert("1.0", "\n".join(lines) if lines else "Sem dados para pré-visualizar")
+                self._preview_text.config(state="disabled")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao pré-visualizar: {e}", parent=self)
 
     def _refresh_rules_list(self):
         try:
