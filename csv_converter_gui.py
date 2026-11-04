@@ -1332,8 +1332,6 @@ class App(Tk):
             messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
 
     def _preview_classification(self):
-
-    def _preview_classification(self):
         try:
             selected_file = self.path_var.get().strip().strip('"').strip("'")
             if not selected_file or not os.path.isfile(selected_file):
