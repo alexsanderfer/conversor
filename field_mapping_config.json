@@ -32,6 +32,17 @@
     "profit_percentage": 50.0,
     "iva_percentage": 23.0,
     "shipping_cost": 2.5,
-    "price_formula": "detailed"
+    "price_formula": "detailed",
+    "category_mapping": {
+      "new_categories": [
+        "Material ESPETÁCULOS",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "apply_to_all": true,
+      "use_parent": true
+    }
   }
 }
