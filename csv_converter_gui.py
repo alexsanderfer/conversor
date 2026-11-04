@@ -1077,7 +1077,7 @@ class App(Tk):
         frm = ttk.Frame(self.tab_lucro, padding=12)
         frm.pack(fill="both", expand=True)
 
-        ttk.Label(frm, text="Configuração de Preços", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
+        ttk.Label(frm, text="Configuração de Preços (aplicado ao perfil ativo)", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
         frm_preco = ttk.Frame(frm)
         frm_preco.pack(fill="x", pady=(0, 8))
 
@@ -1099,7 +1099,7 @@ class App(Tk):
         formula_combo.grid(row=1, column=1, sticky="w", padx=(4, 12), pady=(4, 0))
         ttk.Button(frm_preco, text="Guardar", command=self._save_price_settings, width=10).grid(row=1, column=2, sticky="w", pady=(4, 0))
 
-        ttk.Label(frm, text="Fórmula simples: Preço × (1 + lucro%)\nFórmula detalhada: (Preço × (1 + lucro%)) + Portes + IVA", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
+        ttk.Label(frm, text="As configurações são guardadas e aplicadas apenas quando definidas.\nValores vazios ou zero não são aplicados.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
 
     def _build_tab_categorias(self):
         """Constrói a aba 'Categorias' com mapeamento de categorias."""
@@ -1525,16 +1525,41 @@ class App(Tk):
     def _save_price_settings(self):
         """Guarda as configurações de preços."""
         try:
-            profit_pct = float(self._price_profit_var.get().strip().replace(",", "."))
-            iva_pct = float(self._price_iva_var.get().strip().replace(",", "."))
-            shipping = float(self._price_shipping_var.get().strip().replace(",", "."))
+            profit_str = self._price_profit_var.get().strip().replace(",", ".")
+            iva_str = self._price_iva_var.get().strip().replace(",", ".")
+            shipping_str = self._price_shipping_var.get().strip().replace(",", ".")
+
+            profit_pct = None
+            iva_pct = None
+            shipping = None
+
+            if profit_str:
+                try:
+                    p = float(profit_str)
+                    if p > 0:
+                        profit_pct = p
+                except ValueError:
+                    pass
+            if iva_str:
+                try:
+                    p = float(iva_str)
+                    if p >= 0:
+                        iva_pct = p
+                except ValueError:
+                    pass
+            if shipping_str:
+                try:
+                    p = float(shipping_str)
+                    if p >= 0:
+                        shipping = p
+                except ValueError:
+                    pass
+
             formula = self._price_formula_var.get().strip()
             if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula=formula):
                 messagebox.showinfo("Configurações guardadas", "As configurações de preços foram guardadas com sucesso.", parent=self)
             else:
                 messagebox.showerror("Erro", "Não foi possível guardar as configurações de preços.", parent=self)
-        except ValueError:
-            messagebox.showerror("Erro", "Valores inválidos. Introduza números válidos.", parent=self)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
 
