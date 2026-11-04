@@ -840,8 +840,9 @@ class App(Tk):
         from tkinterdnd2 import TkinterDnD
         TkinterDnD.require(self)
         self.title("Conversor CSV → Jumpseller")
-        self.geometry("620x480")
-        self.resizable(False, False)
+        self.geometry("720x560")
+        self.minsize(680, 520)
+        self.resizable(True, True)
         self.last_output = None
         self._status_widget = None   # widget onde _set_drop_text escreve
         self._build_ui()
@@ -969,7 +970,7 @@ class App(Tk):
         )
 
         self.drop_text = tk.Text(
-            self.tab_novo, height=4, relief="sunken",
+            self.tab_novo, height=6, relief="sunken",
             bg=GRAY_100, font=("Segoe UI", 10), borderwidth=1, wrap="word",
         )
         self.drop_text.pack(fill="both", expand=True, pady=(8, 8))
@@ -1066,7 +1067,7 @@ class App(Tk):
         ).pack(fill="x", pady=(4, 8))
 
         self.drop_text_update = tk.Text(
-            self.tab_update, height=4, relief="sunken",
+            self.tab_update, height=6, relief="sunken",
             bg=GRAY_100, font=("Segoe UI", 10), borderwidth=1, wrap="word",
         )
         self.drop_text_update.pack(fill="both", expand=True, pady=(0, 8))
@@ -1127,15 +1128,15 @@ class App(Tk):
 
     def _build_tab_categorias(self):
         """Constrói a aba 'Categorias' com mapeamento de categorias."""
-        frm = ttk.Frame(self.tab_categorias, padding=8)
+        frm = ttk.Frame(self.tab_categorias, padding=6)
         frm.pack(fill="both", expand=True)
 
         # Criar notebook para separar seções
         cat_notebook = ttk.Notebook(frm)
         cat_notebook.pack(fill="both", expand=True)
 
-        tab_macro = ttk.Frame(cat_notebook, padding=8)
-        tab_organizer = ttk.Frame(cat_notebook, padding=8)
+        tab_macro = ttk.Frame(cat_notebook, padding=10)
+        tab_organizer = ttk.Frame(cat_notebook, padding=10)
         cat_notebook.add(tab_macro, text="  Mapeamento Macro  ")
         cat_notebook.add(tab_organizer, text="  Organizador  ")
 
@@ -1195,7 +1196,7 @@ class App(Tk):
         ttk.Button(org_btn_frame, text="Editar Selecionado", command=lambda: self._edit_category_name(self._get_selected_category())).pack(side="left", padx=(4, 0))
 
         org_container = ttk.Frame(tab_organizer)
-        org_container.pack(fill="both", expand=True)
+        org_container.pack(fill="both", expand=True, pady=(4, 0))
         self._org_canvas = tk.Canvas(org_container, bg=GRAY_100, highlightthickness=1, highlightbackground=GRAY_600)
         org_scroll = ttk.Scrollbar(org_container, orient="vertical", command=self._org_canvas.yview)
         self._org_frame = tk.Frame(self._org_canvas, bg=GRAY_100)
@@ -1310,91 +1311,137 @@ class App(Tk):
                 messagebox.showwarning("Atenção", "Não foi possível ler o ficheiro ou está vazio.", parent=self)
                 return
             mapping = load_field_mapping()
-            categories = set()
-            for row in rows[:3000]:
-                try:
-                    familia = get_mapped_value(row, "familia_principal", mapping)
-                    sub_familia = get_mapped_value(row, "sub_familia", mapping)
-                    sub_sub_familia = get_mapped_value(row, "sub_sub_familia", mapping)
-                    if familia and familia.strip():
-                        categories.add(("0", familia.strip()))
-                    if sub_familia and sub_familia.strip() and familia and familia.strip():
-                        categories.add((familia.strip(), sub_familia.strip()))
-                    if sub_sub_familia and sub_sub_familia.strip() and sub_familia and sub_familia.strip():
-                        categories.add((sub_familia.strip(), sub_sub_familia.strip()))
-                except Exception:
-                    continue
-            # Limpar frame
-            for widget in self._org_frame.winfo_children():
-                widget.destroy()
-            self._category_tree = {}
-            self._category_items = {}
-            # Construir árvore
-            roots = set()
-            for parent, child in categories:
-                if parent == "0":
-                    roots.add(child)
-                else:
-                    if parent not in self._category_tree:
-                        self._category_tree[parent] = []
-                    if child not in self._category_tree[parent]:
-                        self._category_tree[parent].append(child)
-            y = 10
-            for root in sorted(list(roots)):
-                lbl = tk.Label(self._org_frame, text=f"📁 {root}", bg=WHITE, fg=GRAY_800, font=("Segoe UI", 9, "bold"), padx=6, pady=3, cursor="hand2")
-                lbl.place(x=10, y=y)
-                lbl.bind("<Button-1>", lambda e, r=root: self._on_drag_start(e, r))
-                lbl.bind("<ButtonRelease-1>", lambda e: self._on_drag_end(e))
-                lbl.bind("<B1-Motion>", lambda e: self._on_drag_motion(e))
-                self._category_items[lbl] = {"name": root, "parent": None, "level": 0}
-                y += 28
-                if root in self._category_tree:
-                    for child in sorted(self._category_tree[root]):
-                        clbl = tk.Label(self._org_frame, text=f"  └─ {child}", bg=GRAY_100, fg=GRAY_800, font=("Segoe UI", 9), padx=6, pady=3, cursor="hand2")
-                        clbl.place(x=30, y=y)
-                        clbl.bind("<Button-1>", lambda e, c=child, p=root: self._on_drag_start(e, c, p))
-                        clbl.bind("<ButtonRelease-1>", lambda e: self._on_drag_end(e))
-                        clbl.bind("<B1-Motion>", lambda e: self._on_drag_motion(e))
-                        self._category_items[clbl] = {"name": child, "parent": root, "level": 1}
-                        y += 26
-                        # Verificar se tem sub-subcategorias
-                        if child in self._category_tree:
-                            for subchild in sorted(self._category_tree[child]):
-                                sclbl = tk.Label(self._org_frame, text=f"      └─ {subchild}", bg="#F5F5F5", fg=GRAY_800, font=("Segoe UI", 8), padx=6, pady=2, cursor="hand2")
-                                sclbl.place(x=50, y=y)
-                                sclbl.bind("<Button-1>", lambda e, sc=subchild, p=child: self._on_drag_start(e, sc, p))
-                                sclbl.bind("<ButtonRelease-1>", lambda e: self._on_drag_end(e))
-                                sclbl.bind("<B1-Motion>", lambda e: self._on_drag_motion(e))
-                                self._category_items[sclbl] = {"name": subchild, "parent": child, "level": 2}
-                                y += 24
-            self._org_canvas.configure(scrollregion=self._org_canvas.bbox("all"))
-            messagebox.showinfo("Carregado", f"Carregadas {len(categories)} entradas de categoria.", parent=self)
+
+            saved = self._load_saved_category_organization()
+            if saved is not None:
+                self._category_tree = saved
+                if "" not in self._category_tree:
+                    self._category_tree[""] = set()
+            else:
+                self._category_tree = {"": set()}
+                for row in rows[:5000]:
+                    try:
+                        f1 = get_mapped_value(row, "familia_principal", mapping).strip()
+                        f2 = get_mapped_value(row, "sub_familia", mapping).strip()
+                        f3 = get_mapped_value(row, "sub_sub_familia", mapping).strip()
+
+                        if f1:
+                            self._category_tree[""].add(f1)
+                            if f1 not in self._category_tree: self._category_tree[f1] = set()
+                            if f2:
+                                self._category_tree[f1].add(f2)
+                                if f2 not in self._category_tree: self._category_tree[f2] = set()
+                                if f3:
+                                    self._category_tree[f2].add(f3)
+                                    if f3 not in self._category_tree: self._category_tree[f3] = set()
+                    except Exception:
+                        continue
+
+            self._rebuild_org_tree()
+            messagebox.showinfo("Carregado", "Categorias carregadas com sucesso.", parent=self)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao carregar categorias: {e}", parent=self)
 
-    def _on_drag_start(self, event, category, parent=None):
-        widget = event.widget
-        self._drag_data = {"item": widget, "x": event.x, "y": event.y, "category": category, "parent": parent}
-        widget.configure(relief="ridge", borderwidth=2)
+    def _rebuild_org_tree(self):
+        """Reconstrói a árvore visual baseada no estado atual de `self._category_tree`."""
+        for widget in self._org_frame.winfo_children():
+            widget.destroy()
 
-    def _on_drag_motion(self, event):
-        if not self._drag_data["item"]:
-            return
-        widget = self._drag_data["item"]
-        # Mover visualmente (simplificado)
-        x = widget.winfo_x() + event.x - self._drag_data["x"]
-        y = widget.winfo_y() + event.y - self._drag_data["y"]
-        widget.place(x=max(5, x), y=y)
+        self._category_items = {}
+        self._current_y = 10
+
+        # Renderização recursiva
+        def render_level(parent_name, level, indent):
+            children = sorted(list(self._category_tree.get(parent_name, [])))
+            for child in children:
+                bg_colors = [WHITE, GRAY_100, "#E0E0E0", "#D0D0D0"]
+                bg = bg_colors[min(level, len(bg_colors)-1)]
+                prefix = "📁 " if level == 0 else "  └─ " if level == 1 else "      └─ "
+                display_text = f"{prefix}{child}"
+
+                lbl = tk.Label(self._org_frame, text=display_text, bg=bg, fg=GRAY_800,
+                               font=("Segoe UI", 9, "bold" if level==0 else "normal"),
+                               padx=6, pady=3, cursor="hand2", relief="solid", borderwidth=1)
+                lbl.place(x=10 + indent, y=self._current_y)
+
+                # Binds para drag and drop
+                lbl.bind("<Button-1>", lambda e, c=child, p=parent_name: self._on_drag_start(e, c, p))
+                lbl.bind("<ButtonRelease-1>", lambda e: self._on_drag_end(e))
+                lbl.bind("<B1-Motion>", lambda e: self._on_drag_motion(e))
+
+                self._category_items[lbl] = {"name": child, "parent": parent_name, "level": level}
+                self._current_y += 35 if level == 0 else 32
+
+                # Recurse
+                render_level(child, level + 1, indent + 25)
+
+        render_level("", 0, 0)
+
+        self._org_canvas.update_idletasks()
+        self._org_canvas.configure(scrollregion=(0, 0, 600, self._current_y + 100))
 
     def _on_drag_end(self, event):
         if not self._drag_data["item"]:
             return
-        widget = self._drag_data["item"]
-        widget.configure(relief="flat", borderwidth=0)
+
+        # Tentar encontrar o widget alvo sob o ponteiro do mouse
+        x_root, y_root = event.x_root, event.y_root
+        target_widget = event.widget.winfo_containing(x_root, y_root)
+
         cat = self._drag_data["category"]
-        parent = self._drag_data["parent"]
-        messagebox.showinfo("Arrastar", f"Categoria '{cat}' movida.\nUse 'Guardar Organização' para aplicar as alterações.", parent=self)
+        old_parent = self._drag_data["parent"]
+
+        # Se soltou em cima de outra categoria
+        if target_widget and target_widget in self._category_items:
+            new_parent = self._category_items[target_widget]["name"]
+
+            if cat != new_parent:
+                # Evitar mover para o próprio filho (causaria loop infinito)
+                def is_child_of(potential_parent, target_cat):
+                    children = self._category_tree.get(target_cat, [])
+                    if potential_parent in children: return True
+                    for child in children:
+                        if is_child_of(potential_parent, child): return True
+                    return False
+
+                if is_child_of(new_parent, cat):
+                    messagebox.showwarning("Aviso", "Não pode mover uma categoria para dentro do seu próprio filho.", parent=self)
+                    self._rebuild_org_tree()
+                else:
+                    # Mover logicamente
+                    if cat in self._category_tree.get(old_parent, []):
+                        self._category_tree[old_parent].remove(cat)
+
+                    if new_parent not in self._category_tree:
+                        self._category_tree[new_parent] = set()
+                    self._category_tree[new_parent].add(cat)
+
+                    self._rebuild_org_tree()
+                    messagebox.showinfo("Movido", f"'{cat}' movido para dentro de '{new_parent}'.", parent=self)
+            else:
+                self._rebuild_org_tree()
+        # Se soltou no "vazio" do canvas/frame, mover para a Raiz
+        elif target_widget in [self._org_frame, self._org_canvas]:
+            if old_parent != "":
+                if cat in self._category_tree.get(old_parent, []):
+                    self._category_tree[old_parent].remove(cat)
+                self._category_tree[""].add(cat)
+                self._rebuild_org_tree()
+                messagebox.showinfo("Movido", f"'{cat}' movido para a Raiz.", parent=self)
+            else:
+                self._rebuild_org_tree()
+        else:
+            self._rebuild_org_tree()
+
         self._drag_data = {"item": None, "x": 0, "y": 0, "category": None, "parent": None}
+
+    def _reset_widget_style(self, widget, level):
+        if level == 0:
+            widget.configure(relief="solid", borderwidth=1, bg=WHITE)
+        elif level == 1:
+            widget.configure(relief="solid", borderwidth=1, bg=GRAY_100)
+        else:
+            widget.configure(relief="solid", borderwidth=1, bg="#E0E0E0")
 
     def _get_selected_category(self):
         return self._drag_data.get("category")
@@ -1418,11 +1465,53 @@ class App(Tk):
                     break
             messagebox.showinfo("Editado", f"Categoria renomeada para '{new_name.strip()}'.\nUse 'Guardar organização' para aplicar.", parent=self)
 
+    def _get_category_org_path(self):
+        try:
+            if getattr(sys, 'frozen', False):
+                base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
+                base_dir.mkdir(parents=True, exist_ok=True)
+                return base_dir / "category_organization.json"
+        except Exception:
+            pass
+        return Path(__file__).parent / "category_organization.json"
+
     def _save_category_organization(self):
         try:
+            tree_data = {}
+            for parent, children in getattr(self, '_category_tree', {}).items():
+                if isinstance(children, set):
+                    tree_data[parent] = sorted(list(children))
+                elif isinstance(children, list):
+                    tree_data[parent] = sorted(children)
+                else:
+                    tree_data[parent] = []
+            path = self._get_category_org_path()
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(tree_data, f, ensure_ascii=False, indent=2)
             messagebox.showinfo("Guardado", "Organização de categorias guardada com sucesso.\nAs alterações serão aplicadas na próxima conversão.", parent=self)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
+
+    def _load_saved_category_organization(self):
+        try:
+            path = self._get_category_org_path()
+            if not path.is_file():
+                return None
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                return None
+            tree = {}
+            for k, v in data.items():
+                if isinstance(v, list):
+                    tree[k] = set(v)
+                elif isinstance(v, set):
+                    tree[k] = v
+                else:
+                    tree[k] = set()
+            return tree
+        except Exception:
+            return None
 
     def _preview_classification(self):
         try:
@@ -1513,6 +1602,10 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.20 (2026-11-04)
+        - Melhorias no organizador de categorias (arrastar/soltar, persistência)
+        - Guardar organização de categorias entre sessões
+
         v0.3.14 (2026-10-28)
         - Fix: Ajuste de layout no diálogo "Mapear Campos" (evitar truncamento de texto)
 
