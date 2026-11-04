@@ -1422,11 +1422,17 @@ class App(Tk):
                         continue
 
             try:
+                try:
+                    if log_path:
+                        with open(log_path, "a", encoding="utf-8") as f:
+                            f.write(f"[{datetime.datetime.now()}] before rebuild, tree len={len(getattr(self,'_category_tree',{}))}\n")
+                except Exception:
+                    pass
                 self._rebuild_org_tree()
                 try:
                     if log_path:
                         with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] rebuild ok\n")
+                            f.write(f"[{datetime.datetime.now()}] rebuild ok, items={len(getattr(self,'_category_items',{}))}\n")
                 except Exception:
                     pass
             except Exception as ex:
