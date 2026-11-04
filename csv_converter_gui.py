@@ -46,7 +46,7 @@ from field_mapping import (
     load_field_mapping, get_mapped_value, save_field_mapping, DEFAULT_FIELD_MAPPING,
     list_profiles, get_active_profile, set_active_profile,
     get_profile_mapping, save_profile, delete_profile, _PROFILE_DEFAULT,
-    get_profit_margin,
+    get_profit_margin, get_price_settings, set_price_settings,
 )
 
 # ---------------------------------------------------------------------------
@@ -126,8 +126,24 @@ def _calc_price(raw_preco: str) -> str:
     preco = _parse_pt_number(raw_preco)
     if preco is None:
         return ""
-    price = preco * get_profit_margin()
-    return str(round(price, 2))
+    try:
+        settings = get_price_settings()
+        formula = settings.get("price_formula", "margin")
+        if formula == "detailed":
+            profit_pct = float(settings.get("profit_percentage", 40.0))
+            iva_pct = float(settings.get("iva_percentage", 0.0))
+            shipping = float(settings.get("shipping_cost", 0.0))
+            # Preço final = (Preço custo * (1 + lucro%)) + portes + IVA
+            price = preco * (1.0 + profit_pct / 100.0) + shipping
+            if iva_pct and iva_pct > 0:
+                price = price * (1.0 + iva_pct / 100.0)
+            return str(round(price, 2))
+        else:
+            price = preco * get_profit_margin()
+            return str(round(price, 2))
+    except Exception:
+        price = preco * get_profit_margin()
+        return str(round(price, 2))
 
 
 def parse_stock(raw: str):
@@ -347,6 +363,78 @@ def process_csv(input_path: str, output_dir: str = None):
 STATE_FILENAME = "_jumpseller_precos.json"
 
 
+def _normalize_header(text: str) -> str:
+    if not text:
+        return ""
+    # Remove BOM and trim
+    text = text.strip().lstrip("﻿")
+    # Normalize accents
+    try:
+        text = unicodedata.normalize("NFKD", text)
+        text = "".join(c for c in text if not unicodedata.combining(c))
+    except Exception:
+        pass
+    text = text.lower()
+    # Replace spaces/punctuation
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _detect_field_mapping_from_headers(headers):
+    """Auto-detect field mapping from CSV headers."""
+    if not headers:
+        return {}
+
+    detected = {}
+    # Build normalized lookup of headers
+    header_map = {}
+    for h in headers:
+        if not h:
+            continue
+        norm = _normalize_header(h)
+        if norm:
+            header_map[norm] = h.strip()
+
+    # Detection rules: expected_field -> list of possible header patterns
+    rules = {
+        "design": ["nome", "produto", "design", "titulo", "title", "descricao nome", "nome produto", "produto nome"],
+        "ref": ["referencia", "ref", "sku", "codigo sku", "cod ref", "referencia sku", "item code"],
+        "codigo": ["codbarras", "codigo barras", "ean", "barcode", "cod barras", "gtin", "upc"],
+        "preco": ["preco", "price", "valor", "preco venda", "preco unitario", "pvp"],
+        "stock": ["stock", "estoque", "quantidade", "qty", "saldo", "disponivel"],
+        "peso": ["peso", "weight", "peso bruto", "peso liquido"],
+        "marca": ["marca", "brand", "fabricante"],
+        "imagem": ["imagem", "image", "foto", "url imagem", "imagem url", "foto url"],
+        "dimensoes": ["dimensoes", "medidas", "dimensao", "dim", "l x a x p", "comprimento largura altura"],
+        "familia_principal": ["categoria", "categoria principal", "familia", "familia principal", "grupo", "departamento"],
+        "sub_familia": ["subcategoria", "sub categoria", "subfamilia", "sub familia"],
+        "sub_sub_familia": ["sub subcategoria", "subsubcategoria", "terceira categoria"],
+        "desc1": ["descricao", "descricao1", "descricao curta", "descricao produto", "description", "observacao", "detalhes"],
+    }
+
+    for expected, patterns in rules.items():
+        # Try exact normalized match first
+        for p in patterns:
+            pnorm = _normalize_header(p)
+            if pnorm in header_map:
+                detected[expected] = header_map[pnorm]
+                break
+        if expected in detected:
+            continue
+        # Try partial match
+        for norm_h, orig_h in header_map.items():
+            for p in patterns:
+                pnorm = _normalize_header(p)
+                if pnorm and pnorm in norm_h:
+                    detected[expected] = orig_h
+                    break
+            if expected in detected:
+                break
+
+    return detected
+
+
 def _read_csv_any_delimiter(input_path: str):
     # Try multiple encodings since store files can be UTF-16
     encodings = ["utf-8-sig", "utf-16", "utf-16le", "utf-16be"]
@@ -391,7 +479,11 @@ def _read_csv_any_delimiter(input_path: str):
             delim = csv.Sniffer().sniff(texto, delimiters=";,\t|").delimiter
         except csv.Error:
             delim = ";"
-        headers = []
+        try:
+            reader_check = csv.DictReader(texto.splitlines(True), delimiter=delim)
+            headers = reader_check.fieldnames or []
+        except Exception:
+            headers = []
     else:
         delim, headers = melhor
     reader = csv.DictReader(texto.splitlines(True), delimiter=delim)
@@ -563,9 +655,18 @@ class FieldMappingDialog:
         ("preco", "Preço (preco)"),
     ]
 
-    def __init__(self, parent, mapping=None):
+    def __init__(self, parent, mapping=None, detected_mapping=None):
         self.parent = parent
-        self.mapping = dict(mapping) if mapping else {}
+        base_mapping = dict(mapping) if mapping else {}
+        if detected_mapping:
+            # Merge detected mapping with existing (detected fills empty/missing)
+            merged = dict(base_mapping)
+            for k, v in detected_mapping.items():
+                if k not in merged or not merged.get(k) or str(merged.get(k)).strip() == "":
+                    merged[k] = v
+            self.mapping = merged
+        else:
+            self.mapping = base_mapping
         self.result = None
         self._build()
 
@@ -582,6 +683,7 @@ class FieldMappingDialog:
             self.win,
             text=(
                 "Associe as colunas do seu CSV aos campos esperados.\n"
+                "Os campos foram preenchidos automaticamente com base no ficheiro selecionado.\n"
                 "Deixe em branco para usar o nome esperado tal como está.\n"
                 "Digite '-' para ignorar um campo."
             ),
@@ -933,6 +1035,31 @@ class App(Tk):
 
         ttk.Label(frm, text="Conversor Jumpseller", font=("Segoe UI", 14, "bold")).pack(anchor="w")
         ttk.Label(frm, text=f"Versão {get_current_version()}", font=("Segoe UI", 10)).pack(anchor="w", pady=(0, 16))
+
+        # Configuração de preços
+        ttk.Label(frm, text="Configuração de Preços", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 4))
+        frm_preco = ttk.Frame(frm)
+        frm_preco.pack(fill="x", pady=(0, 8))
+
+        price_settings = get_price_settings()
+        self._price_profit_var = tk.StringVar(value=str(price_settings.get("profit_percentage", 40.0)))
+        self._price_iva_var = tk.StringVar(value=str(price_settings.get("iva_percentage", 0.0)))
+        self._price_shipping_var = tk.StringVar(value=str(price_settings.get("shipping_cost", 0.0)))
+        self._price_formula_var = tk.StringVar(value=price_settings.get("price_formula", "margin"))
+
+        ttk.Label(frm_preco, text="Lucro %:").grid(row=0, column=0, sticky="w")
+        ttk.Entry(frm_preco, textvariable=self._price_profit_var, width=10).grid(row=0, column=1, sticky="w", padx=(4, 12))
+        ttk.Label(frm_preco, text="IVA %:").grid(row=0, column=2, sticky="w")
+        ttk.Entry(frm_preco, textvariable=self._price_iva_var, width=10).grid(row=0, column=3, sticky="w", padx=(4, 12))
+        ttk.Label(frm_preco, text="Portes (€):").grid(row=0, column=4, sticky="w")
+        ttk.Entry(frm_preco, textvariable=self._price_shipping_var, width=10).grid(row=0, column=5, sticky="w", padx=(4, 12))
+
+        ttk.Label(frm_preco, text="Fórmula:").grid(row=1, column=0, sticky="w", pady=(4, 0))
+        formula_combo = ttk.Combobox(frm_preco, textvariable=self._price_formula_var, values=["margin", "detailed"], state="readonly", width=12)
+        formula_combo.grid(row=1, column=1, sticky="w", padx=(4, 12), pady=(4, 0))
+        ttk.Button(frm_preco, text="Guardar", command=self._save_price_settings, width=10).grid(row=1, column=2, sticky="w", pady=(4, 0))
+
+        ttk.Label(frm, text="Fórmula detalhada: (Preço * (1+lucro%)) + Portes, com IVA opcional aplicado", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 12))
 
         ttk.Label(frm, text="Notas de versão", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 4))
         notas = tk.Text(
@@ -1301,6 +1428,22 @@ class App(Tk):
             parent=self,
         )
 
+    def _save_price_settings(self):
+        """Guarda as configurações de preços."""
+        try:
+            profit_pct = float(self._price_profit_var.get().strip().replace(",", "."))
+            iva_pct = float(self._price_iva_var.get().strip().replace(",", "."))
+            shipping = float(self._price_shipping_var.get().strip().replace(",", "."))
+            formula = self._price_formula_var.get().strip()
+            if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula=formula):
+                messagebox.showinfo("Configurações guardadas", "As configurações de preços foram guardadas com sucesso.", parent=self)
+            else:
+                messagebox.showerror("Erro", "Não foi possível guardar as configurações de preços.", parent=self)
+        except ValueError:
+            messagebox.showerror("Erro", "Valores inválidos. Introduza números válidos.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
+
     def _open_stripe_checkout(self):
         """Botão 'Comprar Licença': abre a página de pagamento Stripe."""
         from stripe_integration import open_stripe_checkout
@@ -1374,7 +1517,26 @@ class App(Tk):
     def _open_field_mapping(self):
         """Botão 'Mapear Campos...': abre o diálogo de mapeamento de campos."""
         current_mapping = load_field_mapping()
-        dialog = FieldMappingDialog(self, current_mapping)
+        detected_mapping = {}
+        # Try to auto-detect from selected file if available
+        try:
+            selected_file = self.path_var.get().strip().strip('"').strip("'")
+            if selected_file and os.path.isfile(selected_file):
+                headers, _ = _read_csv_any_delimiter(selected_file)
+                detected_mapping = _detect_field_mapping_from_headers(headers)
+        except Exception:
+            detected_mapping = {}
+        # Also try for update tab files
+        if not detected_mapping:
+            try:
+                fornecedor_file = self.fornecedor_var.get().strip().strip('"').strip("'")
+                if fornecedor_file and os.path.isfile(fornecedor_file):
+                    headers, _ = _read_csv_any_delimiter(fornecedor_file)
+                    detected_mapping = _detect_field_mapping_from_headers(headers)
+            except Exception:
+                detected_mapping = {}
+
+        dialog = FieldMappingDialog(self, current_mapping, detected_mapping)
         result = dialog.show()
         if result is not None:
             messagebox.showinfo(

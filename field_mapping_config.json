@@ -37,6 +37,10 @@
     }
   },
   "settings": {
-    "profit_margin": 1.6
+    "profit_margin": 1.5,
+    "profit_percentage": 50.0,
+    "iva_percentage": 23.0,
+    "shipping_cost": 2.5,
+    "price_formula": "detailed"
   }
 }

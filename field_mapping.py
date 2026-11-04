@@ -60,29 +60,35 @@ def _config_path():
 def _read_config():
     """Lê o ficheiro de configuração e devolve a estrutura completa."""
     path = _config_path()
+    default_settings = {
+        "profit_margin": _DEFAULT_PROFIT_MARGIN,
+        "profit_percentage": 40.0,
+        "iva_percentage": 0.0,
+        "shipping_cost": 0.0,
+        "price_formula": "margin"
+    }
     if not path.is_file():
         return {
             "active_profile": _PROFILE_DEFAULT,
             "profiles": {},
-            "settings": {"profit_margin": _DEFAULT_PROFIT_MARGIN}
+            "settings": dict(default_settings)
         }
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except (OSError, ValueError):
-        # Se o arquivo existir mas estiver corrompido, retorna padrão
-        if path.is_file():
-            return {
-                "active_profile": _PROFILE_DEFAULT,
-                "profiles": {},
-                "settings": {"profit_margin": _DEFAULT_PROFIT_MARGIN}
-            }
-        else:
-            return {
-                "active_profile": _PROFILE_DEFAULT,
-                "profiles": {},
-                "settings": {"profit_margin": _DEFAULT_PROFIT_MARGIN}
-            }
+    except (OSError, ValueError, json.JSONDecodeError):
+        try:
+            if path.is_file():
+                backup = path.with_suffix(path.suffix + ".bak")
+                import shutil
+                shutil.copy2(path, backup)
+        except Exception:
+            pass
+        return {
+            "active_profile": _PROFILE_DEFAULT,
+            "profiles": {},
+            "settings": dict(default_settings)
+        }
 
     # Compatibilidade: formato antigo era um dict plano de mapeamento.
     needs_write_back = False
@@ -90,35 +96,48 @@ def _read_config():
         data = {
             "active_profile": _PROFILE_DEFAULT,
             "profiles": {_PROFILE_DEFAULT: data},
-            "settings": {"profit_margin": _DEFAULT_PROFIT_MARGIN}
+            "settings": dict(default_settings)
         }
         needs_write_back = True
     elif not isinstance(data, dict):
         data = {
             "active_profile": _PROFILE_DEFAULT,
             "profiles": {},
-            "settings": {"profit_margin": _DEFAULT_PROFIT_MARGIN}
+            "settings": dict(default_settings)
         }
         needs_write_back = True
     else:
         # Garantir que todas as seções necessárias existam
         data.setdefault("active_profile", _PROFILE_DEFAULT)
-        data.setdefault("profiles", {})
-        data.setdefault("settings", {"profit_margin": _DEFAULT_PROFIT_MARGIN})
-        # Garantir que profit_margin exista nas settings
-        if "profit_margin" not in data["settings"]:
-            data["settings"]["profit_margin"] = _DEFAULT_PROFIT_MARGIN
+        if not isinstance(data.get("profiles"), dict):
+            data["profiles"] = {}
+        if not isinstance(data.get("settings"), dict):
+            data["settings"] = dict(default_settings)
             needs_write_back = True
-    
-    # Se tivermos que escrever de volta devido a compatibilidade ou settings faltantes
-    if needs_write_back and path.is_file():
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-        except OSError:
-            # Se não puder escrever, continua com os dados em memória
-            pass
-            
+        else:
+            if "profit_margin" not in data["settings"]:
+                data["settings"]["profit_margin"] = _DEFAULT_PROFIT_MARGIN
+                needs_write_back = True
+            if "profit_percentage" not in data["settings"]:
+                try:
+                    pm = float(data["settings"].get("profit_margin", 1.4))
+                    data["settings"]["profit_percentage"] = round((pm - 1.0) * 100.0, 2)
+                except Exception:
+                    data["settings"]["profit_percentage"] = 40.0
+                needs_write_back = True
+            for k, v in default_settings.items():
+                if k not in data["settings"]:
+                    data["settings"][k] = v
+                    needs_write_back = True
+
+    # Sempre tentar escrever de volta para garantir persistência
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except OSError:
+        # Se não puder escrever, continua com os dados em memória
+        pass
+
     return data
 
 
@@ -191,25 +210,79 @@ def delete_profile(name: str) -> bool:
 
 def get_profit_margin() -> float:
     """Retorna a margem de lucro configurada pelo usuário.
-    
+
     Returns:
         float: Margem de lucro (padrão: 1.40 para 40%)
     """
-    return _read_config()["settings"]["profit_margin"]
+    try:
+        return float(_read_config()["settings"].get("profit_margin", _DEFAULT_PROFIT_MARGIN))
+    except Exception:
+        return _DEFAULT_PROFIT_MARGIN
 
 
 def set_profit_margin(margin: float) -> bool:
     """Define a margem de lucro a ser utilizada nas conversões.
-    
+
     Args:
         margin: Margem de lucro (ex: 1.40 para 40%)
-        
+
     Returns:
         bool: True se salvo com sucesso
     """
-    data = _read_config()
-    data["settings"]["profit_margin"] = margin
-    return _write_config(data)
+    try:
+        data = _read_config()
+        m = float(margin)
+        data["settings"]["profit_margin"] = m
+        # Update percentage as well
+        try:
+            data["settings"]["profit_percentage"] = round((m - 1.0) * 100.0, 2)
+        except Exception:
+            pass
+        return _write_config(data)
+    except Exception:
+        return False
+
+
+def get_price_settings():
+    """Retorna todas as configurações de preço."""
+    try:
+        data = _read_config()
+        settings = data.get("settings", {})
+        return {
+            "profit_margin": float(settings.get("profit_margin", _DEFAULT_PROFIT_MARGIN)),
+            "profit_percentage": float(settings.get("profit_percentage", 40.0)),
+            "iva_percentage": float(settings.get("iva_percentage", 0.0)),
+            "shipping_cost": float(settings.get("shipping_cost", 0.0)),
+            "price_formula": settings.get("price_formula", "margin"),
+        }
+    except Exception:
+        return {
+            "profit_margin": _DEFAULT_PROFIT_MARGIN,
+            "profit_percentage": 40.0,
+            "iva_percentage": 0.0,
+            "shipping_cost": 0.0,
+            "price_formula": "margin",
+        }
+
+
+def set_price_settings(profit_percentage=None, iva_percentage=None, shipping_cost=None, price_formula=None):
+    """Define configurações de preço."""
+    try:
+        data = _read_config()
+        settings = data.setdefault("settings", {})
+        if profit_percentage is not None:
+            pp = float(profit_percentage)
+            settings["profit_percentage"] = pp
+            settings["profit_margin"] = 1.0 + (pp / 100.0)
+        if iva_percentage is not None:
+            settings["iva_percentage"] = float(iva_percentage)
+        if shipping_cost is not None:
+            settings["shipping_cost"] = float(shipping_cost)
+        if price_formula is not None:
+            settings["price_formula"] = str(price_formula)
+        return _write_config(data)
+    except Exception:
+        return False
 
 
 def load_field_mapping():
