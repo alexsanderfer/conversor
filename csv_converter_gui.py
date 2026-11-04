@@ -841,13 +841,16 @@ class App(Tk):
 
         self.tab_novo = ttk.Frame(self.tabs, padding=8)
         self.tab_update = ttk.Frame(self.tabs, padding=8)
+        self.tab_lucro = ttk.Frame(self.tabs, padding=8)
         self.tab_sobre = ttk.Frame(self.tabs, padding=8)
         self.tabs.add(self.tab_novo, text="  Novo ficheiro  ")
         self.tabs.add(self.tab_update, text="  Atualizar loja  ")
-        self.tabs.add(self.tab_sobre, text="  Lucro e Taxas  ")
+        self.tabs.add(self.tab_lucro, text="  Lucro e Taxas  ")
+        self.tabs.add(self.tab_sobre, text="  Sobre  ")
 
         self._build_tab_novo()
         self._build_tab_update()
+        self._build_tab_lucro()
         self._build_tab_sobre()
         self._build_footer()
 
@@ -1028,16 +1031,12 @@ class App(Tk):
         )
         self.mapping_btn2.pack(side="right", padx=(0, 8))
 
-    def _build_tab_sobre(self):
-        """Constrói a aba 'Sobre' com informações da aplicação."""
-        frm = ttk.Frame(self.tab_sobre, padding=12)
+    def _build_tab_lucro(self):
+        """Constrói a aba 'Lucro e Taxas' com configuração de preços."""
+        frm = ttk.Frame(self.tab_lucro, padding=12)
         frm.pack(fill="both", expand=True)
 
-        ttk.Label(frm, text="Conversor Jumpseller", font=("Segoe UI", 14, "bold")).pack(anchor="w")
-        ttk.Label(frm, text=f"Versão {get_current_version()}", font=("Segoe UI", 10)).pack(anchor="w", pady=(0, 16))
-
-        # Configuração de preços
-        ttk.Label(frm, text="Configuração de Preços", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(frm, text="Configuração de Preços", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
         frm_preco = ttk.Frame(frm)
         frm_preco.pack(fill="x", pady=(0, 8))
 
@@ -1059,7 +1058,15 @@ class App(Tk):
         formula_combo.grid(row=1, column=1, sticky="w", padx=(4, 12), pady=(4, 0))
         ttk.Button(frm_preco, text="Guardar", command=self._save_price_settings, width=10).grid(row=1, column=2, sticky="w", pady=(4, 0))
 
-        ttk.Label(frm, text="Fórmula detalhada: (Preço * (1+lucro%)) + Portes, com IVA opcional aplicado", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 12))
+        ttk.Label(frm, text="Fórmula simples: Preço × (1 + lucro%)\nFórmula detalhada: (Preço × (1 + lucro%)) + Portes + IVA", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
+
+    def _build_tab_sobre(self):
+        """Constrói a aba 'Sobre' com informações da aplicação."""
+        frm = ttk.Frame(self.tab_sobre, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, text="Conversor Jumpseller", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+        ttk.Label(frm, text=f"Versão {get_current_version()}", font=("Segoe UI", 10)).pack(anchor="w", pady=(0, 16))
 
         ttk.Label(frm, text="Notas de versão", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 4))
         notas = tk.Text(
