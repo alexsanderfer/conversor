@@ -1,0 +1,169 @@
+{
+  "rules": [
+    {
+      "keywords": [
+        "rato",
+        "mouse",
+        "teclado",
+        "webcam",
+        "ssd",
+        "disco",
+        "fonte",
+        "placa",
+        "processador",
+        "memoria",
+        "ram",
+        "router",
+        "switch",
+        "cabo rede",
+        "hub",
+        "impressora",
+        "scanner",
+        "monitor",
+        "portatil",
+        "notebook",
+        "computador",
+        "cadeira gamer"
+      ],
+      "category": "Informática",
+      "priority": 10
+    },
+    {
+      "keywords": [
+        "luminaria",
+        "lampada",
+        "candeeiro",
+        "fita led",
+        "plafon",
+        "abajur",
+        "holofote",
+        "projetor led"
+      ],
+      "category": "Iluminação",
+      "priority": 10
+    },
+    {
+      "keywords": [
+        "torneira",
+        "regador",
+        "mangueira",
+        "aspersor",
+        "vaso",
+        "semente",
+        "adubo",
+        "ferramenta jardim"
+      ],
+      "category": "Jardinagem",
+      "priority": 10
+    },
+    {
+      "keywords": [
+        "sofa",
+        "cadeira",
+        "mesa",
+        "armario",
+        "estante",
+        "cama",
+        "colchao",
+        "travesseiro",
+        "almofada",
+        "tapete"
+      ],
+      "category": "Móveis",
+      "priority": 10
+    },
+    {
+      "keywords": [
+        "panela",
+        "frigideira",
+        "talher",
+        "prato",
+        "copo",
+        "taça",
+        "colher",
+        "garfo",
+        "faca",
+        "bule",
+        "liquidificador",
+        "batedeira"
+      ],
+      "category": "Casa e Cozinha",
+      "priority": 10
+    },
+    {
+      "keywords": [
+        "camiseta",
+        "calca",
+        "vestido",
+        "camisa",
+        "sapato",
+        "tenis",
+        "bota",
+        "meia",
+        "cueca",
+        "soutien",
+        "jaqueta",
+        "casaco"
+      ],
+      "category": "Moda",
+      "priority": 10
+    },
+    {
+      "keywords": [
+        "shampoo",
+        "creme",
+        "perfume",
+        "desodorante",
+        "sabonte",
+        "condicionador",
+        "batom",
+        "base",
+        "rímel"
+      ],
+      "category": "Beleza e Cuidados",
+      "priority": 10
+    },
+    {
+      "keywords": [
+        "bola",
+        "raquete",
+        "bicicleta",
+        "capacete",
+        "luva",
+        "halter",
+        "barra",
+        "esteira"
+      ],
+      "category": "Desporto",
+      "priority": 10
+    },
+    {
+      "keywords": [
+        "brinquedo",
+        "boneca",
+        "carrinho",
+        "puzzle",
+        "jogo",
+        "lego"
+      ],
+      "category": "Brinquedos",
+      "priority": 10
+    },
+    {
+      "keywords": [
+        "chave",
+        "martelo",
+        "serrote",
+        "parafuso",
+        "porca",
+        "broca",
+        "furadeira",
+        "serra"
+      ],
+      "category": "Ferramentas",
+      "priority": 10
+    }
+  ],
+  "learned": [],
+  "enabled": true
+}
