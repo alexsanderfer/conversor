@@ -1370,10 +1370,13 @@ class App(Tk):
 
             try:
                 self._rebuild_org_tree()
-            except RecursionError:
-                # Limpar e reconstruir sem recursão
-                self._category_tree = {"": set(self._category_tree.get("", []))}
-                self._rebuild_org_tree()
+            except Exception:
+                try:
+                    # Fallback: árvore simples
+                    self._category_tree = {"": set(list(self._category_tree.get("", set()))[:200])}
+                    self._rebuild_org_tree()
+                except Exception:
+                    pass
             messagebox.showinfo("Carregado", "Categorias carregadas com sucesso.", parent=self)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao carregar categorias: {e}", parent=self)
