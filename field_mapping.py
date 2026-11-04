@@ -324,6 +324,46 @@ def set_price_settings(profit_percentage=None, iva_percentage=None, shipping_cos
         return False
 
 
+def get_category_settings():
+    """Retorna configurações de categorias."""
+    try:
+        data = _read_config()
+        settings = data.get("settings", {})
+        cats = settings.get("category_mapping", {})
+        return {
+            "new_categories": cats.get("new_categories", ["", "", "", "", ""]),
+            "apply_to_all": cats.get("apply_to_all", True),
+            "selected_prefix": cats.get("selected_prefix", ""),
+            "use_parent": cats.get("use_parent", True),
+        }
+    except Exception:
+        return {
+            "new_categories": ["", "", "", "", ""],
+            "apply_to_all": True,
+            "selected_prefix": "",
+            "use_parent": True,
+        }
+
+
+def set_category_settings(new_categories=None, apply_to_all=None, selected_prefix=None, use_parent=None):
+    """Define configurações de categorias."""
+    try:
+        data = _read_config()
+        settings = data.setdefault("settings", {})
+        cats = settings.setdefault("category_mapping", {})
+        if new_categories is not None:
+            cats["new_categories"] = list(new_categories)[:5]
+        if apply_to_all is not None:
+            cats["apply_to_all"] = bool(apply_to_all)
+        if selected_prefix is not None:
+            cats["selected_prefix"] = str(selected_prefix)
+        if use_parent is not None:
+            cats["use_parent"] = bool(use_parent)
+        return _write_config(data)
+    except Exception:
+        return False
+
+
 def load_field_mapping():
     """
     Load field mapping from the active profile, or return default.

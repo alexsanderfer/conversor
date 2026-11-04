@@ -47,6 +47,7 @@ from field_mapping import (
     list_profiles, get_active_profile, set_active_profile,
     get_profile_mapping, save_profile, delete_profile, _PROFILE_DEFAULT,
     get_profit_margin, get_price_settings, set_price_settings,
+    get_category_settings, set_category_settings,
 )
 
 # ---------------------------------------------------------------------------
@@ -264,6 +265,43 @@ def build_categories(row: dict, mapping: dict = None) -> str:
         if len(parts) > 4:
             cat3 = '/'.join(parts[:4])
         categories.append(cat3)
+
+    # Apply category mapping if configured
+    try:
+        cat_settings = get_category_settings()
+        new_cats = [c.strip() for c in cat_settings.get("new_categories", []) if c.strip()]
+        if new_cats:
+            use_parent = cat_settings.get("use_parent", True)
+            apply_to_all = cat_settings.get("apply_to_all", True)
+            if apply_to_all and categories:
+                result = []
+                parent_cat = new_cats[0]
+                for cat_path in categories:
+                    if use_parent:
+                        result.append(f"{parent_cat}/{cat_path}")
+                    else:
+                        result.append(parent_cat)
+                # Also add parent alone if requested
+                if parent_cat not in result:
+                    result.insert(0, parent_cat)
+                return ",".join(result)
+            elif not apply_to_all and categories:
+                selected_prefix = cat_settings.get("selected_prefix", "").strip()
+                if selected_prefix:
+                    result = []
+                    for cat_path in categories:
+                        if cat_path.lower().startswith(selected_prefix.lower()) or selected_prefix.lower() in cat_path.lower():
+                            if use_parent:
+                                parent_cat = new_cats[0] if new_cats else selected_prefix
+                                result.append(f"{parent_cat}/{cat_path}")
+                            else:
+                                result.append(new_cats[0] if new_cats else selected_prefix)
+                        else:
+                            result.append(cat_path)
+                    return ",".join(result)
+    except Exception:
+        pass
+
     return ",".join(categories)
 
 
@@ -842,15 +880,18 @@ class App(Tk):
         self.tab_novo = ttk.Frame(self.tabs, padding=8)
         self.tab_update = ttk.Frame(self.tabs, padding=8)
         self.tab_lucro = ttk.Frame(self.tabs, padding=8)
+        self.tab_categorias = ttk.Frame(self.tabs, padding=8)
         self.tab_sobre = ttk.Frame(self.tabs, padding=8)
         self.tabs.add(self.tab_novo, text="  Novo ficheiro  ")
         self.tabs.add(self.tab_update, text="  Atualizar loja  ")
         self.tabs.add(self.tab_lucro, text="  Lucro e Taxas  ")
+        self.tabs.add(self.tab_categorias, text="  Categorias  ")
         self.tabs.add(self.tab_sobre, text="  Sobre  ")
 
         self._build_tab_novo()
         self._build_tab_update()
         self._build_tab_lucro()
+        self._build_tab_categorias()
         self._build_tab_sobre()
         self._build_footer()
 
@@ -1059,6 +1100,52 @@ class App(Tk):
         ttk.Button(frm_preco, text="Guardar", command=self._save_price_settings, width=10).grid(row=1, column=2, sticky="w", pady=(4, 0))
 
         ttk.Label(frm, text="Fórmula simples: Preço × (1 + lucro%)\nFórmula detalhada: (Preço × (1 + lucro%)) + Portes + IVA", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
+
+    def _build_tab_categorias(self):
+        """Constrói a aba 'Categorias' com mapeamento de categorias."""
+        frm = ttk.Frame(self.tab_categorias, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, text="Enviar categorias para nova categoria macro", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
+        ttk.Label(frm, text="Crie até 5 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 12))
+
+        cat_settings = get_category_settings()
+        self._cat_new_vars = []
+        for i in range(5):
+            val = cat_settings.get("new_categories", ["","","","",""])[i] if i < len(cat_settings.get("new_categories", [])) else ""
+            v = tk.StringVar(value=val)
+            self._cat_new_vars.append(v)
+            row = ttk.Frame(frm)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
+            ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True)
+
+        self._cat_apply_all_var = tk.BooleanVar(value=cat_settings.get("apply_to_all", True))
+        self._cat_use_parent_var = tk.BooleanVar(value=cat_settings.get("use_parent", True))
+        self._cat_prefix_var = tk.StringVar(value=cat_settings.get("selected_prefix", ""))
+
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(12, 8))
+        ttk.Checkbutton(frm, text="Aplicar a TODAS as categorias do ficheiro", variable=self._cat_apply_all_var).pack(anchor="w", pady=2)
+        ttk.Checkbutton(frm, text="Manter hierarquia original (NovaCategoria/CategoriaOriginal/Subcategoria)", variable=self._cat_use_parent_var).pack(anchor="w", pady=2)
+
+        prefix_row = ttk.Frame(frm)
+        prefix_row.pack(fill="x", pady=(8, 4))
+        ttk.Label(prefix_row, text="Apenas categorias que contenham:").pack(side="left")
+        ttk.Entry(prefix_row, textvariable=self._cat_prefix_var, width=30).pack(side="left", padx=(8, 0))
+
+        ttk.Label(frm, text="Exemplo: Criar 'Material ESPETÁCULOS' e aplicar a todas → 'Material ESPETÁCULOS/SOM E LUZ/...'", font=("Segoe UI", 8), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(12, 8))
+
+        ttk.Button(frm, text="Guardar configurações de categorias", command=self._save_category_settings, width=40).pack(anchor="w", pady=(8, 0))
+
+    def _save_category_settings(self):
+        try:
+            new_cats = [v.get().strip() for v in self._cat_new_vars]
+            if set_category_settings(new_categories=new_cats, apply_to_all=self._cat_apply_all_var.get(), selected_prefix=self._cat_prefix_var.get().strip(), use_parent=self._cat_use_parent_var.get()):
+                messagebox.showinfo("Configurações guardadas", "As configurações de categorias foram guardadas com sucesso.", parent=self)
+            else:
+                messagebox.showerror("Erro", "Não foi possível guardar as configurações de categorias.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
 
     def _build_tab_sobre(self):
         """Constrói a aba 'Sobre' com informações da aplicação."""
