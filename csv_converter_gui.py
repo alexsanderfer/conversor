@@ -50,6 +50,10 @@ from field_mapping import (
     get_category_settings, set_category_settings,
 )
 
+# Cache for category settings
+_category_settings_cache = None
+_category_settings_cache_time = 0.0
+
 # ---------------------------------------------------------------------------
 # CONFIGURACAO: colunas de destino na ordem exata do Jumpseller
 # ---------------------------------------------------------------------------
