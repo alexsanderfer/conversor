@@ -1300,19 +1300,57 @@ class App(Tk):
 
     def _load_categories_for_organizer(self):
         try:
+            import traceback, datetime
+            log_path = None
+            try:
+                if getattr(sys, 'frozen', False):
+                    base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
+                    base_dir.mkdir(parents=True, exist_ok=True)
+                else:
+                    base_dir = Path(__file__).parent
+                log_path = base_dir / "debug_organizer.log"
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(f"[{datetime.datetime.now()}] START _load_categories_for_organizer\n")
+            except Exception:
+                pass
+
             selected_file = self.path_var.get().strip().strip('"').strip("'")
+            try:
+                if log_path:
+                    with open(log_path, "a", encoding="utf-8") as f:
+                        f.write(f"[{datetime.datetime.now()}] path_var={selected_file}\n")
+            except Exception:
+                pass
             if not selected_file or not os.path.isfile(selected_file):
                 selected_file = self.fornecedor_var.get().strip().strip('"').strip("'")
+                try:
+                    if log_path:
+                        with open(log_path, "a", encoding="utf-8") as f:
+                            f.write(f"[{datetime.datetime.now()}] fornecedor_var={selected_file}\n")
+                except Exception:
+                    pass
             if not selected_file or not os.path.isfile(selected_file):
                 messagebox.showwarning("Atenção", "Selecione ou arraste um ficheiro CSV primeiro.", parent=self)
                 return
             headers, rows = _read_csv_any_delimiter(selected_file)
+            try:
+                if log_path:
+                    with open(log_path, "a", encoding="utf-8") as f:
+                        f.write(f"[{datetime.datetime.now()}] rows={len(rows)}\n")
+            except Exception:
+                pass
             if not rows:
                 messagebox.showwarning("Atenção", "Não foi possível ler o ficheiro ou está vazio.", parent=self)
                 return
             mapping = load_field_mapping()
 
             saved = self._load_saved_category_organization()
+            try:
+                if log_path:
+                    with open(log_path, "a", encoding="utf-8") as f:
+                        f.write(f"[{datetime.datetime.now()}] saved={'yes' if saved else 'no'}\n")
+            except Exception:
+                pass
             if saved is not None:
                 try:
                     self._category_tree = {}
@@ -1327,7 +1365,7 @@ class App(Tk):
                     if "" not in self._category_tree:
                         self._category_tree[""] = set()
                     # Quebrar ciclos
-                    for _ in range(20):
+                    for _ in range(30):
                         fixed = False
                         for parent, children in list(self._category_tree.items()):
                             for child in list(children):
@@ -1346,7 +1384,14 @@ class App(Tk):
                                     fixed = True
                         if not fixed:
                             break
-                except Exception:
+                except Exception as ex:
+                    try:
+                        if log_path:
+                            with open(log_path, "a", encoding="utf-8") as f:
+                                f.write(f"[{datetime.datetime.now()}] saved load err {ex}\n")
+                                f.write(traceback.format_exc())
+                    except Exception:
+                        pass
                     self._category_tree = {"": set()}
             else:
                 self._category_tree = {"": set()}
@@ -1370,15 +1415,40 @@ class App(Tk):
 
             try:
                 self._rebuild_org_tree()
-            except Exception:
                 try:
-                    # Fallback: árvore simples
-                    self._category_tree = {"": set(list(self._category_tree.get("", set()))[:200])}
+                    if log_path:
+                        with open(log_path, "a", encoding="utf-8") as f:
+                            f.write(f"[{datetime.datetime.now()}] rebuild ok\n")
+                except Exception:
+                    pass
+            except Exception as ex:
+                try:
+                    if log_path:
+                        with open(log_path, "a", encoding="utf-8") as f:
+                            f.write(f"[{datetime.datetime.now()}] rebuild err {ex}\n")
+                            f.write(traceback.format_exc())
+                except Exception:
+                    pass
+                try:
+                    self._category_tree = {"": set(list(self._category_tree.get("", set()))[:100])}
                     self._rebuild_org_tree()
                 except Exception:
                     pass
             messagebox.showinfo("Carregado", "Categorias carregadas com sucesso.", parent=self)
         except Exception as e:
+            try:
+                import traceback, datetime
+                if getattr(sys, 'frozen', False):
+                    base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
+                    base_dir.mkdir(parents=True, exist_ok=True)
+                else:
+                    base_dir = Path(__file__).parent
+                log_path = base_dir / "debug_organizer.log"
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(f"[{datetime.datetime.now()}] FATAL {e}\n")
+                    f.write(traceback.format_exc())
+            except Exception:
+                pass
             messagebox.showerror("Erro", f"Erro ao carregar categorias: {e}", parent=self)
 
     def _rebuild_org_tree(self):
