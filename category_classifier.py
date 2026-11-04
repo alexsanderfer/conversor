@@ -149,7 +149,7 @@ def learn_from_product(product_name: str, category: str):
         return False
     # Pegar até 3 palavras mais relevantes
     keywords = words[:3]
-    
+
     learned = data.get("learned", [])
     # Verificar se já existe
     for item in learned:
@@ -162,3 +162,22 @@ def learn_from_product(product_name: str, category: str):
     })
     data["learned"] = learned[-100:]  # Limitar a 100 aprendizagens
     return save_rules(data)
+
+
+def learn_from_file_rows(rows, mapping):
+    """Aprende regras a partir de um ficheiro CSV onde já existem categorias."""
+    learned_count = 0
+    try:
+        from csv_converter_gui import get_mapped_value
+        for row in rows:
+            try:
+                product_name = get_mapped_value(row, "design", mapping)
+                familia = get_mapped_value(row, "familia_principal", mapping)
+                if product_name and familia and familia.strip():
+                    if learn_from_product(product_name, familia.strip()):
+                        learned_count += 1
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return learned_count

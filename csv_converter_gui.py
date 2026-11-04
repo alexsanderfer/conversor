@@ -49,7 +49,7 @@ from field_mapping import (
     get_profit_margin, get_price_settings, set_price_settings,
     get_category_settings, set_category_settings,
 )
-from category_classifier import classify_product, load_rules, save_rules, learn_from_product
+from category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
 
 # Cache for category settings
 _category_settings_cache = None
@@ -1241,6 +1241,25 @@ class App(Tk):
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
 
+    def _learn_from_current_file(self):
+        try:
+            selected_file = self.path_var.get().strip().strip('"').strip("'")
+            if not selected_file or not os.path.isfile(selected_file):
+                selected_file = self.fornecedor_var.get().strip().strip('"').strip("'")
+            if not selected_file or not os.path.isfile(selected_file):
+                messagebox.showwarning("Atenção", "Selecione ou arraste um ficheiro CSV primeiro.", parent=self)
+                return
+            headers, rows = _read_csv_any_delimiter(selected_file)
+            if not rows:
+                messagebox.showwarning("Atenção", "Não foi possível ler o ficheiro ou está vazio.", parent=self)
+                return
+            mapping = load_field_mapping()
+            count = learn_from_file_rows(rows, mapping)
+            self._refresh_rules_list()
+            messagebox.showinfo("Aprendido", f"Aprendidas {count} novas regras com base no ficheiro.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao aprender: {e}", parent=self)
+
     def _refresh_rules_list(self):
         try:
             from category_classifier import load_rules
@@ -1248,10 +1267,10 @@ class App(Tk):
             rules = data.get("rules", [])
             learned = data.get("learned", [])
             lines = []
-            for r in rules[-20:]:
+            for r in rules[-25:]:
                 kws = ", ".join(r.get("keywords", []))
                 lines.append(f"[REGRA] {kws} -> {r.get('category', '')}")
-            for l in learned[-10:]:
+            for l in learned[-15:]:
                 kws = ", ".join(l.get("keywords", []))
                 lines.append(f"[APRENDIDO] {kws} -> {l.get('category', '')}")
             if hasattr(self, '_rules_list_text'):
