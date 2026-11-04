@@ -30,6 +30,8 @@ trata esses ficheiros como o perfil "Padrão".
 """
 
 import json
+import os
+import sys
 from pathlib import Path
 
 # Default field mapping - maps expected names to source column names.
@@ -54,6 +56,43 @@ _DEFAULT_PROFIT_MARGIN = 1.40
 
 
 def _config_path():
+    # Use AppData for persistent storage (works both in dev and in PyInstaller exe)
+    try:
+        if getattr(sys, 'frozen', False):
+            base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
+            base_dir.mkdir(parents=True, exist_ok=True)
+            config_file = base_dir / "field_mapping_config.json"
+            # Migrate from old location if exists
+            old_config = Path(sys._MEIPASS) / "field_mapping_config.json"
+            if not config_file.exists() and old_config.exists():
+                try:
+                    import shutil
+                    shutil.copy2(old_config, config_file)
+                except Exception:
+                    pass
+            # Also check next to exe
+            if not config_file.exists():
+                exe_dir = Path(sys.executable).parent
+                exe_config = exe_dir / "field_mapping_config.json"
+                if exe_config.exists():
+                    try:
+                        import shutil
+                        shutil.copy2(exe_config, config_file)
+                    except Exception:
+                        pass
+            # Also check current dir
+            if not config_file.exists():
+                cwd_config = Path.cwd() / "field_mapping_config.json"
+                if cwd_config.exists():
+                    try:
+                        import shutil
+                        shutil.copy2(cwd_config, config_file)
+                    except Exception:
+                        pass
+            return config_file
+    except Exception:
+        pass
+    # Development mode
     return Path(__file__).parent / "field_mapping_config.json"
 
 
