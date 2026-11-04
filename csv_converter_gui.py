@@ -1314,9 +1314,27 @@ class App(Tk):
 
             saved = self._load_saved_category_organization()
             if saved is not None:
-                self._category_tree = saved
-                if "" not in self._category_tree:
-                    self._category_tree[""] = set()
+                try:
+                    self._category_tree = saved
+                    if "" not in self._category_tree:
+                        self._category_tree[""] = set()
+                    # Quebrar ciclos
+                    # Garantir que não há pai apontando para filho que aponta de volta
+                    for _ in range(10):
+                        fixed = False
+                        for parent, children in list(self._category_tree.items()):
+                            for child in list(children):
+                                if child == parent:
+                                    children.discard(child)
+                                    fixed = True
+                                    continue
+                                if child in self._category_tree and parent in self._category_tree.get(child, set()):
+                                    children.discard(child)
+                                    fixed = True
+                        if not fixed:
+                            break
+                except Exception:
+                    self._category_tree = {"": set()}
             else:
                 self._category_tree = {"": set()}
                 for row in rows[:5000]:
@@ -1337,7 +1355,12 @@ class App(Tk):
                     except Exception:
                         continue
 
-            self._rebuild_org_tree()
+            try:
+                self._rebuild_org_tree()
+            except RecursionError:
+                # Limpar e reconstruir sem recursão
+                self._category_tree = {"": set(self._category_tree.get("", []))}
+                self._rebuild_org_tree()
             messagebox.showinfo("Carregado", "Categorias carregadas com sucesso.", parent=self)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao carregar categorias: {e}", parent=self)
