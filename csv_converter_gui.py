@@ -844,7 +844,7 @@ class App(Tk):
         self.tab_sobre = ttk.Frame(self.tabs, padding=8)
         self.tabs.add(self.tab_novo, text="  Novo ficheiro  ")
         self.tabs.add(self.tab_update, text="  Atualizar loja  ")
-        self.tabs.add(self.tab_sobre, text="  Sobre  ")
+        self.tabs.add(self.tab_sobre, text="  Lucro e Taxas  ")
 
         self._build_tab_novo()
         self._build_tab_update()
@@ -1468,13 +1468,16 @@ class App(Tk):
         """Chamado quando o utilizador troca o fornecedor na dropdown."""
         name = self.profile_var.get().strip()
         if name:
-            set_active_profile(name)
-            messagebox.showinfo(
-                "Fornecedor alterado",
-                f"Fornecedor definido para: {name}\n"
-                "A próxima conversão usará o mapeamento deste fornecedor.",
-                parent=self,
-            )
+            try:
+                set_active_profile(name)
+                messagebox.showinfo(
+                    "Fornecedor alterado",
+                    f"Fornecedor definido para: {name}\n"
+                    "A próxima conversão usará o mapeamento deste fornecedor.",
+                    parent=self,
+                )
+            except Exception as e:
+                messagebox.showerror("Erro", f"Erro ao alterar perfil:\n{e}", parent=self)
 
     def _new_profile(self):
         """Cria um novo perfil de fornecedor."""
@@ -1488,31 +1491,36 @@ class App(Tk):
         name = name.strip()
         if not name:
             return
-        if save_profile(name, {}):
-            set_active_profile(name)
-            self._refresh_profile_combo()
-            messagebox.showinfo(
-                "Fornedor criado",
-                f"Perfil '{name}' criado (mapeamento vazio).\n"
-                "Use o botão 'Mapear Campos...' para configurar os campos.",
-                parent=self,
-            )
-        else:
-            messagebox.showerror("Erro", "Nao foi possivel criar o perfil.", parent=self)
+        try:
+            if save_profile(name, {}) and set_active_profile(name):
+                self._refresh_profile_combo()
+                messagebox.showinfo(
+                    "Fornedor criado",
+                    f"Perfil '{name}' criado (mapeamento vazio).\n"
+                    "Use o botão 'Mapear Campos...' para configurar os campos.",
+                    parent=self,
+                )
+            else:
+                messagebox.showerror("Erro", "Nao foi possivel criar o perfil.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao criar perfil:\n{e}", parent=self)
 
     def _delete_profile(self):
         """Apaga o perfil de fornedor atualmente selecionado."""
         name = self.profile_var.get().strip()
         if not name:
             return
-        if delete_profile(name):
-            self._refresh_profile_combo()
-            messagebox.showinfo("Fornedor apagado", f"Perfil '{name}' foi removido.", parent=self)
-        else:
-            messagebox.showwarning(
-                "Nao foi possivel apagar",
-                "Nao e possivel apagar o unico perfil existente.", parent=self,
-            )
+        try:
+            if delete_profile(name):
+                self._refresh_profile_combo()
+                messagebox.showinfo("Fornedor apagado", f"Perfil '{name}' foi removido.", parent=self)
+            else:
+                messagebox.showwarning(
+                    "Nao foi possivel apagar",
+                    "Nao e possivel apagar o unico perfil existente.", parent=self,
+                )
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao apagar perfil:\n{e}", parent=self)
 
     def _open_field_mapping(self):
         """Botão 'Mapear Campos...': abre o diálogo de mapeamento de campos."""
