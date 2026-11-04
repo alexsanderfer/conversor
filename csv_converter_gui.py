@@ -49,6 +49,7 @@ from field_mapping import (
     get_profit_margin, get_price_settings, set_price_settings,
     get_category_settings, set_category_settings,
 )
+from category_classifier import classify_product, load_rules, save_rules, learn_from_product
 
 # Cache for category settings
 _category_settings_cache = None
@@ -256,6 +257,17 @@ def build_categories(row: dict, mapping: dict = None) -> str:
     familia = normalize(get_mapped_value(row, "familia_principal", mapping))
     sub_familia = normalize(get_mapped_value(row, "sub_familia", mapping))
     sub_sub_familia = normalize(get_mapped_value(row, "sub_sub_familia", mapping))
+
+    # Classificação automática se categoria estiver vazia
+    if not familia:
+        try:
+            product_name = get_mapped_value(row, "design", mapping)
+            if product_name:
+                auto_cat = classify_product(product_name, "")
+                if auto_cat:
+                    familia = auto_cat
+        except Exception:
+            pass
 
     categories = []
     if familia:
