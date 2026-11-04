@@ -1210,6 +1210,58 @@ class App(Tk):
         except Exception:
             pass
 
+    def _toggle_auto_classification(self):
+        try:
+            from category_classifier import load_rules, save_rules
+            data = load_rules()
+            data["enabled"] = bool(self._auto_cat_enabled_var.get())
+            save_rules(data)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
+
+    def _add_classification_rule(self):
+        try:
+            from category_classifier import load_rules, save_rules
+            keyword = self._rule_keyword_var.get().strip()
+            category = self._rule_category_var.get().strip()
+            if not keyword or not category:
+                messagebox.showwarning("Atenção", "Preencha palavra-chave e categoria destino.", parent=self)
+                return
+            data = load_rules()
+            rules = data.get("rules", [])
+            rules.append({"keywords": [keyword.lower()], "category": category, "priority": 15})
+            data["rules"] = rules
+            if save_rules(data):
+                self._rule_keyword_var.set("")
+                self._rule_category_var.set("")
+                self._refresh_rules_list()
+                messagebox.showinfo("Guardado", "Regra adicionada com sucesso.", parent=self)
+            else:
+                messagebox.showerror("Erro", "Não foi possível guardar a regra.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
+
+    def _refresh_rules_list(self):
+        try:
+            from category_classifier import load_rules
+            data = load_rules()
+            rules = data.get("rules", [])
+            learned = data.get("learned", [])
+            lines = []
+            for r in rules[-20:]:
+                kws = ", ".join(r.get("keywords", []))
+                lines.append(f"[REGRA] {kws} -> {r.get('category', '')}")
+            for l in learned[-10:]:
+                kws = ", ".join(l.get("keywords", []))
+                lines.append(f"[APRENDIDO] {kws} -> {l.get('category', '')}")
+            if hasattr(self, '_rules_list_text'):
+                self._rules_list_text.config(state="normal")
+                self._rules_list_text.delete("1.0", "end")
+                self._rules_list_text.insert("1.0", "\n".join(lines) if lines else "Nenhuma regra adicional")
+                self._rules_list_text.config(state="disabled")
+        except Exception:
+            pass
+
     def _save_category_settings(self):
         try:
             new_cats = [v.get().strip() for v in self._cat_new_vars]
