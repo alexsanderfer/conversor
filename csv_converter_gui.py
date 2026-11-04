@@ -1473,12 +1473,22 @@ class App(Tk):
 
         try:
             tree = getattr(self, '_category_tree', {}) or {}
+            # Garantir estrutura limpa
+            clean_tree = {}
+            for k, v in tree.items():
+                if isinstance(v, set):
+                    clean_tree[k] = set(v)
+                elif isinstance(v, list):
+                    clean_tree[k] = set(v)
+                else:
+                    clean_tree[k] = set()
+            tree = clean_tree
             items = []
             stack_dfs = [("", 0, 0, frozenset())]
             while stack_dfs:
                 try:
                     parent_name, level, indent, visited = stack_dfs.pop()
-                    if level > 15:
+                    if level > 12:
                         continue
                     children = tree.get(parent_name, set()) or set()
                     for child in sorted(list(children)):
