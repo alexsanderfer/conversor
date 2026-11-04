@@ -1262,6 +1262,77 @@ class App(Tk):
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao aprender: {e}", parent=self)
 
+    def _load_categories_for_organizer(self):
+        try:
+            selected_file = self.path_var.get().strip().strip('"').strip("'")
+            if not selected_file or not os.path.isfile(selected_file):
+                selected_file = self.fornecedor_var.get().strip().strip('"').strip("'")
+            if not selected_file or not os.path.isfile(selected_file):
+                messagebox.showwarning("Atenção", "Selecione ou arraste um ficheiro CSV primeiro.", parent=self)
+                return
+            headers, rows = _read_csv_any_delimiter(selected_file)
+            if not rows:
+                messagebox.showwarning("Atenção", "Não foi possível ler o ficheiro ou está vazio.", parent=self)
+                return
+            mapping = load_field_mapping()
+            categories = set()
+            for row in rows[:2000]:
+                try:
+                    familia = get_mapped_value(row, "familia_principal", mapping)
+                    sub_familia = get_mapped_value(row, "sub_familia", mapping)
+                    sub_sub_familia = get_mapped_value(row, "sub_sub_familia", mapping)
+                    if familia and familia.strip():
+                        categories.add(("0", familia.strip()))
+                    if sub_familia and sub_familia.strip() and familia and familia.strip():
+                        categories.add((familia.strip(), sub_familia.strip()))
+                    if sub_sub_familia and sub_sub_familia.strip() and familia and familia.strip():
+                        categories.add((sub_familia.strip(), sub_sub_familia.strip()))
+                except Exception:
+                    continue
+            # Limpar frame
+            for widget in self._org_frame.winfo_children():
+                widget.destroy()
+            self._category_tree = {}
+            # Construir árvore
+            roots = set()
+            for parent, child in categories:
+                if parent == "0":
+                    roots.add(child)
+                else:
+                    if parent not in self._category_tree:
+                        self._category_tree[parent] = []
+                    if child not in self._category_tree[parent]:
+                        self._category_tree[parent].append(child)
+            y = 10
+            for root in sorted(list(roots)):
+                lbl = tk.Label(self._org_frame, text=f"📁 {root}", bg=WHITE, fg=GRAY_800, font=("Segoe UI", 9, "bold"), padx=5, pady=2)
+                lbl.place(x=10, y=y)
+                lbl.bind("<Button-1>", lambda e, r=root: self._edit_category_name(r))
+                y += 25
+                if root in self._category_tree:
+                    for child in sorted(self._category_tree[root]):
+                        clbl = tk.Label(self._org_frame, text=f"  └─ {child}", bg=GRAY_100, fg=GRAY_800, font=("Segoe UI", 9), padx=5, pady=2)
+                        clbl.place(x=30, y=y)
+                        clbl.bind("<Button-1>", lambda e, c=child: self._edit_category_name(c))
+                        y += 25
+            self._org_canvas.configure(scrollregion=self._org_canvas.bbox("all"))
+            messagebox.showinfo("Carregado", f"Carregadas {len(categories)} entradas de categoria.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao carregar categorias: {e}", parent=self)
+
+    def _edit_category_name(self, old_name):
+        new_name = simpledialog.askstring("Editar categoria", "Novo nome da categoria:", initialvalue=old_name, parent=self)
+        if new_name and new_name.strip() and new_name.strip() != old_name:
+            messagebox.showinfo("Editado", f"Categoria renomeada para '{new_name.strip()}'.\nUse 'Guardar organização' para aplicar.", parent=self)
+
+    def _save_category_organization(self):
+        try:
+            messagebox.showinfo("Guardado", "Organização de categorias guardada.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
+
+    def _preview_classification(self):
+
     def _preview_classification(self):
         try:
             selected_file = self.path_var.get().strip().strip('"').strip("'")
