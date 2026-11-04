@@ -1438,7 +1438,8 @@ class App(Tk):
                 except Exception:
                     pass
                 try:
-                    self._category_tree = {"": set(list(self._category_tree.get("", set()))[:100])}
+                    tree = getattr(self, '_category_tree', {}) or {}
+                    self._category_tree = {"": set(list(tree.get("", set()))[:30])}
                     self._rebuild_org_tree()
                 except Exception:
                     pass
