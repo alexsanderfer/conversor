@@ -1403,6 +1403,13 @@ class App(Tk):
                     self._category_tree = {"": set()}
             else:
                 self._category_tree = {"": set()}
+                try:
+                    if log_path:
+                        with open(log_path, "a", encoding="utf-8") as f:
+                            f.write(f"[{datetime.datetime.now()}] building tree from scratch, mapping keys sample: {list(mapping.keys())[:10]}\n")
+                except Exception:
+                    pass
+                found = 0
                 for row in rows[:5000]:
                     try:
                         f1 = get_mapped_value(row, "familia_principal", mapping).strip()
@@ -1410,6 +1417,7 @@ class App(Tk):
                         f3 = get_mapped_value(row, "sub_sub_familia", mapping).strip()
 
                         if f1:
+                            found += 1
                             self._category_tree[""].add(f1)
                             if f1 not in self._category_tree: self._category_tree[f1] = set()
                             if f2:
@@ -1420,6 +1428,12 @@ class App(Tk):
                                     if f3 not in self._category_tree: self._category_tree[f3] = set()
                     except Exception:
                         continue
+                try:
+                    if log_path:
+                        with open(log_path, "a", encoding="utf-8") as f:
+                            f.write(f"[{datetime.datetime.now()}] found categories from rows: {found}, roots in tree: {len(self._category_tree.get('', set()))}\n")
+                except Exception:
+                    pass
 
             try:
                 try:
