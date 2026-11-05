@@ -1406,7 +1406,7 @@ class App(Tk):
                 try:
                     if log_path:
                         with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] building tree from scratch, mapping keys sample: {list(mapping.keys())[:10]}\n")
+                            f.write(f"[{datetime.datetime.now()}] building tree from scratch, mapping keys sample: {list(mapping.keys())[:10]}, headers: {headers[:15]}\n")
                 except Exception:
                     pass
                 found = 0
@@ -1415,6 +1415,35 @@ class App(Tk):
                         f1 = get_mapped_value(row, "familia_principal", mapping).strip()
                         f2 = get_mapped_value(row, "sub_familia", mapping).strip()
                         f3 = get_mapped_value(row, "sub_sub_familia", mapping).strip()
+
+                        # Fallbacks para outros formatos
+                        if not f1:
+                            for key in ['familia', 'categoria', 'category', 'categoria_principal', 'grupo', 'departamento', 'família']:
+                                for k,v in row.items():
+                                    if k and key in str(k).lower().strip():
+                                        val = str(v).strip()
+                                        if val:
+                                            f1 = val
+                                            break
+                                if f1: break
+                        if not f2:
+                            for key in ['sub_familia', 'subcategoria', 'sub_categoria', 'subcategoria']:
+                                for k,v in row.items():
+                                    if k and key in str(k).lower().strip():
+                                        val = str(v).strip()
+                                        if val:
+                                            f2 = val
+                                            break
+                                if f2: break
+                        if not f3:
+                            for key in ['sub_sub_familia', 'subsubcategoria', 'terceira', 'nivel3']:
+                                for k,v in row.items():
+                                    if k and key in str(k).lower().strip():
+                                        val = str(v).strip()
+                                        if val:
+                                            f3 = val
+                                            break
+                                if f3: break
 
                         if f1:
                             found += 1
