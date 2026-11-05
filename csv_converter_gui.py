@@ -1138,11 +1138,11 @@ class App(Tk):
 
         tab_macro = ttk.Frame(cat_notebook, padding=10)
         tab_organizer = ttk.Frame(cat_notebook, padding=10)
-        cat_notebook.add(tab_macro, text="  Mapeamento Macro  ")
+        cat_notebook.add(tab_macro, text="  Mapeamento  ")
         cat_notebook.add(tab_organizer, text="  Organizador  ")
 
-        # Aba Mapeamento Macro
-        ttk.Label(tab_macro, text="Enviar categorias para nova categoria macro", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+        # Aba Mapeamento
+        ttk.Label(tab_macro, text="Enviar categorias para uma nova categoria pai", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
         ttk.Label(tab_macro, text="Crie até 5 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 8))
 
         cat_settings = get_category_settings()
@@ -1167,11 +1167,19 @@ class App(Tk):
 
         prefix_row = ttk.Frame(tab_macro)
         prefix_row.pack(fill="x", pady=(6, 4))
-        ttk.Label(prefix_row, text="Apenas categorias que contenham:").pack(side="left")
+        ttk.Label(prefix_row, text="Aplicar apenas se a categoria contiver:").pack(side="left")
         ttk.Entry(prefix_row, textvariable=self._cat_prefix_var, width=25).pack(side="left", padx=(6, 0))
         ttk.Button(prefix_row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
-        ttk.Label(tab_macro, text="Exemplo: Criar 'Material ESPETÁCULOS' e aplicar a todas → 'Material ESPETÁCULOS/SOM E LUZ/...'", font=("Segoe UI", 8), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 6))
+        ttk.Label(
+            tab_macro,
+            text=(
+                "Filtro (opcional): o mapeamento só será aplicado às categorias cujo nome contenha este texto.\n"
+                "Ex.: se escrever 'SOM', aplica em 'SOM E LUZ' e 'ACESSÓRIOS SOM', mas não em 'ILUMINAÇÃO'.\n"
+                "Deixe em branco para aplicar a todas (quando 'Aplicar a TODAS...' estiver marcado)."
+            ),
+            font=("Segoe UI", 8), foreground=GRAY_600, justify="left", wraplength=820,
+        ).pack(anchor="w", pady=(8, 6))
 
         ttk.Button(tab_macro, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(4, 0))
 
@@ -2053,12 +2061,15 @@ class App(Tk):
     def _save_category_settings(self):
         try:
             new_cats = [v.get().strip() for v in self._cat_new_vars]
-            if set_category_settings(new_categories=new_cats, apply_to_all=self._cat_apply_all_var.get(), selected_prefix=self._cat_prefix_var.get().strip(), use_parent=self._cat_use_parent_var.get()):
-                messagebox.showinfo("Guardado", "Categorias guardadas com sucesso.", parent=self)
-            else:
-                messagebox.showerror("Erro", "Não foi possível guardar as categorias.", parent=self)
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
+            set_category_settings(
+                new_categories=new_cats,
+                apply_to_all=self._cat_apply_all_var.get(),
+                selected_prefix=self._cat_prefix_var.get().strip(),
+                use_parent=self._cat_use_parent_var.get(),
+            )
+        except Exception:
+            # Guardar silencioso no mapeamento (sem alertas)
+            pass
 
     def _build_tab_sobre(self):
         """Constrói a aba 'Sobre' com informações da aplicação."""
@@ -2083,6 +2094,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.24 (2026-11-05)
+        - UI: "Mapeamento" (removido "Macro"), texto do filtro mais claro, guardar sem alertas no mapeamento
+
         v0.3.23 (2026-11-05)
         - Correção: exibir subcategorias/filhas na árvore do organizador (render recursivo como no standalone)
 
