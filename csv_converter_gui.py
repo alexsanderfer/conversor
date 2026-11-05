@@ -1571,12 +1571,23 @@ class App(Tk):
             clean_tree = {}
             for k, v in tree.items():
                 if isinstance(v, set):
-                    clean_tree[k] = set(v)
+                    clean_tree[k] = set([c for c in v if c and str(c).strip()])
                 elif isinstance(v, list):
-                    clean_tree[k] = set(v)
+                    clean_tree[k] = set([c for c in v if c and str(c).strip()])
                 else:
                     clean_tree[k] = set()
             tree = clean_tree
+            # Se não há nada em "", tentar reconstruir a partir de todas as chaves
+            if not tree.get("") and tree:
+                # Todas as chaves que não aparecem como filhos são raízes
+                all_children = set()
+                for children in tree.values():
+                    for c in children:
+                        all_children.add(c)
+                roots = [k for k in tree if k != "" and k not in all_children]
+                if not roots:
+                    roots = [k for k in tree if k != ""]
+                tree[""] = set(roots)
             items = []
             stack_dfs = [("", 0, 0, frozenset())]
             while stack_dfs:
