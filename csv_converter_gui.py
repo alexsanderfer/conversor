@@ -1356,7 +1356,7 @@ class App(Tk):
             try:
                 if log_path:
                     with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.datetime.now()}] saved={'yes' if saved else 'no'}\n")
+                        f.write(f"[{datetime.datetime.now()}] saved={'yes' if saved else 'no'} tree_keys={len(saved) if isinstance(saved, dict) else None}\n")
             except Exception:
                 pass
             if saved is not None:
