@@ -1402,7 +1402,7 @@ class App(Tk):
                         pass
                     self._category_tree = {"": set()}
             else:
-                self._category_tree = {"": set()}
+                self._category_tree = {}
                 try:
                     if log_path:
                         with open(log_path, "a", encoding="utf-8") as f:
@@ -1410,35 +1410,45 @@ class App(Tk):
                 except Exception:
                     pass
                 found = 0
-                for row in rows[:5000]:
+                for row in rows[:10000]:
                     try:
                         f1 = get_mapped_value(row, "familia_principal", mapping).strip()
                         f2 = get_mapped_value(row, "sub_familia", mapping).strip()
                         f3 = get_mapped_value(row, "sub_sub_familia", mapping).strip()
 
-                        # Fallbacks para outros formatos
+                        if 'faminome' in row and str(row.get('faminome')).strip():
+                            val = str(row['faminome']).strip()
+                            if not val.isdigit():
+                                f1 = val
                         if not f1:
-                            for key in ['familia', 'categoria', 'category', 'categoria_principal', 'grupo', 'departamento', 'família']:
+                            for key in ['categoria', 'category', 'grupo', 'departamento', 'familia', 'família', 'categoria_principal']:
                                 for k,v in row.items():
-                                    if k and key in str(k).lower().strip():
+                                    kl = str(k).lower().strip()
+                                    if k and (key == kl or (key in kl and len(kl) < 25)):
                                         val = str(v).strip()
-                                        if val:
+                                        if val and not val.isdigit() and val.lower() not in ['categoria', 'categorias']:
                                             f1 = val
                                             break
                                 if f1: break
+                        if 'sub_familia' in row and str(row.get('sub_familia')).strip():
+                            f2 = str(row['sub_familia']).strip()
                         if not f2:
-                            for key in ['sub_familia', 'subcategoria', 'sub_categoria', 'subcategoria']:
+                            for key in ['subcategoria', 'sub_categoria', 'subfamilia']:
                                 for k,v in row.items():
-                                    if k and key in str(k).lower().strip():
+                                    kl = str(k).lower().strip()
+                                    if k and (key == kl or key in kl):
                                         val = str(v).strip()
                                         if val:
                                             f2 = val
                                             break
                                 if f2: break
+                        if 'sub_sub_familia' in row and str(row.get('sub_sub_familia')).strip():
+                            f3 = str(row['sub_sub_familia']).strip()
                         if not f3:
-                            for key in ['sub_sub_familia', 'subsubcategoria', 'terceira', 'nivel3']:
+                            for key in ['subsubcategoria', 'sub_sub_categoria']:
                                 for k,v in row.items():
-                                    if k and key in str(k).lower().strip():
+                                    kl = str(k).lower().strip()
+                                    if k and (key == kl or key in kl):
                                         val = str(v).strip()
                                         if val:
                                             f3 = val
@@ -1447,6 +1457,7 @@ class App(Tk):
 
                         if f1:
                             found += 1
+                            if "" not in self._category_tree: self._category_tree[""] = set()
                             self._category_tree[""].add(f1)
                             if f1 not in self._category_tree: self._category_tree[f1] = set()
                             if f2:
