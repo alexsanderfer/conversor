@@ -1632,49 +1632,53 @@ class App(Tk):
                 roots = [k for k in tree if k != ""]
                 tree[""] = set(roots)
 
-            items = []
-            stack_dfs = [("", 0, 0, frozenset())]
-            while stack_dfs:
-                try:
-                    parent_name, level, indent, visited = stack_dfs.pop()
-                    if level > 12:
-                        continue
-                    children = tree.get(parent_name, set()) or set()
-                    for child in sorted(list(children)):
-                        if child in visited or child == parent_name or child == "":
-                            continue
-                        items.append((parent_name, child, level, indent))
-                        new_visited = set(visited)
-                        new_visited.add(child)
-                        stack_dfs.append((child, level + 1, indent + 25, frozenset(new_visited)))
-                except Exception:
-                    continue
-
             content_width = 1020
-            for parent_name, child, level, indent in items:
-                try:
-                    bg_colors = [WHITE, GRAY_100, "#E0E0E0", "#D0D0D0"]
-                    bg = bg_colors[min(level, len(bg_colors)-1)]
-                    prefix = "📁 " if level == 0 else "  └─ " if level == 1 else "      └─ "
-                    display_text = f"{prefix}{child}"
 
-                    lbl = tk.Label(self._org_frame, text=display_text, bg=bg, fg=GRAY_800,
-                                   font=("Segoe UI", 9, "bold" if level==0 else "normal"),
-                                   padx=6, pady=3, cursor="hand2", relief="solid", borderwidth=1,
-                                   anchor="w")
-                    lbl.place(x=10 + indent, y=self._current_y, width=max(120, content_width - (10 + indent) - 16))
+            def render(parent_name, level, indent, visited=None):
+                if visited is None:
+                    visited = set()
+                if level > 12:
+                    return
+                children = sorted([c for c in (tree.get(parent_name, set()) or set()) if c])
+                for child in children:
+                    if child in visited or child == parent_name or child == "":
+                        continue
+                    try:
+                        bg_colors = [WHITE, GRAY_100, "#E0E0E0", "#D0D0D0"]
+                        bg = bg_colors[min(level, len(bg_colors)-1)]
+                        if level == 0:
+                            prefix = "📁 "
+                        elif level == 1:
+                            prefix = "  └─ "
+                        else:
+                            prefix = "      └─ "
+                        display_text = f"{prefix}{child}"
 
-                    lbl.bind("<Button-1>", lambda e, c=child, p=parent_name, w=lbl, lv=level: self._on_org_drag_start(e, c, p, w, lv))
-                    lbl.bind("<ButtonRelease-1>", self._on_org_drag_end)
-                    lbl.bind("<B1-Motion>", self._on_org_drag_motion)
+                        lbl = tk.Label(
+                            self._org_frame, text=display_text, bg=bg, fg=GRAY_800,
+                            font=("Segoe UI", 9, "bold" if level == 0 else "normal"),
+                            padx=6, pady=3, cursor="hand2", relief="solid", borderwidth=1,
+                            anchor="w",
+                        )
+                        lbl.place(x=10 + indent, y=self._current_y, width=max(120, content_width - (10 + indent) - 16))
 
-                    self._category_items[lbl] = {"name": child, "parent": parent_name, "level": level}
-                    self._current_y += 35 if level == 0 else 32
-                except Exception:
-                    continue
+                        lbl.bind("<Button-1>", lambda e, c=child, p=parent_name, w=lbl, lv=level: self._on_org_drag_start(e, c, p, w, lv))
+                        lbl.bind("<ButtonRelease-1>", self._on_org_drag_end)
+                        lbl.bind("<B1-Motion>", self._on_org_drag_motion)
+
+                        self._category_items[lbl] = {"name": child, "parent": parent_name, "level": level}
+                        self._current_y += 35 if level == 0 else 32
+                    except Exception:
+                        continue
+
+                    nv = set(visited)
+                    nv.add(child)
+                    render(child, level + 1, indent + 26, nv)
+
+            render("", 0, 0)
 
             content_height = max(getattr(self, "_current_y", 10) + 100, 220)
-            if not items:
+            if len(self._category_items) == 0:
                 try:
                     tk.Label(
                         self._org_frame,
@@ -1691,7 +1695,6 @@ class App(Tk):
                 pass
             try:
                 if hasattr(self, "_org_window") and self._org_window:
-                    # largura fixa; altura deixa o conteúdo/scrollregion mandar (evita clipping em place)
                     self._org_canvas.itemconfigure(self._org_window, width=content_width)
             except Exception:
                 pass
@@ -1707,7 +1710,7 @@ class App(Tk):
                 self._org_canvas.yview_moveto(0)
             except Exception:
                 pass
-            _log(f"ok items={len(items)} nodes={len(self._category_items)} roots={len(tree.get('', set()))} h={content_height}")
+            _log(f"ok nodes={len(self._category_items)} roots={len(tree.get('', set()))} h={content_height}")
         except Exception as e:
             try:
                 import traceback
@@ -2080,6 +2083,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.23 (2026-11-05)
+        - Correção: exibir subcategorias/filhas na árvore do organizador (render recursivo como no standalone)
+
         v0.3.22 (2026-11-05)
         - Correção: árvore de categorias vazia no organizador (scrollregion/dimensionamento do canvas) + log de diagnóstico
 
