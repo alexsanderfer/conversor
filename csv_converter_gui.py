@@ -1592,16 +1592,20 @@ class App(Tk):
                 else:
                     clean_tree[k] = set()
             tree = clean_tree
-            # Se não há nada em "", tentar reconstruir a partir de todas as chaves
+            # Garantir que todas as categorias apareçam
+            all_children = set()
+            for children in tree.values():
+                for c in children:
+                    all_children.add(c)
+            # Se há chaves que não aparecem em nenhum lugar, colocar em ""
+            if "" not in tree:
+                tree[""] = set()
+            for k in list(tree.keys()):
+                if k != "" and k not in all_children:
+                    tree[""].add(k)
+            # Se "" ficou vazio mas há outras chaves, mover todas
             if not tree.get("") and tree:
-                # Todas as chaves que não aparecem como filhos são raízes
-                all_children = set()
-                for children in tree.values():
-                    for c in children:
-                        all_children.add(c)
-                roots = [k for k in tree if k != "" and k not in all_children]
-                if not roots:
-                    roots = [k for k in tree if k != ""]
+                roots = [k for k in tree if k != ""]
                 tree[""] = set(roots)
             items = []
             stack_dfs = [("", 0, 0, frozenset())]
