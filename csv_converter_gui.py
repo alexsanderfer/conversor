@@ -1418,8 +1418,12 @@ class App(Tk):
 
                         if 'faminome' in row and str(row.get('faminome')).strip():
                             val = str(row['faminome']).strip()
-                            if not val.isdigit():
+                            if val and not val.isdigit() and val.lower() not in ['null', 'none']:
                                 f1 = val
+                        if not f1 or f1.isdigit():
+                            for k in ['faminome','familia_nome','nome_familia']:
+                                if k in row and str(row[k]).strip() and not str(row[k]).strip().isdigit():
+                                    f1 = str(row[k]).strip(); break
                         if not f1:
                             for key in ['categoria', 'category', 'grupo', 'departamento', 'familia', 'família', 'categoria_principal']:
                                 for k,v in row.items():
