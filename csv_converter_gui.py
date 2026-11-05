@@ -15,6 +15,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import tkinter as tk
 import unicodedata
 from collections import OrderedDict
@@ -1191,20 +1192,38 @@ class App(Tk):
 
         org_btn_frame = ttk.Frame(tab_organizer)
         org_btn_frame.pack(fill="x", pady=(0, 6))
-        ttk.Button(org_btn_frame, text="Carregar Categorias do Ficheiro", command=self._load_categories_for_organizer).pack(side="left")
+        self._org_load_btn = ttk.Button(
+            org_btn_frame, text="Carregar Categorias do Ficheiro",
+            command=self._load_categories_for_organizer,
+        )
+        self._org_load_btn.pack(side="left")
         ttk.Button(org_btn_frame, text="Guardar Organização", command=self._save_category_organization).pack(side="left", padx=(4, 0))
         ttk.Button(org_btn_frame, text="Editar Selecionado", command=lambda: self._edit_category_name(self._get_selected_category())).pack(side="left", padx=(4, 0))
 
-        org_container = ttk.Frame(tab_organizer)
-        org_container.pack(fill="both", expand=True, pady=(4, 0))
-        self._org_canvas = tk.Canvas(org_container, bg=GRAY_100, highlightthickness=1, highlightbackground=GRAY_600)
-        org_scroll = ttk.Scrollbar(org_container, orient="vertical", command=self._org_canvas.yview)
+        self._org_container = ttk.Frame(tab_organizer)
+        self._org_container.pack(fill="both", expand=True, pady=(4, 0))
+        self._org_canvas = tk.Canvas(self._org_container, bg=GRAY_100, highlightthickness=1, highlightbackground=GRAY_600)
+        org_scroll = ttk.Scrollbar(self._org_container, orient="vertical", command=self._org_canvas.yview)
         self._org_frame = tk.Frame(self._org_canvas, bg=GRAY_100)
         self._org_frame.bind("<Configure>", lambda e: self._org_canvas.configure(scrollregion=self._org_canvas.bbox("all")))
         self._org_canvas.create_window((0, 0), window=self._org_frame, anchor="nw")
         self._org_canvas.configure(yscrollcommand=org_scroll.set)
         self._org_canvas.pack(side="left", fill="both", expand=True)
         org_scroll.pack(side="right", fill="y")
+
+        self._org_loading_overlay = tk.Frame(self._org_container, bg=GRAY_100)
+        self._org_loading_label = tk.Label(
+            self._org_loading_overlay,
+            text="A carregar categorias...",
+            bg=GRAY_100,
+            fg=GRAY_800,
+            font=("Segoe UI", 10, "bold"),
+        )
+        self._org_loading_label.pack(pady=(24, 8))
+        self._org_loading_bar = ttk.Progressbar(
+            self._org_loading_overlay, mode="indeterminate", length=220,
+        )
+        self._org_loading_bar.pack(pady=(0, 24))
 
         self._category_tree = {}
         self._category_items = {}  # label widget -> category name
@@ -1298,22 +1317,54 @@ class App(Tk):
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao aprender: {e}", parent=self)
 
-    def _load_categories_for_organizer(self):
+    def _show_org_loading(self, text="A carregar categorias..."):
         try:
-            import traceback, datetime
+            if hasattr(self, "_org_loading_label"):
+                self._org_loading_label.config(text=text)
+            if hasattr(self, "_org_loading_overlay"):
+                self._org_loading_overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+                self._org_loading_overlay.lift()
+            if hasattr(self, "_org_loading_bar"):
+                self._org_loading_bar.start(10)
+            if hasattr(self, "_org_load_btn"):
+                self._org_load_btn.config(state="disabled")
+            self.update_idletasks()
+        except Exception:
+            pass
+
+    def _hide_org_loading(self):
+        try:
+            if hasattr(self, "_org_loading_bar"):
+                self._org_loading_bar.stop()
+            if hasattr(self, "_org_loading_overlay"):
+                self._org_loading_overlay.place_forget()
+            if hasattr(self, "_org_load_btn"):
+                self._org_load_btn.config(state="normal")
+        except Exception:
+            pass
+
+    def _load_categories_for_organizer(self):
+        selected_file = self.path_var.get().strip().strip('"').strip("'")
+        if not selected_file or not os.path.isfile(selected_file):
+            selected_file = self.fornecedor_var.get().strip().strip('"').strip("'")
+        if not selected_file or not os.path.isfile(selected_file):
+            messagebox.showwarning("Atenção", "Selecione ou arraste um ficheiro CSV primeiro.", parent=self)
+            return
+
+        self._show_org_loading("A carregar categorias...")
+
+        def worker():
+            result = {"ok": False, "error": None, "tree": None}
             log_path = None
             try:
-                base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
-                base_dir.mkdir(parents=True, exist_ok=True)
-                log_path = base_dir / "debug_organizer.log"
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(f"[{datetime.datetime.now()}] START _load_categories_for_organizer\n")
-            except Exception:
+                import traceback, datetime
                 try:
-                    desktop = Path.home() / "Desktop"
-                    log_path = desktop / "debug_organizer.log"
+                    base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
+                    base_dir.mkdir(parents=True, exist_ok=True)
+                    log_path = base_dir / "debug_organizer.log"
                     with open(log_path, "a", encoding="utf-8") as f:
                         f.write(f"[{datetime.datetime.now()}] START _load_categories_for_organizer\n")
+                        f.write(f"[{datetime.datetime.now()}] selected_file={selected_file}\n")
                 except Exception:
                     try:
                         log_path = Path(__file__).parent / "debug_organizer.log"
@@ -1322,251 +1373,202 @@ class App(Tk):
                     except Exception:
                         pass
 
-            selected_file = self.path_var.get().strip().strip('"').strip("'")
-            try:
-                if log_path:
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.datetime.now()}] path_var={selected_file}\n")
-            except Exception:
-                pass
-            if not selected_file or not os.path.isfile(selected_file):
-                selected_file = self.fornecedor_var.get().strip().strip('"').strip("'")
+                headers, rows = _read_csv_any_delimiter(selected_file)
                 try:
                     if log_path:
                         with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] fornecedor_var={selected_file}\n")
+                            f.write(f"[{datetime.datetime.now()}] rows={len(rows)}\n")
                 except Exception:
                     pass
-            if not selected_file or not os.path.isfile(selected_file):
-                messagebox.showwarning("Atenção", "Selecione ou arraste um ficheiro CSV primeiro.", parent=self)
-                return
-            headers, rows = _read_csv_any_delimiter(selected_file)
-            try:
-                if log_path:
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.datetime.now()}] rows={len(rows)}\n")
-            except Exception:
-                pass
-            if not rows:
-                messagebox.showwarning("Atenção", "Não foi possível ler o ficheiro ou está vazio.", parent=self)
-                return
-            mapping = load_field_mapping()
+                if not rows:
+                    result["error"] = "Não foi possível ler o ficheiro ou está vazio."
+                    return
 
-            saved = self._load_saved_category_organization()
-            try:
-                if log_path:
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.datetime.now()}] saved={'yes' if saved else 'no'} tree_keys={len(saved) if isinstance(saved, dict) else None}\n")
-            except Exception:
-                pass
-            if saved is not None:
+                mapping = load_field_mapping()
+                saved = self._load_saved_category_organization()
                 try:
-                    self._category_tree = {}
-                    if isinstance(saved, dict):
-                        for k, v in saved.items():
-                            if isinstance(v, set):
-                                self._category_tree[k] = set(v)
-                            elif isinstance(v, list):
-                                self._category_tree[k] = set(v)
-                            else:
-                                self._category_tree[k] = set()
-                    if "" not in self._category_tree:
-                        self._category_tree[""] = set()
-                    # Quebrar ciclos
-                    for _ in range(30):
-                        fixed = False
-                        for parent, children in list(self._category_tree.items()):
-                            for child in list(children):
-                                if child == parent or child == "":
-                                    try:
-                                        children.discard(child)
-                                    except Exception:
-                                        pass
-                                    fixed = True
-                                    continue
-                                if child in self._category_tree and parent in self._category_tree.get(child, set()):
-                                    try:
-                                        children.discard(child)
-                                    except Exception:
-                                        pass
-                                    fixed = True
-                        if not fixed:
-                            break
-                except Exception as ex:
+                    if log_path:
+                        with open(log_path, "a", encoding="utf-8") as f:
+                            f.write(f"[{datetime.datetime.now()}] saved={'yes' if saved else 'no'} tree_keys={len(saved) if isinstance(saved, dict) else None}\n")
+                except Exception:
+                    pass
+
+                category_tree = {}
+                if saved is not None:
+                    try:
+                        if isinstance(saved, dict):
+                            for k, v in saved.items():
+                                if isinstance(v, set):
+                                    category_tree[k] = set(v)
+                                elif isinstance(v, list):
+                                    category_tree[k] = set(v)
+                                else:
+                                    category_tree[k] = set()
+                        if "" not in category_tree:
+                            category_tree[""] = set()
+                        # Quebrar ciclos
+                        for _ in range(30):
+                            fixed = False
+                            for parent, children in list(category_tree.items()):
+                                for child in list(children):
+                                    if child == parent or child == "":
+                                        try:
+                                            children.discard(child)
+                                        except Exception:
+                                            pass
+                                        fixed = True
+                                        continue
+                                    if child in category_tree and parent in category_tree.get(child, set()):
+                                        try:
+                                            children.discard(child)
+                                        except Exception:
+                                            pass
+                                        fixed = True
+                            if not fixed:
+                                break
+                    except Exception as ex:
+                        try:
+                            if log_path:
+                                with open(log_path, "a", encoding="utf-8") as f:
+                                    f.write(f"[{datetime.datetime.now()}] saved load err {ex}\n")
+                                    f.write(traceback.format_exc())
+                        except Exception:
+                            pass
+                        category_tree = {"": set()}
+                else:
                     try:
                         if log_path:
                             with open(log_path, "a", encoding="utf-8") as f:
-                                f.write(f"[{datetime.datetime.now()}] saved load err {ex}\n")
-                                f.write(traceback.format_exc())
+                                f.write(f"[{datetime.datetime.now()}] building tree from scratch, mapping keys sample: {list(mapping.keys())[:10]}, headers: {headers[:15]}\n")
                     except Exception:
                         pass
-                    self._category_tree = {"": set()}
-            else:
-                self._category_tree = {}
-                try:
-                    if log_path:
-                        with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] building tree from scratch, mapping keys sample: {list(mapping.keys())[:10]}, headers: {headers[:15]}\n")
-                except Exception:
-                    pass
-                found = 0
-                for row in rows[:10000]:
-                    try:
-                        f1 = get_mapped_value(row, "familia_principal", mapping).strip()
-                        f2 = get_mapped_value(row, "sub_familia", mapping).strip()
-                        f3 = get_mapped_value(row, "sub_sub_familia", mapping).strip()
-
-                        if 'faminome' in row and str(row.get('faminome')).strip():
-                            val = str(row['faminome']).strip()
-                            if val and not val.isdigit() and val.lower() not in ['null', 'none']:
-                                f1 = val
-                        if not f1 or f1.isdigit():
-                            for k in ['faminome','familia_nome','nome_familia']:
-                                if k in row and str(row[k]).strip() and not str(row[k]).strip().isdigit():
-                                    f1 = str(row[k]).strip(); break
-                        if not f1:
-                            for key in ['categoria', 'category', 'grupo', 'departamento', 'familia', 'família', 'categoria_principal']:
-                                for k,v in row.items():
-                                    kl = str(k).lower().strip()
-                                    if k and (key == kl or (key in kl and len(kl) < 25)):
-                                        val = str(v).strip()
-                                        if val and not val.isdigit() and val.lower() not in ['categoria', 'categorias']:
-                                            f1 = val
-                                            break
-                                if f1: break
-                        if 'sub_familia' in row and str(row.get('sub_familia')).strip():
-                            f2 = str(row['sub_familia']).strip()
-                        if not f2:
-                            for key in ['subcategoria', 'sub_categoria', 'subfamilia']:
-                                for k,v in row.items():
-                                    kl = str(k).lower().strip()
-                                    if k and (key == kl or key in kl):
-                                        val = str(v).strip()
-                                        if val:
-                                            f2 = val
-                                            break
-                                if f2: break
-                        if 'sub_sub_familia' in row and str(row.get('sub_sub_familia')).strip():
-                            f3 = str(row['sub_sub_familia']).strip()
-                        if not f3:
-                            for key in ['subsubcategoria', 'sub_sub_categoria']:
-                                for k,v in row.items():
-                                    kl = str(k).lower().strip()
-                                    if k and (key == kl or key in kl):
-                                        val = str(v).strip()
-                                        if val:
-                                            f3 = val
-                                            break
-                                if f3: break
-
-                        if f1:
-                            found += 1
-                            if "" not in self._category_tree: self._category_tree[""] = set()
-                            self._category_tree[""].add(f1)
-                            if f1 not in self._category_tree: self._category_tree[f1] = set()
-                            if f2:
-                                self._category_tree[f1].add(f2)
-                                if f2 not in self._category_tree: self._category_tree[f2] = set()
-                                if f3:
-                                    self._category_tree[f2].add(f3)
-                                    if f3 not in self._category_tree: self._category_tree[f3] = set()
-                    except Exception:
-                        continue
-                try:
-                    if log_path:
-                        with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] found categories from rows: {found}, roots in tree: {len(self._category_tree.get('', set()))}\n")
-                except Exception:
-                    pass
-
-            try:
-                try:
-                    if log_path:
-                        with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] before rebuild, tree len={len(getattr(self,'_category_tree',{}))}\n")
-                except Exception:
-                    pass
-                self._rebuild_org_tree()
-                try:
-                    if log_path:
-                        with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] rebuild ok, items={len(getattr(self,'_category_items',{}))}\n")
-                except Exception:
-                    pass
-            except Exception as ex:
-                try:
-                    if log_path:
-                        with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] rebuild err {ex}\n")
-                            f.write(traceback.format_exc())
-                except Exception:
-                    pass
-                try:
-                    tree = getattr(self, '_category_tree', {}) or {}
-                    self._category_tree = {"": set(list(tree.get("", set()))[:30])}
-                    self._rebuild_org_tree()
-                except Exception as ex2:
-                    try:
-                        import traceback, datetime
+                    found = 0
+                    for row in rows[:10000]:
                         try:
-                            base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
-                            base_dir.mkdir(parents=True, exist_ok=True)
-                            log_path = base_dir / "debug_organizer.log"
-                            with open(log_path, "a", encoding="utf-8") as f:
-                                f.write(f"[{datetime.datetime.now()}] rebuild second err {ex2}\n")
-                                f.write(traceback.format_exc())
+                            f1 = get_mapped_value(row, "familia_principal", mapping).strip()
+                            f2 = get_mapped_value(row, "sub_familia", mapping).strip()
+                            f3 = get_mapped_value(row, "sub_sub_familia", mapping).strip()
+
+                            if 'faminome' in row and str(row.get('faminome')).strip():
+                                val = str(row['faminome']).strip()
+                                if val and not val.isdigit() and val.lower() not in ['null', 'none']:
+                                    f1 = val
+                            if not f1 or f1.isdigit():
+                                for k in ['faminome', 'familia_nome', 'nome_familia']:
+                                    if k in row and str(row[k]).strip() and not str(row[k]).strip().isdigit():
+                                        f1 = str(row[k]).strip()
+                                        break
+                            if not f1:
+                                for key in ['categoria', 'category', 'grupo', 'departamento', 'familia', 'família', 'categoria_principal']:
+                                    for k, v in row.items():
+                                        kl = str(k).lower().strip()
+                                        if k and (key == kl or (key in kl and len(kl) < 25)):
+                                            val = str(v).strip()
+                                            if val and not val.isdigit() and val.lower() not in ['categoria', 'categorias']:
+                                                f1 = val
+                                                break
+                                    if f1:
+                                        break
+                            if 'sub_familia' in row and str(row.get('sub_familia')).strip():
+                                f2 = str(row['sub_familia']).strip()
+                            if not f2:
+                                for key in ['subcategoria', 'sub_categoria', 'subfamilia']:
+                                    for k, v in row.items():
+                                        kl = str(k).lower().strip()
+                                        if k and (key == kl or key in kl):
+                                            val = str(v).strip()
+                                            if val:
+                                                f2 = val
+                                                break
+                                    if f2:
+                                        break
+                            if 'sub_sub_familia' in row and str(row.get('sub_sub_familia')).strip():
+                                f3 = str(row['sub_sub_familia']).strip()
+                            if not f3:
+                                for key in ['subsubcategoria', 'sub_sub_categoria']:
+                                    for k, v in row.items():
+                                        kl = str(k).lower().strip()
+                                        if k and (key == kl or key in kl):
+                                            val = str(v).strip()
+                                            if val:
+                                                f3 = val
+                                                break
+                                    if f3:
+                                        break
+
+                            if f1:
+                                found += 1
+                                if "" not in category_tree:
+                                    category_tree[""] = set()
+                                category_tree[""].add(f1)
+                                if f1 not in category_tree:
+                                    category_tree[f1] = set()
+                                if f2:
+                                    category_tree[f1].add(f2)
+                                    if f2 not in category_tree:
+                                        category_tree[f2] = set()
+                                    if f3:
+                                        category_tree[f2].add(f3)
+                                        if f3 not in category_tree:
+                                            category_tree[f3] = set()
                         except Exception:
-                            pass
+                            continue
+                    try:
+                        if log_path:
+                            with open(log_path, "a", encoding="utf-8") as f:
+                                f.write(f"[{datetime.datetime.now()}] found categories from rows: {found}, roots in tree: {len(category_tree.get('', set()))}\n")
                     except Exception:
                         pass
-            try:
-                if log_path:
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.datetime.now()}] END ok\n")
-            except Exception:
-                pass
-            try:
-                if log_path:
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.datetime.now()}] BEFORE MSG\n")
-            except Exception:
-                pass
-            try:
-                if log_path:
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.datetime.now()}] BEFORE MSG\n")
-            except Exception:
-                pass
-            try:
-                messagebox.showinfo("Carregado", "Categorias carregadas com sucesso.", parent=self)
-            except Exception as exm:
+
+                result["tree"] = category_tree
+                result["ok"] = True
                 try:
                     if log_path:
                         with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] MSG ERR {exm}\n")
+                            f.write(f"[{datetime.datetime.now()}] worker ok\n")
+                except Exception:
+                    pass
+            except Exception as e:
+                try:
+                    import traceback, datetime
+                    if log_path:
+                        with open(log_path, "a", encoding="utf-8") as f:
+                            f.write(f"[{datetime.datetime.now()}] FATAL {e}\n")
                             f.write(traceback.format_exc())
                 except Exception:
                     pass
+                result["error"] = str(e)
+
+            self.after(0, lambda: self._on_org_categories_loaded(result))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_org_categories_loaded(self, result):
+        try:
+            if not result.get("ok"):
+                self._hide_org_loading()
+                messagebox.showwarning(
+                    "Atenção",
+                    result.get("error") or "Não foi possível carregar as categorias.",
+                    parent=self,
+                )
+                return
+
+            tree = result.get("tree") or {"": set()}
+            self._category_tree = tree
             try:
-                if log_path:
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.datetime.now()}] AFTER MSG\n")
+                self._rebuild_org_tree()
             except Exception:
-                pass
+                try:
+                    self._category_tree = {"": set(list((tree or {}).get("", set()))[:30])}
+                    self._rebuild_org_tree()
+                except Exception:
+                    pass
+
+            self._hide_org_loading()
+            messagebox.showinfo("Carregado", "Categorias carregadas com sucesso.", parent=self)
         except Exception as e:
-            try:
-                import traceback, datetime
-                if getattr(sys, 'frozen', False):
-                    base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
-                    base_dir.mkdir(parents=True, exist_ok=True)
-                else:
-                    base_dir = Path(__file__).parent
-                log_path = base_dir / "debug_organizer.log"
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(f"[{datetime.datetime.now()}] FATAL {e}\n")
-                    f.write(traceback.format_exc())
-            except Exception:
-                pass
+            self._hide_org_loading()
             messagebox.showerror("Erro", f"Erro ao carregar categorias: {e}", parent=self)
 
     def _rebuild_org_tree(self):
@@ -1889,6 +1891,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.21 (2026-11-05)
+        - Carregador visual na área da árvore de categorias durante o carregamento
+
         v0.3.20 (2026-11-04)
         - Melhorias no organizador de categorias (arrastar/soltar, persistência)
         - Guardar organização de categorias entre sessões
