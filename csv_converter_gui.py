@@ -1206,10 +1206,13 @@ class App(Tk):
         org_scroll = ttk.Scrollbar(self._org_container, orient="vertical", command=self._org_canvas.yview)
         self._org_frame = tk.Frame(self._org_canvas, bg=GRAY_100)
         self._org_frame.bind("<Configure>", lambda e: self._org_canvas.configure(scrollregion=self._org_canvas.bbox("all")))
-        self._org_canvas.create_window((0, 0), window=self._org_frame, anchor="nw")
+        self._org_window = self._org_canvas.create_window((0, 0), window=self._org_frame, anchor="nw")
         self._org_canvas.configure(yscrollcommand=org_scroll.set)
         self._org_canvas.pack(side="left", fill="both", expand=True)
         org_scroll.pack(side="right", fill="y")
+
+        # Soltar no fundo = mover para raiz
+        self._org_canvas.bind("<ButtonRelease-1>", self._on_org_canvas_release)
 
         self._org_loading_overlay = tk.Frame(self._org_container, bg=GRAY_100)
         self._org_loading_label = tk.Label(
@@ -1227,7 +1230,7 @@ class App(Tk):
 
         self._category_tree = {}
         self._category_items = {}  # label widget -> category name
-        self._drag_data = {"item": None, "x": 0, "y": 0, "category": None, "parent": None}
+        self._drag_data = {"item": None, "category": None, "parent": None, "level": 0, "hover_target": None, "orig_place": None, "last_motion_ts": 0.0}
 
     def _extract_categories_from_file(self, filepath):
         try:
@@ -1566,13 +1569,32 @@ class App(Tk):
                     pass
 
             self._hide_org_loading()
-            messagebox.showinfo("Carregado", "Categorias carregadas com sucesso.", parent=self)
+            roots = len((self._category_tree or {}).get("", set()) or set())
+            nodes = len(getattr(self, "_category_items", {}) or {})
+            if nodes <= 0 and roots <= 0:
+                messagebox.showwarning(
+                    "Carregado",
+                    "O carregamento terminou, mas não há categorias para mostrar.\n"
+                    "Isto pode acontecer se não existirem colunas de categoria no ficheiro ou se o mapeamento de campos não encontrar a coluna correta.",
+                    parent=self,
+                )
+            else:
+                messagebox.showinfo("Carregado", f"Categorias carregadas com sucesso.\nRaízes: {roots} | Itens: {nodes}", parent=self)
         except Exception as e:
             self._hide_org_loading()
             messagebox.showerror("Erro", f"Erro ao carregar categorias: {e}", parent=self)
 
     def _rebuild_org_tree(self):
         """Reconstrói a árvore visual baseada no estado atual de `self._category_tree`."""
+        def _log(msg):
+            try:
+                base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
+                base_dir.mkdir(parents=True, exist_ok=True)
+                with open(base_dir / "debug_organizer.log", "a", encoding="utf-8") as f:
+                    f.write(f"[{datetime.datetime.now()}] [rebuild] {msg}\n")
+            except Exception:
+                pass
+
         try:
             for widget in self._org_frame.winfo_children():
                 widget.destroy()
@@ -1609,6 +1631,7 @@ class App(Tk):
             if not tree.get("") and tree:
                 roots = [k for k in tree if k != ""]
                 tree[""] = set(roots)
+
             items = []
             stack_dfs = [("", 0, 0, frozenset())]
             while stack_dfs:
@@ -1627,6 +1650,7 @@ class App(Tk):
                 except Exception:
                     continue
 
+            content_width = 1020
             for parent_name, child, level, indent in items:
                 try:
                     bg_colors = [WHITE, GRAY_100, "#E0E0E0", "#D0D0D0"]
@@ -1636,88 +1660,253 @@ class App(Tk):
 
                     lbl = tk.Label(self._org_frame, text=display_text, bg=bg, fg=GRAY_800,
                                    font=("Segoe UI", 9, "bold" if level==0 else "normal"),
-                                   padx=6, pady=3, cursor="hand2", relief="solid", borderwidth=1)
-                    lbl.place(x=10 + indent, y=self._current_y)
+                                   padx=6, pady=3, cursor="hand2", relief="solid", borderwidth=1,
+                                   anchor="w")
+                    lbl.place(x=10 + indent, y=self._current_y, width=max(120, content_width - (10 + indent) - 16))
 
-                    lbl.bind("<Button-1>", lambda e, c=child, p=parent_name: self._on_drag_start(e, c, p))
-                    lbl.bind("<ButtonRelease-1>", lambda e: self._on_drag_end(e))
-                    lbl.bind("<B1-Motion>", lambda e: self._on_drag_motion(e))
+                    lbl.bind("<Button-1>", lambda e, c=child, p=parent_name, w=lbl, lv=level: self._on_org_drag_start(e, c, p, w, lv))
+                    lbl.bind("<ButtonRelease-1>", self._on_org_drag_end)
+                    lbl.bind("<B1-Motion>", self._on_org_drag_motion)
 
                     self._category_items[lbl] = {"name": child, "parent": parent_name, "level": level}
                     self._current_y += 35 if level == 0 else 32
                 except Exception:
                     continue
 
+            content_height = max(getattr(self, "_current_y", 10) + 100, 220)
+            if not items:
+                try:
+                    tk.Label(
+                        self._org_frame,
+                        text="Nenhuma categoria encontrada para mostrar.\nVerifique o mapeamento de campos (família/categoria) ou o ficheiro selecionado.",
+                        bg=GRAY_100, fg=GRAY_800, justify="left", padx=12, pady=12, wraplength=760,
+                    ).place(x=12, y=12)
+                    content_height = 140
+                except Exception:
+                    pass
+
+            try:
+                self._org_frame.configure(width=content_width, height=content_height)
+            except Exception:
+                pass
+            try:
+                if hasattr(self, "_org_window") and self._org_window:
+                    # largura fixa; altura deixa o conteúdo/scrollregion mandar (evita clipping em place)
+                    self._org_canvas.itemconfigure(self._org_window, width=content_width)
+            except Exception:
+                pass
+
+            self._org_frame.update_idletasks()
             self._org_canvas.update_idletasks()
-            self._org_canvas.configure(scrollregion=(0, 0, 600, self._current_y + 100))
+            try:
+                bbox = self._org_canvas.bbox("all")
+                self._org_canvas.configure(scrollregion=bbox or (0, 0, content_width, content_height))
+            except Exception:
+                self._org_canvas.configure(scrollregion=(0, 0, content_width, content_height))
+            try:
+                self._org_canvas.yview_moveto(0)
+            except Exception:
+                pass
+            _log(f"ok items={len(items)} nodes={len(self._category_items)} roots={len(tree.get('', set()))} h={content_height}")
+        except Exception as e:
+            try:
+                import traceback
+                _log(f"ERR {e}\n{traceback.format_exc()}")
+            except Exception:
+                pass
+
+    def _is_org_descendant(self, potential_parent, target_cat, _seen=None):
+        """True se potential_parent está na subárvore de target_cat (evita ciclos)."""
+        if not potential_parent or not target_cat:
+            return False
+        if _seen is None:
+            _seen = set()
+        if target_cat in _seen:
+            return False
+        _seen.add(target_cat)
+        children = self._category_tree.get(target_cat, set()) or set()
+        if potential_parent in children:
+            return True
+        for child in children:
+            if self._is_org_descendant(potential_parent, child, _seen):
+                return True
+        return False
+
+    def _org_level_bg(self, level):
+        if level == 0:
+            return WHITE
+        if level == 1:
+            return GRAY_100
+        return "#E0E0E0"
+
+    def _clear_org_drag_highlight(self):
+        target = (self._drag_data or {}).get("hover_target")
+        if target and target in self._category_items:
+            try:
+                lvl = self._category_items[target].get("level", 0)
+                target.configure(relief="solid", borderwidth=1, bg=self._org_level_bg(lvl))
+            except Exception:
+                pass
+        self._drag_data["hover_target"] = None
+
+    def _on_org_drag_start(self, event, category, parent, widget, level):
+        try:
+            orig = widget.place_info()
+        except Exception:
+            orig = {}
+        self._drag_data = {
+            "item": widget,
+            "category": category,
+            "parent": parent,
+            "level": level,
+            "hover_target": None,
+            "orig_place": orig,
+            "last_motion_ts": 0.0,
+        }
+        try:
+            widget.configure(relief="raised", borderwidth=2)
+            widget.lift()
         except Exception:
             pass
 
-    def _on_drag_end(self, event):
-        if not self._drag_data["item"]:
+    def _on_org_drag_motion(self, event):
+        import time
+        item = (self._drag_data or {}).get("item")
+        if not item:
+            return
+        now = time.monotonic()
+        if now - float(self._drag_data.get("last_motion_ts") or 0.0) < 0.03:
+            return
+        self._drag_data["last_motion_ts"] = now
+        try:
+            x = event.x_root - self._org_frame.winfo_rootx() - 10
+            y = event.y_root - self._org_frame.winfo_rooty() - 10
+            item.place_configure(x=x, y=y)
+        except Exception:
+            return
+        target = None
+        try:
+            item.place_forget()
+            self._org_frame.update_idletasks()
+            widget_under = self.winfo_containing(event.x_root, event.y_root)
+            if widget_under in self._category_items and widget_under is not item:
+                target = widget_under
+        except Exception:
+            target = None
+        finally:
+            try:
+                x = event.x_root - self._org_frame.winfo_rootx() - 10
+                y = event.y_root - self._org_frame.winfo_rooty() - 10
+                item.place_configure(x=x, y=y)
+                item.lift()
+            except Exception:
+                pass
+        if target is not self._drag_data.get("hover_target"):
+            self._clear_org_drag_highlight()
+            if target:
+                try:
+                    target.configure(relief="solid", borderwidth=2, bg="#FFF3CD")
+                except Exception:
+                    pass
+                self._drag_data["hover_target"] = target
+
+    def _on_org_canvas_release(self, event):
+        if (self._drag_data or {}).get("item"):
+            self._on_org_drag_end(event)
+
+    def _on_org_drag_end(self, event):
+        item = (self._drag_data or {}).get("item")
+        cat = (self._drag_data or {}).get("category")
+        old_parent = (self._drag_data or {}).get("parent")
+        if not item or not cat:
+            self._drag_data = {"item": None, "category": None, "parent": None, "level": 0, "hover_target": None, "orig_place": None, "last_motion_ts": 0.0}
             return
 
-        # Tentar encontrar o widget alvo sob o ponteiro do mouse
-        x_root, y_root = event.x_root, event.y_root
-        target_widget = event.widget.winfo_containing(x_root, y_root)
+        self._clear_org_drag_highlight()
+        target_widget = None
+        try:
+            item.place_forget()
+            self._org_frame.update_idletasks()
+            target_widget = self.winfo_containing(event.x_root, event.y_root)
+        except Exception:
+            target_widget = getattr(event, "widget", None)
 
-        cat = self._drag_data["category"]
-        old_parent = self._drag_data["parent"]
+        moved = False
+        move_msg = None
+        invalid_msg = None
 
-        # Se soltou em cima de outra categoria
-        if target_widget and target_widget in self._category_items:
+        if target_widget in self._category_items and target_widget is not item:
             new_parent = self._category_items[target_widget]["name"]
-
-            if cat != new_parent:
-                # Evitar mover para o próprio filho (causaria loop infinito)
-                def is_child_of(potential_parent, target_cat):
-                    children = self._category_tree.get(target_cat, [])
-                    if potential_parent in children: return True
-                    for child in children:
-                        if is_child_of(potential_parent, child): return True
-                    return False
-
-                if is_child_of(new_parent, cat):
-                    messagebox.showwarning("Aviso", "Não pode mover uma categoria para dentro do seu próprio filho.", parent=self)
-                    self._rebuild_org_tree()
-                else:
-                    # Mover logicamente
-                    if cat in self._category_tree.get(old_parent, []):
-                        self._category_tree[old_parent].remove(cat)
-
-                    if new_parent not in self._category_tree:
-                        self._category_tree[new_parent] = set()
-                    self._category_tree[new_parent].add(cat)
-
-                    self._rebuild_org_tree()
-                    messagebox.showinfo("Movido", f"'{cat}' movido para dentro de '{new_parent}'.", parent=self)
+            if new_parent == cat or old_parent == new_parent:
+                pass
+            elif self._is_org_descendant(new_parent, cat):
+                invalid_msg = "Não pode mover uma categoria para dentro do seu próprio filho/subcategoria."
             else:
-                self._rebuild_org_tree()
-        # Se soltou no "vazio" do canvas/frame, mover para a Raiz
-        elif target_widget in [self._org_frame, self._org_canvas]:
+                if cat in (self._category_tree.get(old_parent) or set()):
+                    self._category_tree[old_parent].discard(cat)
+                self._category_tree.setdefault(new_parent, set()).add(cat)
+                moved = True
+                move_msg = f"'{cat}' movido para dentro de '{new_parent}'."
+        elif target_widget in (self._org_canvas, self._org_frame, self._org_loading_overlay):
             if old_parent != "":
-                if cat in self._category_tree.get(old_parent, []):
-                    self._category_tree[old_parent].remove(cat)
-                self._category_tree[""].add(cat)
-                self._rebuild_org_tree()
-                messagebox.showinfo("Movido", f"'{cat}' movido para a Raiz.", parent=self)
-            else:
-                self._rebuild_org_tree()
-        else:
-            self._rebuild_org_tree()
+                if cat in (self._category_tree.get(old_parent) or set()):
+                    self._category_tree[old_parent].discard(cat)
+                self._category_tree.setdefault("", set()).add(cat)
+                moved = True
+                move_msg = f"'{cat}' movido para a raiz."
 
-        self._drag_data = {"item": None, "x": 0, "y": 0, "category": None, "parent": None}
+        orig_place = (self._drag_data or {}).get("orig_place") or {}
+        self._drag_data = {"item": None, "category": None, "parent": None, "level": 0, "hover_target": None, "orig_place": None, "last_motion_ts": 0.0}
+
+        if invalid_msg:
+            restored = False
+            try:
+                if orig_place and item and item.winfo_exists():
+                    item.place(**orig_place)
+                    lvl = 0
+                    restored = True
+            except Exception:
+                restored = False
+            if not restored:
+                self.after_idle(self._rebuild_org_tree)
+            messagebox.showwarning("Aviso", invalid_msg, parent=self)
+            return
+
+        if moved:
+            self.after_idle(self._rebuild_org_tree)
+            if move_msg:
+                self.after(50, lambda m=move_msg: messagebox.showinfo("Movido", m, parent=self))
+        else:
+            restored = False
+            try:
+                if orig_place and item and item.winfo_exists():
+                    item.place(**orig_place)
+                    info = self._category_items.get(item, {})
+                    item.configure(relief="solid", borderwidth=1, bg=self._org_level_bg(info.get("level", 0)))
+                    restored = True
+            except Exception:
+                restored = False
+            if not restored:
+                self.after_idle(self._rebuild_org_tree)
+
+    # Compatibilidade com referências antigas (se existirem)
+    def _on_drag_start(self, *args, **kwargs):
+        return self._on_org_drag_start(*args, **kwargs)
+
+    def _on_drag_motion(self, *args, **kwargs):
+        return self._on_org_drag_motion(*args, **kwargs)
+
+    def _on_drag_end(self, event):
+        return self._on_org_drag_end(event)
 
     def _reset_widget_style(self, widget, level):
-        if level == 0:
-            widget.configure(relief="solid", borderwidth=1, bg=WHITE)
-        elif level == 1:
-            widget.configure(relief="solid", borderwidth=1, bg=GRAY_100)
-        else:
-            widget.configure(relief="solid", borderwidth=1, bg="#E0E0E0")
+        try:
+            widget.configure(relief="solid", borderwidth=1, bg=self._org_level_bg(level))
+        except Exception:
+            pass
 
     def _get_selected_category(self):
-        return self._drag_data.get("category")
+        return (self._drag_data or {}).get("category")
 
     def _edit_category_name(self, old_name):
         if not old_name:
@@ -1891,6 +2080,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.22 (2026-11-05)
+        - Correção: árvore de categorias vazia no organizador (scrollregion/dimensionamento do canvas) + log de diagnóstico
+
         v0.3.21 (2026-11-05)
         - Carregador visual na área da árvore de categorias durante o carregamento
 
