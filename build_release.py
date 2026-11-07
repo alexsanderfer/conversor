@@ -67,7 +67,7 @@ def garantir_segredo(novo: bool = False) -> str:
 
 def build() -> int:
     cmd = [
-        "uv", "run", "pyinstaller",
+        sys.executable, "-m", "PyInstaller",
         "--clean", "--noconfirm", str(SPEC),
     ]
     print("A correr:", " ".join(cmd))

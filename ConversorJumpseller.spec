@@ -12,12 +12,18 @@ _ARCH = 'x64' if platform.architecture()[0] == '64bit' else 'x86'
 EXE_NAME = f'ConversorJumpseller-{_VER}-{_ARCH}'
 
 
+datas = [('VERSION.txt', '.')]
+if os.path.exists('assets'):
+    datas.append(('assets', 'assets'))
+if os.path.exists('field_mapping_config.json'):
+    datas.append(('field_mapping_config.json', '.'))
+
 a = Analysis(
     ['csv_converter_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[('VERSION.txt', '.')],
-    hiddenimports=['tkinterdnd2', 'openpyxl', 'stripe_integration', 'updater'],
+    datas=datas,
+    hiddenimports=['tkinterdnd2', 'openpyxl', 'stripe_integration', 'updater', 'PIL', 'PIL._tkinter_finder'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

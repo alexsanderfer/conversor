@@ -649,7 +649,7 @@ def _read_fornecedor_rows(fornecedor_path: str):
     return out
 
 
-def merge_update(export_path: str, fornecedor_path: str, output_dir: str):
+def merge_update(export_path: str, fornecedor_path: str, output_dir: str, exclude_unavailable: bool = False):
     _, export_rows = _read_csv_any_delimiter(export_path)
     by_sku = {}
     for row in export_rows:
@@ -662,8 +662,19 @@ def merge_update(export_path: str, fornecedor_path: str, output_dir: str):
     new_state = {}
     merged = []
     matched_skus = set()
+    removed_unavailable = 0
 
     for row, preco_origem in fornecedor_rows:
+        if exclude_unavailable:
+            stock_raw = (row.get("Stock") or "0").strip()
+            try:
+                stock_num = int(float(stock_raw.replace(",", ".")))
+            except Exception:
+                stock_num = 0
+            status = (row.get("Status") or "").strip().lower()
+            if stock_num <= 0 or status == "not-available":
+                removed_unavailable += 1
+                continue
         sku = row.get("SKU", "").strip()
         existentes = by_sku.get(sku) if sku else None
         if existentes:
@@ -718,9 +729,11 @@ def merge_update(export_path: str, fornecedor_path: str, output_dir: str):
     save_price_state(output_dir, new_state)
 
     n_atualizados = len(matched_skus)
-    n_novos = len(fornecedor_rows) - n_atualizados
+    n_novos = (len(fornecedor_rows) - removed_unavailable) - n_atualizados
+    if n_novos < 0:
+        n_novos = 0
     n_intactos = sum(len(v) for v in by_sku.values()) - n_atualizados
-    return output_path, n_atualizados, n_novos, n_intactos
+    return output_path, n_atualizados, n_novos, n_intactos, removed_unavailable
 
 
 def _write_xlsx_preview(rows, path):
@@ -952,6 +965,10 @@ class App(Tk):
         self.tabs = ttk.Notebook(self)
         self.tabs.pack(fill="both", expand=True, padx=8, pady=(0, 6))
 
+        # barra de separadores
+        self.tabs = ttk.Notebook(self)
+        self.tabs.pack(fill="both", expand=True, padx=8, pady=(0, 6))
+
         self.tab_novo = ttk.Frame(self.tabs, padding=8)
         self.tab_update = ttk.Frame(self.tabs, padding=8)
         self.tab_lucro = ttk.Frame(self.tabs, padding=8)
@@ -976,10 +993,44 @@ class App(Tk):
         for name in ("logo.png", "logo.gif"):
             p = ASSETS / name
             if p.is_file():
-                img = tk.PhotoImage(file=str(p))
-                lbl = tk.Label(self, image=img, bg=WHITE)
-                lbl.image = img  # keep reference
-                return lbl
+                try:
+                    img = tk.PhotoImage(file=str(p))
+                    lbl = tk.Label(self, image=img, bg=BG_WINDOW)
+                    lbl.image = img  # keep reference
+                    return lbl
+                except Exception:
+                    try:
+                        from PIL import Image, ImageTk
+                        im = Image.open(p)
+                        # scale to reasonable height
+                        htarget = 40
+                        ratio = htarget / im.height if im.height else 1
+                        im2 = im.resize((int(im.width * ratio), htarget), Image.LANCZOS)
+                        img = ImageTk.PhotoImage(im2)
+                        lbl = tk.Label(self, image=img, bg=BG_WINDOW)
+                        lbl.image = img
+                        return lbl
+                    except Exception:
+                        continue
+        return None
+
+    def _load_background(self):
+        for name in ("fundo.png", "background.png", "bg.png"):
+            p = ASSETS / name
+            if p.is_file():
+                try:
+                    from PIL import Image, ImageTk
+                    im = Image.open(p)
+                    # Mantém o tamanho original ou um limite razoável,
+                    # não redimensiona fixo para não distorcer.
+                    img = ImageTk.PhotoImage(im)
+                    return img
+                except Exception:
+                    try:
+                        img = tk.PhotoImage(file=str(p))
+                        return img
+                    except Exception:
+                        continue
         return None
 
     def _build_footer(self):
@@ -1028,6 +1079,16 @@ class App(Tk):
             bg=GRAY_100, font=("Segoe UI", 10), borderwidth=1, wrap="word",
         )
         self.drop_text.pack(fill="both", expand=True, pady=(8, 8))
+
+        # Background image inside drop text area
+        self._bg_image = self._load_background()
+        if getattr(self, '_bg_image', None):
+            try:
+                self._bg_label = tk.Label(self.drop_text, image=self._bg_image, bg=WHITE)
+                self._bg_label.place(relx=0.5, rely=0.5, anchor="center")
+            except Exception:
+                pass
+
         self.drop_text.drop_target_register(DND_FILES)
         self.drop_text.dnd_bind("<<Drop>>", self._on_drop)
         self._set_drop_text(
@@ -1135,6 +1196,24 @@ class App(Tk):
         )
         self.drop_text_update.pack(fill="both", expand=True, pady=(0, 8))
         style_drop_area(self.drop_text_update)
+
+        # Background image inside drop text area
+        if getattr(self, '_bg_image', None):
+            try:
+                self._bg_label_up = tk.Label(self.drop_text_update, image=self._bg_image, bg=WHITE)
+                self._bg_label_up.place(relx=0.5, rely=0.5, anchor="center")
+            except Exception:
+                pass
+
+        frm_opts_up = ttk.Frame(self.tab_update)
+        frm_opts_up.pack(fill="x", pady=(0, 4))
+        if not hasattr(self, "exclude_unavailable_var"):
+            self.exclude_unavailable_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            frm_opts_up,
+            text="RETIRAR PRODUTOS INDISPONÍVEIS (stock 0 / not-available)",
+            variable=self.exclude_unavailable_var,
+        ).pack(side="left")
 
         frm_bot = ttk.Frame(self.tab_update)
         frm_bot.pack(fill="x")
@@ -2156,6 +2235,11 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.27 (2026-11-07)
+        - Novo: integração das logos/identidade com assets/logo.png e assets/fundo.png
+        - Consistência: opção "RETIRAR PRODUTOS INDISPONÍVEIS" aplicada também ao fluxo "Atualizar loja" (merge_update)
+        - UI: pequenas melhorias de layout e branding
+
         v0.3.26 (2026-11-07)
         - Novo: opção "RETIRAR PRODUTOS INDISPONÍVEIS" (ignora stock 0 / not-available na conversão)
         - Confirmação: stock 0 no fornecedor é convertido como Status not-available
@@ -2372,12 +2456,16 @@ class App(Tk):
         self.merge_btn.config(state="disabled")
         self.update_idletasks()
         try:
-            out, n_atual, n_novos, n_intactos = merge_update(export_raw, forn_raw, out_dir)
+            exclude_unavailable = bool(getattr(self, "exclude_unavailable_var", None) and self.exclude_unavailable_var.get())
+            out, n_atual, n_novos, n_intactos, removed = merge_update(export_raw, forn_raw, out_dir, exclude_unavailable=exclude_unavailable)
             self.last_output = Path(out)
             resumo = (
                 f"Atualizados: {n_atual}\nNovos: {n_novos}\n"
-                f"Intactos (so na loja): {n_intactos}\n\nFicheiro: {out}"
+                f"Intactos (so na loja): {n_intactos}\n"
             )
+            if exclude_unavailable and removed:
+                resumo += f"Removidos indisponíveis: {removed}\n"
+            resumo += f"\nFicheiro: {out}"
             self._set_drop_text(resumo, GREEN_100, GREEN_700, widget=self.drop_text_update)
             self.open_folder_btn.config(state="normal")
             self.open_folder_btn2.config(state="normal")
