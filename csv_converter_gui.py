@@ -291,35 +291,65 @@ def build_categories(row: dict, mapping: dict = None) -> str:
     try:
         cat_settings = get_category_settings()
         new_cats = [c.strip() for c in cat_settings.get("new_categories", []) if c.strip()]
-        if new_cats:
+        if new_cats and categories:
+            parent_cat = new_cats[0]
             use_parent = cat_settings.get("use_parent", True)
             apply_to_all = cat_settings.get("apply_to_all", True)
-            if apply_to_all and categories:
-                result = []
-                parent_cat = new_cats[0]
+
+            if apply_to_all:
+                # Jumpseller needs ALL hierarchy levels from root to leaf.
+                # When mapping to a parent, output: [parent, parent/cat1, parent/cat1/cat2, ...]
+                if use_parent:
+                    result = [parent_cat]
+                    for cat_path in categories:
+                        cp = (cat_path or "").strip().strip("/")
+                        if not cp:
+                            continue
+                        prefixed = f"{parent_cat}/{cp}"
+                        if prefixed not in result:
+                            result.append(prefixed)
+                    return ",".join(result)
+                else:
+                    return parent_cat
+
+            # apply_to_all == False: only categories matching selected_prefix get the parent mapping
+            selected_prefix = cat_settings.get("selected_prefix", "").strip().lower()
+            if selected_prefix:
+                matched_paths = []
+                unmatched_paths = []
                 for cat_path in categories:
+                    cp = (cat_path or "").strip()
+                    cp_low = cp.lower()
+                    if cp_low.startswith(selected_prefix) or selected_prefix in cp_low:
+                        matched_paths.append(cp)
+                    else:
+                        unmatched_paths.append(cp)
+
+                if matched_paths:
+                    result = []
                     if use_parent:
-                        result.append(f"{parent_cat}/{cat_path}")
+                        # Expand to full hierarchy from the mapping parent, preserving matched structure
+                        result.append(parent_cat)
+                        for cat_path in matched_paths:
+                            cp = cat_path.strip().strip("/")
+                            if not cp:
+                                continue
+                            prefixed = f"{parent_cat}/{cp}"
+                            if prefixed not in result:
+                                result.append(prefixed)
+                        # Keep unmatched categories as-is (full paths already built)
+                        for up in unmatched_paths:
+                            upc = (up or "").strip()
+                            if upc and upc not in result:
+                                result.append(upc)
                     else:
                         result.append(parent_cat)
-                # Also add parent alone if requested
-                if parent_cat not in result:
-                    result.insert(0, parent_cat)
-                return ",".join(result)
-            elif not apply_to_all and categories:
-                selected_prefix = cat_settings.get("selected_prefix", "").strip()
-                if selected_prefix:
-                    result = []
-                    for cat_path in categories:
-                        if cat_path.lower().startswith(selected_prefix.lower()) or selected_prefix.lower() in cat_path.lower():
-                            if use_parent:
-                                parent_cat = new_cats[0] if new_cats else selected_prefix
-                                result.append(f"{parent_cat}/{cat_path}")
-                            else:
-                                result.append(new_cats[0] if new_cats else selected_prefix)
-                        else:
-                            result.append(cat_path)
+                        for up in unmatched_paths:
+                            upc = (up or "").strip()
+                            if upc and upc not in result:
+                                result.append(upc)
                     return ",".join(result)
+                # No matches: fall through to original categories
     except Exception:
         pass
 
@@ -2094,6 +2124,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.25 (2026-11-07)
+        - Correção: exportar hierarquia completa de categorias no CSV (inclui nível raiz do mapeamento em todos os caminhos Jumpseller)
+
         v0.3.24 (2026-11-05)
         - UI: "Mapeamento" (removido "Macro"), texto do filtro mais claro, guardar sem alertas no mapeamento
 
