@@ -416,11 +416,23 @@ def get_output_path(input_path: str, output_dir: str = None) -> str:
     return os.path.join(output_dir, output_name)
 
 
-def process_csv(input_path: str, output_dir: str = None):
+def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bool = False):
+    """
+    Converte um CSV para o formato Jumpseller.
+
+    Args:
+        input_path: Caminho do ficheiro de entrada
+        output_dir: Pasta de destino (opcional)
+        exclude_unavailable: Se True, ignora produtos com stock <= 0 / Status not-available
+
+    Returns:
+        (linhas_escritas, output_path, linhas_removidas_indisponiveis)
+    """
     if not os.path.isfile(input_path):
         raise FileNotFoundError(f"Arquivo nao encontrado: '{input_path}'")
     output_path = get_output_path(input_path, output_dir)
     mapping = load_field_mapping()
+    removed_unavailable = 0
     with open(input_path, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f, delimiter=";")
         rows = []
@@ -432,7 +444,18 @@ def process_csv(input_path: str, output_dir: str = None):
             }
             if not any(v.strip() for v in row.values()):
                 continue
-            rows.append(convert_row(row, mapping))
+            converted = convert_row(row, mapping)
+            if exclude_unavailable:
+                stock_raw = (converted.get("Stock") or "0").strip()
+                try:
+                    stock_num = int(float(stock_raw.replace(",", ".")))
+                except Exception:
+                    stock_num = 0
+                status = (converted.get("Status") or "").strip().lower()
+                if stock_num <= 0 or status == "not-available":
+                    removed_unavailable += 1
+                    continue
+            rows.append(converted)
     with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(
             f, fieldnames=DEST_COLUMNS, delimiter=";", quoting=csv.QUOTE_ALL
@@ -443,7 +466,7 @@ def process_csv(input_path: str, output_dir: str = None):
         rows, os.path.join(os.path.dirname(output_path),
                            Path(output_path).stem + "_visualizar.xlsx")
     )
-    return len(rows), output_path
+    return len(rows), output_path, removed_unavailable
 
 
 # ---------------------------------------------------------------------------
@@ -1013,6 +1036,15 @@ class App(Tk):
             widget=self.drop_text,
         )
         self._status_widget = self.drop_text
+
+        frm_opts = ttk.Frame(self.tab_novo)
+        frm_opts.pack(fill="x", pady=(0, 4))
+        self.exclude_unavailable_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            frm_opts,
+            text="RETIRAR PRODUTOS INDISPONÍVEIS (stock 0 / not-available)",
+            variable=self.exclude_unavailable_var,
+        ).pack(side="left")
 
         frm_bot = ttk.Frame(self.tab_novo)
         frm_bot.pack(fill="x", pady=(0, 4))
@@ -2124,6 +2156,10 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.26 (2026-11-07)
+        - Novo: opção "RETIRAR PRODUTOS INDISPONÍVEIS" (ignora stock 0 / not-available na conversão)
+        - Confirmação: stock 0 no fornecedor é convertido como Status not-available
+
         v0.3.25 (2026-11-07)
         - Correção: exportar hierarquia completa de categorias no CSV (inclui nível raiz do mapeamento em todos os caminhos Jumpseller)
 
@@ -2668,16 +2704,22 @@ class App(Tk):
         self.update_idletasks()
         try:
             out_dir = self.out_dir_var.get()
-            n, out = process_csv(raw, out_dir)
+            exclude_unavailable = bool(getattr(self, "exclude_unavailable_var", None) and self.exclude_unavailable_var.get())
+            n, out, removed = process_csv(raw, out_dir, exclude_unavailable=exclude_unavailable)
             self.last_output = Path(out)
+            status_msg = f"Concluido: {n} linha(s) -> {self.last_output.name}"
+            if exclude_unavailable and removed:
+                status_msg += f" | Removidos indisponíveis: {removed}"
             self._set_drop_text(
-                f"Concluido: {n} linha(s) -> {self.last_output.name}",
+                status_msg,
                 GREEN_100, GREEN_700, widget=self._status_widget,
             )
             self.open_folder_btn.config(state="normal")
-            messagebox.showinfo("Concluido",
-                                f"{n} linha(s) escrita(s) em:\n{out}\nAbrir pasta do resultado abaixo.",
-                                parent=self)
+            info_msg = f"{n} linha(s) escrita(s) em:\n{out}"
+            if exclude_unavailable:
+                info_msg += f"\n\nProdutos indisponíveis removidos (stock 0 / not-available): {removed}"
+            info_msg += "\n\nAbrir pasta do resultado abaixo."
+            messagebox.showinfo("Concluido", info_msg, parent=self)
         except FileNotFoundError as exc:
             self._set_drop_text(str(exc), ERROR_BG, ERROR_FG, widget=self._status_widget)
             messagebox.showerror("Erro", str(exc), parent=self)
