@@ -291,29 +291,65 @@ def build_categories(row: dict, mapping: dict = None) -> str:
     try:
         cat_settings = get_category_settings()
         new_cats = [c.strip() for c in cat_settings.get("new_categories", []) if c.strip()]
-        new_cats_parent = cat_settings.get("new_categories_parent", [""]*10)
-        # Construir dicionário: categoria_fornecedor -> categoria_pai
-        cat_to_parent = {}
-        for i, nc in enumerate(new_cats):
-            if nc:
-                par = new_cats_parent[i].strip() if i < len(new_cats_parent) else ""
-                cat_to_parent[nc] = par
-        if cat_to_parent and categories:
-            # Determinar o pai para a categoria principal (familia)
-            familia = categories[0] if categories else ""
-            parent_cat = cat_to_parent.get(familia, "")
-            if parent_cat:
+        if new_cats and categories:
+            parent_cat = new_cats[0]
+            use_parent = cat_settings.get("use_parent", True)
+            apply_to_all = cat_settings.get("apply_to_all", True)
+
+            if apply_to_all:
                 # Jumpseller needs ALL hierarchy levels from root to leaf.
                 # When mapping to a parent, output: [parent, parent/cat1, parent/cat1/cat2, ...]
-                result = [parent_cat]
+                if use_parent:
+                    result = [parent_cat]
+                    for cat_path in categories:
+                        cp = (cat_path or "").strip().strip("/")
+                        if not cp:
+                            continue
+                        prefixed = f"{parent_cat}/{cp}"
+                        if prefixed not in result:
+                            result.append(prefixed)
+                    return ",".join(result)
+                else:
+                    return parent_cat
+
+            # apply_to_all == False: only categories matching selected_prefix get the parent mapping
+            selected_prefix = cat_settings.get("selected_prefix", "").strip().lower()
+            if selected_prefix:
+                matched_paths = []
+                unmatched_paths = []
                 for cat_path in categories:
-                    cp = (cat_path or "").strip().strip("/")
-                    if not cp:
-                        continue
-                    prefixed = f"{parent_cat}/{cp}"
-                    if prefixed not in result:
-                        result.append(prefixed)
-                return ",".join(result)
+                    cp = (cat_path or "").strip()
+                    cp_low = cp.lower()
+                    if cp_low.startswith(selected_prefix) or selected_prefix in cp_low:
+                        matched_paths.append(cp)
+                    else:
+                        unmatched_paths.append(cp)
+
+                if matched_paths:
+                    result = []
+                    if use_parent:
+                        # Expand to full hierarchy from the mapping parent, preserving matched structure
+                        result.append(parent_cat)
+                        for cat_path in matched_paths:
+                            cp = cat_path.strip().strip("/")
+                            if not cp:
+                                continue
+                            prefixed = f"{parent_cat}/{cp}"
+                            if prefixed not in result:
+                                result.append(prefixed)
+                        # Keep unmatched categories as-is (full paths already built)
+                        for up in unmatched_paths:
+                            upc = (up or "").strip()
+                            if upc and upc not in result:
+                                result.append(upc)
+                    else:
+                        result.append(parent_cat)
+                        for up in unmatched_paths:
+                            upc = (up or "").strip()
+                            if upc and upc not in result:
+                                result.append(upc)
+                    return ",".join(result)
+                # No matches: fall through to original categories
     except Exception:
         pass
 
@@ -1243,34 +1279,47 @@ class App(Tk):
         cat_notebook.pack(fill="both", expand=True)
 
         tab_macro = ttk.Frame(cat_notebook, padding=10)
-        tab_organizer = ttk.Frame(cat_notebook, padding=10)
         cat_notebook.add(tab_macro, text="  Mapeamento  ")
-        cat_notebook.add(tab_organizer, text="  Organizador  ")
 
         # Aba Mapeamento
-        ttk.Label(tab_macro, text="Associar categorias do fornecedor a categorias pai da Jumpseller", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
-        ttk.Label(tab_macro, text="Crie até 10 associações. No campo 1 escreve o nome da categoria do fornecedor; no campo 2 escolhe a categoria pai da Jumpseller.", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 8))
+        ttk.Label(tab_macro, text="Enviar categorias para uma nova categoria pai", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+        ttk.Label(tab_macro, text="Crie até 10 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 8))
 
         cat_settings = get_category_settings()
         self._cat_new_vars = []
-        self._cat_parent_vars = []
         for i in range(10):
             val = cat_settings.get("new_categories", [""]*10)[i] if i < len(cat_settings.get("new_categories", [])) else ""
-            par = cat_settings.get("new_categories_parent", [""]*10)[i] if i < len(cat_settings.get("new_categories_parent", [])) else ""
             v = tk.StringVar(value=val)
-            pv = tk.StringVar(value=par)
             self._cat_new_vars.append(v)
-            self._cat_parent_vars.append(pv)
             row = ttk.Frame(tab_macro)
             row.pack(fill="x", pady=1)
-            ttk.Label(row, text=f"{i+1}.", width=3).pack(side="left")
-            ttk.Label(row, text="Categoria do fornecedor:", width=22).pack(side="left")
-            ttk.Entry(row, textvariable=v, width=28).pack(side="left", padx=(4, 6))
-            ttk.Label(row, text="→ Categoria pai Jumpseller:", width=24).pack(side="left")
-            ttk.Entry(row, textvariable=pv, width=28).pack(side="left", padx=(4, 6))
+            ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
+            ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True)
             ttk.Button(row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
-        self._cat_prefix_var = tk.StringVar(value="")
+        self._cat_apply_all_var = tk.BooleanVar(value=cat_settings.get("apply_to_all", True))
+        self._cat_use_parent_var = tk.BooleanVar(value=cat_settings.get("use_parent", True))
+        self._cat_prefix_var = tk.StringVar(value=cat_settings.get("selected_prefix", ""))
+
+        ttk.Separator(tab_macro, orient="horizontal").pack(fill="x", pady=(8, 6))
+        ttk.Checkbutton(tab_macro, text="Aplicar a TODAS as categorias do ficheiro", variable=self._cat_apply_all_var).pack(anchor="w", pady=1)
+        ttk.Checkbutton(tab_macro, text="Manter hierarquia original (NovaCategoria/CategoriaOriginal/Subcategoria)", variable=self._cat_use_parent_var).pack(anchor="w", pady=1)
+
+        prefix_row = ttk.Frame(tab_macro)
+        prefix_row.pack(fill="x", pady=(6, 4))
+        ttk.Label(prefix_row, text="Aplicar apenas se a categoria contiver:").pack(side="left")
+        ttk.Entry(prefix_row, textvariable=self._cat_prefix_var, width=25).pack(side="left", padx=(6, 0))
+        ttk.Button(prefix_row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
+
+        ttk.Label(
+            tab_macro,
+            text=(
+                "Filtro (opcional): o mapeamento só será aplicado às categorias cujo nome contenha este texto.\n"
+                "Ex.: se escrever 'SOM', aplica em 'SOM E LUZ' e 'ACESSÓRIOS SOM', mas não em 'ILUMINAÇÃO'.\n"
+                "Deixe em branco para aplicar a todas (quando 'Aplicar a TODAS...' estiver marcado)."
+            ),
+            font=("Segoe UI", 8), foreground=GRAY_600, justify="left", wraplength=820,
+        ).pack(anchor="w", pady=(8, 6))
 
         ttk.Button(tab_macro, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(4, 0))
 
@@ -1284,56 +1333,6 @@ class App(Tk):
         self._cat_list_text.pack(side="left", fill="both", expand=True)
         cat_scroll.pack(side="right", fill="y")
         self._cat_list_text.config(state="disabled")
-
-        # Aba Organizador
-        ttk.Label(tab_organizer, text="Organizador de Categorias (Arrastar e Soltar)", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 4))
-        ttk.Label(tab_organizer, text="Carregue as categorias do ficheiro para organizar e reestruturar", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 6))
-
-        org_btn_frame = ttk.Frame(tab_organizer)
-        org_btn_frame.pack(fill="x", pady=(0, 6))
-        self._org_load_btn = ttk.Button(
-            org_btn_frame, text="Carregar Categorias do Ficheiro",
-            command=self._load_categories_for_organizer,
-        )
-        self._org_load_btn.pack(side="left")
-        ttk.Button(org_btn_frame, text="Guardar Organização", command=self._save_category_organization).pack(side="left", padx=(4, 0))
-        ttk.Button(org_btn_frame, text="Editar Selecionado", command=lambda: self._edit_category_name(self._get_selected_category())).pack(side="left", padx=(4, 0))
-
-        # Botões de expansão
-        ttk.Button(org_btn_frame, text="Expandir Todos", command=self._expand_all).pack(side="left", padx=(4, 0))
-        ttk.Button(org_btn_frame, text="Esconder Todos", command=self._collapse_all).pack(side="left", padx=(4, 0))
-
-        self._org_container = ttk.Frame(tab_organizer)
-        self._org_container.pack(fill="both", expand=True, pady=(4, 0))
-        self._org_canvas = tk.Canvas(self._org_container, bg=GRAY_100, highlightthickness=1, highlightbackground=GRAY_600)
-        org_scroll = ttk.Scrollbar(self._org_container, orient="vertical", command=self._org_canvas.yview)
-        self._org_frame = tk.Frame(self._org_canvas, bg=GRAY_100)
-        self._org_frame.bind("<Configure>", lambda e: self._org_canvas.configure(scrollregion=self._org_canvas.bbox("all")))
-        self._org_window = self._org_canvas.create_window((0, 0), window=self._org_frame, anchor="nw")
-        self._org_canvas.configure(yscrollcommand=org_scroll.set)
-        self._org_canvas.pack(side="left", fill="both", expand=True)
-        org_scroll.pack(side="right", fill="y")
-
-        # Soltar no fundo = mover para raiz
-        self._org_canvas.bind("<ButtonRelease-1>", self._on_org_canvas_release)
-
-        self._org_loading_overlay = tk.Frame(self._org_container, bg=GRAY_100)
-        self._org_loading_label = tk.Label(
-            self._org_loading_overlay,
-            text="A carregar categorias...",
-            bg=GRAY_100,
-            fg=GRAY_800,
-            font=("Segoe UI", 10, "bold"),
-        )
-        self._org_loading_label.pack(pady=(24, 8))
-        self._org_loading_bar = ttk.Progressbar(
-            self._org_loading_overlay, mode="indeterminate", length=220,
-        )
-        self._org_loading_bar.pack(pady=(0, 24))
-
-        self._category_tree = {}
-        self._category_items = {}  # label widget -> category name
-        self._drag_data = {"item": None, "category": None, "parent": None, "level": 0, "hover_target": None, "orig_place": None, "last_motion_ts": 0.0}
 
     def _extract_categories_from_file(self, filepath):
         try:
@@ -1422,691 +1421,6 @@ class App(Tk):
             messagebox.showinfo("Aprendido", f"Aprendidas {count} novas regras com base no ficheiro.", parent=self)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao aprender: {e}", parent=self)
-
-    def _show_org_loading(self, text="A carregar categorias..."):
-        try:
-            if hasattr(self, "_org_loading_label"):
-                self._org_loading_label.config(text=text)
-            if hasattr(self, "_org_loading_overlay"):
-                self._org_loading_overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
-                self._org_loading_overlay.lift()
-            if hasattr(self, "_org_loading_bar"):
-                self._org_loading_bar.start(10)
-            if hasattr(self, "_org_load_btn"):
-                self._org_load_btn.config(state="disabled")
-            self.update_idletasks()
-        except Exception:
-            pass
-
-    def _hide_org_loading(self):
-        try:
-            if hasattr(self, "_org_loading_bar"):
-                self._org_loading_bar.stop()
-            if hasattr(self, "_org_loading_overlay"):
-                self._org_loading_overlay.place_forget()
-            if hasattr(self, "_org_load_btn"):
-                self._org_load_btn.config(state="normal")
-        except Exception:
-            pass
-
-    def _load_categories_for_organizer(self):
-        selected_file = self.path_var.get().strip().strip('"').strip("'")
-        if not selected_file or not os.path.isfile(selected_file):
-            selected_file = self.fornecedor_var.get().strip().strip('"').strip("'")
-        if not selected_file or not os.path.isfile(selected_file):
-            messagebox.showwarning("Atenção", "Selecione ou arraste um ficheiro CSV primeiro.", parent=self)
-            return
-
-        self._show_org_loading("A carregar categorias...")
-
-        def worker():
-            result = {"ok": False, "error": None, "tree": None}
-            log_path = None
-            try:
-                import traceback, datetime
-                try:
-                    base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
-                    base_dir.mkdir(parents=True, exist_ok=True)
-                    log_path = base_dir / "debug_organizer.log"
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.datetime.now()}] START _load_categories_for_organizer\n")
-                        f.write(f"[{datetime.datetime.now()}] selected_file={selected_file}\n")
-                except Exception:
-                    try:
-                        log_path = Path(__file__).parent / "debug_organizer.log"
-                        with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] START _load_categories_for_organizer\n")
-                    except Exception:
-                        pass
-
-                headers, rows = _read_csv_any_delimiter(selected_file)
-                try:
-                    if log_path:
-                        with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] rows={len(rows)}\n")
-                except Exception:
-                    pass
-                if not rows:
-                    result["error"] = "Não foi possível ler o ficheiro ou está vazio."
-                    return
-
-                mapping = load_field_mapping()
-                saved = self._load_saved_category_organization()
-                try:
-                    if log_path:
-                        with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] saved={'yes' if saved else 'no'} tree_keys={len(saved) if isinstance(saved, dict) else None}\n")
-                except Exception:
-                    pass
-
-                category_tree = {}
-                if saved is not None:
-                    try:
-                        if isinstance(saved, dict):
-                            for k, v in saved.items():
-                                if isinstance(v, set):
-                                    category_tree[k] = set(v)
-                                elif isinstance(v, list):
-                                    category_tree[k] = set(v)
-                                else:
-                                    category_tree[k] = set()
-                        if "" not in category_tree:
-                            category_tree[""] = set()
-                        # Quebrar ciclos
-                        for _ in range(30):
-                            fixed = False
-                            for parent, children in list(category_tree.items()):
-                                for child in list(children):
-                                    if child == parent or child == "":
-                                        try:
-                                            children.discard(child)
-                                        except Exception:
-                                            pass
-                                        fixed = True
-                                        continue
-                                    if child in category_tree and parent in category_tree.get(child, set()):
-                                        try:
-                                            children.discard(child)
-                                        except Exception:
-                                            pass
-                                        fixed = True
-                            if not fixed:
-                                break
-                    except Exception as ex:
-                        try:
-                            if log_path:
-                                with open(log_path, "a", encoding="utf-8") as f:
-                                    f.write(f"[{datetime.datetime.now()}] saved load err {ex}\n")
-                                    f.write(traceback.format_exc())
-                        except Exception:
-                            pass
-                        category_tree = {"": set()}
-                else:
-                    try:
-                        if log_path:
-                            with open(log_path, "a", encoding="utf-8") as f:
-                                f.write(f"[{datetime.datetime.now()}] building tree from scratch, mapping keys sample: {list(mapping.keys())[:10]}, headers: {headers[:15]}\n")
-                    except Exception:
-                        pass
-                    found = 0
-                    for row in rows[:10000]:
-                        try:
-                            f1 = get_mapped_value(row, "familia_principal", mapping).strip()
-                            f2 = get_mapped_value(row, "sub_familia", mapping).strip()
-                            f3 = get_mapped_value(row, "sub_sub_familia", mapping).strip()
-
-                            if 'faminome' in row and str(row.get('faminome')).strip():
-                                val = str(row['faminome']).strip()
-                                if val and not val.isdigit() and val.lower() not in ['null', 'none']:
-                                    f1 = val
-                            if not f1 or f1.isdigit():
-                                for k in ['faminome', 'familia_nome', 'nome_familia']:
-                                    if k in row and str(row[k]).strip() and not str(row[k]).strip().isdigit():
-                                        f1 = str(row[k]).strip()
-                                        break
-                            if not f1:
-                                for key in ['categoria', 'category', 'grupo', 'departamento', 'familia', 'família', 'categoria_principal']:
-                                    for k, v in row.items():
-                                        kl = str(k).lower().strip()
-                                        if k and (key == kl or (key in kl and len(kl) < 25)):
-                                            val = str(v).strip()
-                                            if val and not val.isdigit() and val.lower() not in ['categoria', 'categorias']:
-                                                f1 = val
-                                                break
-                                    if f1:
-                                        break
-                            if 'sub_familia' in row and str(row.get('sub_familia')).strip():
-                                f2 = str(row['sub_familia']).strip()
-                            if not f2:
-                                for key in ['subcategoria', 'sub_categoria', 'subfamilia']:
-                                    for k, v in row.items():
-                                        kl = str(k).lower().strip()
-                                        if k and (key == kl or key in kl):
-                                            val = str(v).strip()
-                                            if val:
-                                                f2 = val
-                                                break
-                                    if f2:
-                                        break
-                            if 'sub_sub_familia' in row and str(row.get('sub_sub_familia')).strip():
-                                f3 = str(row['sub_sub_familia']).strip()
-                            if not f3:
-                                for key in ['subsubcategoria', 'sub_sub_categoria']:
-                                    for k, v in row.items():
-                                        kl = str(k).lower().strip()
-                                        if k and (key == kl or key in kl):
-                                            val = str(v).strip()
-                                            if val:
-                                                f3 = val
-                                                break
-                                    if f3:
-                                        break
-
-                            if f1:
-                                found += 1
-                                if "" not in category_tree:
-                                    category_tree[""] = set()
-                                category_tree[""].add(f1)
-                                if f1 not in category_tree:
-                                    category_tree[f1] = set()
-                                if f2:
-                                    category_tree[f1].add(f2)
-                                    if f2 not in category_tree:
-                                        category_tree[f2] = set()
-                                    if f3:
-                                        category_tree[f2].add(f3)
-                                        if f3 not in category_tree:
-                                            category_tree[f3] = set()
-                        except Exception:
-                            continue
-                    try:
-                        if log_path:
-                            with open(log_path, "a", encoding="utf-8") as f:
-                                f.write(f"[{datetime.datetime.now()}] found categories from rows: {found}, roots in tree: {len(category_tree.get('', set()))}\n")
-                    except Exception:
-                        pass
-
-                result["tree"] = category_tree
-                result["ok"] = True
-                try:
-                    if log_path:
-                        with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] worker ok\n")
-                except Exception:
-                    pass
-            except Exception as e:
-                try:
-                    import traceback, datetime
-                    if log_path:
-                        with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.datetime.now()}] FATAL {e}\n")
-                            f.write(traceback.format_exc())
-                except Exception:
-                    pass
-                result["error"] = str(e)
-
-            self.after(0, lambda: self._on_org_categories_loaded(result))
-
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _on_org_categories_loaded(self, result):
-        try:
-            if not result.get("ok"):
-                self._hide_org_loading()
-                messagebox.showwarning(
-                    "Atenção",
-                    result.get("error") or "Não foi possível carregar as categorias.",
-                    parent=self,
-                )
-                return
-
-            tree = result.get("tree") or {"": set()}
-            self._category_tree = tree
-            try:
-                self._rebuild_org_tree()
-            except Exception:
-                try:
-                    self._category_tree = {"": set(list((tree or {}).get("", set()))[:30])}
-                    self._rebuild_org_tree()
-                except Exception:
-                    pass
-
-            self._hide_org_loading()
-            roots = len((self._category_tree or {}).get("", set()) or set())
-            nodes = len(getattr(self, "_category_items", {}) or {})
-            if nodes <= 0 and roots <= 0:
-                messagebox.showwarning(
-                    "Carregado",
-                    "O carregamento terminou, mas não há categorias para mostrar.\n"
-                    "Isto pode acontecer se não existirem colunas de categoria no ficheiro ou se o mapeamento de campos não encontrar a coluna correta.",
-                    parent=self,
-                )
-            else:
-                messagebox.showinfo("Carregado", f"Categorias carregadas com sucesso.\nRaízes: {roots} | Itens: {nodes}", parent=self)
-        except Exception as e:
-            self._hide_org_loading()
-            messagebox.showerror("Erro", f"Erro ao carregar categorias: {e}", parent=self)
-
-    def _rebuild_org_tree(self):
-        """Reconstrói a árvore visual baseada no estado atual de `self._category_tree`."""
-        def _log(msg):
-            try:
-                base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
-                base_dir.mkdir(parents=True, exist_ok=True)
-                with open(base_dir / "debug_organizer.log", "a", encoding="utf-8") as f:
-                    f.write(f"[{datetime.datetime.now()}] [rebuild] {msg}\n")
-            except Exception:
-                pass
-
-        try:
-            for widget in self._org_frame.winfo_children():
-                widget.destroy()
-        except Exception:
-            pass
-
-        self._category_items = {}
-        self._current_y = 10
-
-        try:
-            tree = getattr(self, '_category_tree', {}) or {}
-            # Garantir estrutura limpa
-            clean_tree = {}
-            for k, v in tree.items():
-                if isinstance(v, set):
-                    clean_tree[k] = set([c for c in v if c and str(c).strip()])
-                elif isinstance(v, list):
-                    clean_tree[k] = set([c for c in v if c and str(c).strip()])
-                else:
-                    clean_tree[k] = set()
-            tree = clean_tree
-            # Garantir que todas as categorias apareçam
-            all_children = set()
-            for children in tree.values():
-                for c in children:
-                    all_children.add(c)
-            # Se há chaves que não aparecem em nenhum lugar, colocar em ""
-            if "" not in tree:
-                tree[""] = set()
-            for k in list(tree.keys()):
-                if k != "" and k not in all_children:
-                    tree[""].add(k)
-            # Se "" ficou vazio mas há outras chaves, mover todas
-            if not tree.get("") and tree:
-                roots = [k for k in tree if k != ""]
-                tree[""] = set(roots)
-
-            content_width = 1020
-
-            def render(parent_name, level, indent, visited=None):
-                if visited is None:
-                    visited = set()
-                if level > 12:
-                    return
-                children = sorted([c for c in (tree.get(parent_name, set()) or set()) if c])
-                for child in children:
-                    if child in visited or child == parent_name or child == "":
-                        continue
-                    try:
-                        bg_colors = [WHITE, GRAY_100, "#E0E0E0", "#D0D0D0"]
-                        bg = bg_colors[min(level, len(bg_colors)-1)]
-                        if level == 0:
-                            prefix = "📁 "
-                        elif level == 1:
-                            prefix = "  └─ "
-                        else:
-                            prefix = "      └─ "
-                        display_text = f"{prefix}{child}"
-
-                        lbl = tk.Label(
-                            self._org_frame, text=display_text, bg=bg, fg=GRAY_800,
-                            font=("Segoe UI", 9, "bold" if level == 0 else "normal"),
-                            padx=6, pady=3, cursor="hand2", relief="solid", borderwidth=1,
-                            anchor="w",
-                        )
-                        lbl.place(x=10 + indent, y=self._current_y, width=max(120, content_width - (10 + indent) - 16))
-
-                        lbl.bind("<Button-1>", lambda e, c=child, p=parent_name, w=lbl, lv=level: self._on_org_drag_start(e, c, p, w, lv))
-                        lbl.bind("<ButtonRelease-1>", self._on_org_drag_end)
-                        lbl.bind("<B1-Motion>", self._on_org_drag_motion)
-
-                        self._category_items[lbl] = {"name": child, "parent": parent_name, "level": level}
-                        self._current_y += 35 if level == 0 else 32
-                    except Exception:
-                        continue
-
-                    nv = set(visited)
-                    nv.add(child)
-                    render(child, level + 1, indent + 26, nv)
-
-            render("", 0, 0)
-
-            content_height = max(getattr(self, "_current_y", 10) + 100, 220)
-            if len(self._category_items) == 0:
-                try:
-                    tk.Label(
-                        self._org_frame,
-                        text="Nenhuma categoria encontrada para mostrar.\nVerifique o mapeamento de campos (família/categoria) ou o ficheiro selecionado.",
-                        bg=GRAY_100, fg=GRAY_800, justify="left", padx=12, pady=12, wraplength=760,
-                    ).place(x=12, y=12)
-                    content_height = 140
-                except Exception:
-                    pass
-
-            try:
-                self._org_frame.configure(width=content_width, height=content_height)
-            except Exception:
-                pass
-            try:
-                if hasattr(self, "_org_window") and self._org_window:
-                    self._org_canvas.itemconfigure(self._org_window, width=content_width)
-            except Exception:
-                pass
-
-            self._org_frame.update_idletasks()
-            self._org_canvas.update_idletasks()
-            try:
-                bbox = self._org_canvas.bbox("all")
-                self._org_canvas.configure(scrollregion=bbox or (0, 0, content_width, content_height))
-            except Exception:
-                self._org_canvas.configure(scrollregion=(0, 0, content_width, content_height))
-            try:
-                self._org_canvas.yview_moveto(0)
-            except Exception:
-                pass
-            _log(f"ok nodes={len(self._category_items)} roots={len(tree.get('', set()))} h={content_height}")
-        except Exception as e:
-            try:
-                import traceback
-                _log(f"ERR {e}\n{traceback.format_exc()}")
-            except Exception:
-                pass
-
-    def _is_org_descendant(self, potential_parent, target_cat, _seen=None):
-        """True se potential_parent está na subárvore de target_cat (evita ciclos)."""
-        if not potential_parent or not target_cat:
-            return False
-        if _seen is None:
-            _seen = set()
-        if target_cat in _seen:
-            return False
-        _seen.add(target_cat)
-        children = self._category_tree.get(target_cat, set()) or set()
-        if potential_parent in children:
-            return True
-        for child in children:
-            if self._is_org_descendant(potential_parent, child, _seen):
-                return True
-        return False
-
-    def _org_level_bg(self, level):
-        if level == 0:
-            return WHITE
-        if level == 1:
-            return GRAY_100
-        return "#E0E0E0"
-
-    def _clear_org_drag_highlight(self):
-        target = (self._drag_data or {}).get("hover_target")
-        if target and target in self._category_items:
-            try:
-                lvl = self._category_items[target].get("level", 0)
-                target.configure(relief="solid", borderwidth=1, bg=self._org_level_bg(lvl))
-            except Exception:
-                pass
-        self._drag_data["hover_target"] = None
-
-    def _on_org_drag_start(self, event, category, parent, widget, level):
-        try:
-            orig = widget.place_info()
-        except Exception:
-            orig = {}
-        self._drag_data = {
-            "item": widget,
-            "category": category,
-            "parent": parent,
-            "level": level,
-            "hover_target": None,
-            "orig_place": orig,
-            "last_motion_ts": 0.0,
-        }
-        try:
-            widget.configure(relief="raised", borderwidth=2)
-            widget.lift()
-        except Exception:
-            pass
-
-    def _on_org_drag_motion(self, event):
-        import time
-        item = (self._drag_data or {}).get("item")
-        if not item:
-            return
-        now = time.monotonic()
-        if now - float(self._drag_data.get("last_motion_ts") or 0.0) < 0.03:
-            return
-        self._drag_data["last_motion_ts"] = now
-        try:
-            x = event.x_root - self._org_frame.winfo_rootx() - 10
-            y = event.y_root - self._org_frame.winfo_rooty() - 10
-            item.place_configure(x=x, y=y)
-        except Exception:
-            return
-        target = None
-        try:
-            item.place_forget()
-            self._org_frame.update_idletasks()
-            widget_under = self.winfo_containing(event.x_root, event.y_root)
-            if widget_under in self._category_items and widget_under is not item:
-                target = widget_under
-        except Exception:
-            target = None
-        finally:
-            try:
-                x = event.x_root - self._org_frame.winfo_rootx() - 10
-                y = event.y_root - self._org_frame.winfo_rooty() - 10
-                item.place_configure(x=x, y=y)
-                item.lift()
-            except Exception:
-                pass
-        if target is not self._drag_data.get("hover_target"):
-            self._clear_org_drag_highlight()
-            if target:
-                try:
-                    target.configure(relief="solid", borderwidth=2, bg="#FFF3CD")
-                except Exception:
-                    pass
-                self._drag_data["hover_target"] = target
-
-    def _on_org_canvas_release(self, event):
-        if (self._drag_data or {}).get("item"):
-            self._on_org_drag_end(event)
-
-    def _on_org_drag_end(self, event):
-        item = (self._drag_data or {}).get("item")
-        cat = (self._drag_data or {}).get("category")
-        old_parent = (self._drag_data or {}).get("parent")
-        if not item or not cat:
-            self._drag_data = {"item": None, "category": None, "parent": None, "level": 0, "hover_target": None, "orig_place": None, "last_motion_ts": 0.0}
-            return
-
-        self._clear_org_drag_highlight()
-        target_widget = None
-        try:
-            item.place_forget()
-            self._org_frame.update_idletasks()
-            target_widget = self.winfo_containing(event.x_root, event.y_root)
-        except Exception:
-            target_widget = getattr(event, "widget", None)
-
-        moved = False
-        move_msg = None
-        invalid_msg = None
-
-        if target_widget in self._category_items and target_widget is not item:
-            new_parent = self._category_items[target_widget]["name"]
-            if new_parent == cat or old_parent == new_parent:
-                pass
-            elif self._is_org_descendant(new_parent, cat):
-                invalid_msg = "Não pode mover uma categoria para dentro do seu próprio filho/subcategoria."
-            else:
-                if cat in (self._category_tree.get(old_parent) or set()):
-                    self._category_tree[old_parent].discard(cat)
-                self._category_tree.setdefault(new_parent, set()).add(cat)
-                moved = True
-                move_msg = f"'{cat}' movido para dentro de '{new_parent}'."
-        elif target_widget in (self._org_canvas, self._org_frame, self._org_loading_overlay):
-            if old_parent != "":
-                if cat in (self._category_tree.get(old_parent) or set()):
-                    self._category_tree[old_parent].discard(cat)
-                self._category_tree.setdefault("", set()).add(cat)
-                moved = True
-                move_msg = f"'{cat}' movido para a categoria raiz/pai."
-
-        orig_place = (self._drag_data or {}).get("orig_place") or {}
-        self._drag_data = {"item": None, "category": None, "parent": None, "level": 0, "hover_target": None, "orig_place": None, "last_motion_ts": 0.0}
-
-        if invalid_msg:
-            restored = False
-            try:
-                if orig_place and item and item.winfo_exists():
-                    item.place(**orig_place)
-                    lvl = 0
-                    restored = True
-            except Exception:
-                restored = False
-            if not restored:
-                self.after_idle(self._rebuild_org_tree)
-            messagebox.showwarning("Aviso", invalid_msg, parent=self)
-            return
-
-        if moved:
-            self.after_idle(self._rebuild_org_tree)
-            if move_msg:
-                self.after(50, lambda m=move_msg: messagebox.showinfo("Movido", m, parent=self))
-        else:
-            restored = False
-            try:
-                if orig_place and item and item.winfo_exists():
-                    item.place(**orig_place)
-                    info = self._category_items.get(item, {})
-                    item.configure(relief="solid", borderwidth=1, bg=self._org_level_bg(info.get("level", 0)))
-                    restored = True
-            except Exception:
-                restored = False
-            if not restored:
-                self.after_idle(self._rebuild_org_tree)
-
-    def _expand_all(self):
-        # Implementação para expandir (por enquanto rebuild força a exibição completa)
-        self._rebuild_org_tree()
-        messagebox.showinfo("Expandido", "Todas as categorias foram expandidas.", parent=self)
-
-    def _collapse_all(self):
-        # Implementação para esconder (colapsar)
-        # Uma abordagem simples seria filtrar a árvore para mostrar apenas raízes
-        # Precisa ser alinhado com a lógica de renderização
-        messagebox.showinfo("Em desenvolvimento", "Funcionalidade de 'Esconder Todos' em implementação.", parent=self)
-
-    # Compatibilidade com referências antigas (se existirem)
-    def _on_drag_start(self, *args, **kwargs):
-        return self._on_org_drag_start(*args, **kwargs)
-
-    def _on_drag_motion(self, *args, **kwargs):
-        return self._on_org_drag_motion(*args, **kwargs)
-
-    def _on_drag_end(self, event):
-        return self._on_org_drag_end(event)
-
-    def _reset_widget_style(self, widget, level):
-        try:
-            widget.configure(relief="solid", borderwidth=1, bg=self._org_level_bg(level))
-        except Exception:
-            pass
-
-    def _get_selected_category(self):
-        return (self._drag_data or {}).get("category")
-
-    def _edit_category_name(self, old_name):
-        if not old_name:
-            messagebox.showwarning("Atenção", "Selecione ou clique numa categoria para editar.", parent=self)
-            return
-        new_name = simpledialog.askstring("Editar categoria", "Novo nome da categoria:", initialvalue=old_name, parent=self)
-        if new_name and new_name.strip() and new_name.strip() != old_name:
-            # Atualizar visualmente
-            for widget, info in getattr(self, '_category_items', {}).items():
-                if info.get('name') == old_name:
-                    if info.get('level', 0) == 0:
-                        widget.configure(text=f"📁 {new_name.strip()}")
-                    elif info.get('level', 0) == 1:
-                        widget.configure(text=f"  └─ {new_name.strip()}")
-                    else:
-                        widget.configure(text=f"      └─ {new_name.strip()}")
-                    info['name'] = new_name.strip()
-                    break
-            messagebox.showinfo("Editado", f"Categoria renomeada para '{new_name.strip()}'.\nUse 'Guardar organização' para aplicar.", parent=self)
-
-    def _get_category_org_path(self):
-        try:
-            if getattr(sys, 'frozen', False):
-                base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ConversorJumpseller"
-                base_dir.mkdir(parents=True, exist_ok=True)
-                return base_dir / "category_organization.json"
-        except Exception:
-            pass
-        return Path(__file__).parent / "category_organization.json"
-
-    def _save_category_organization(self):
-        try:
-            tree_data = {}
-            for parent, children in getattr(self, '_category_tree', {}).items():
-                if isinstance(children, set):
-                    tree_data[parent] = sorted(list(children))
-                elif isinstance(children, list):
-                    tree_data[parent] = sorted(children)
-                else:
-                    tree_data[parent] = []
-            path = self._get_category_org_path()
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(tree_data, f, ensure_ascii=False, indent=2)
-            messagebox.showinfo("Guardado", "Organização de categorias guardada com sucesso.\nAs alterações serão aplicadas na próxima conversão.", parent=self)
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
-
-    def _load_saved_category_organization(self):
-        try:
-            path = self._get_category_org_path()
-            if not path.is_file():
-                return None
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if not isinstance(data, dict):
-                return None
-            tree = {}
-            for k, v in data.items():
-                if isinstance(v, list):
-                    tree[k] = set(v)
-                elif isinstance(v, set):
-                    tree[k] = v
-                else:
-                    tree[k] = set()
-            # Remover ciclos simples
-            def clean_cycles():
-                changed = True
-                while changed:
-                    changed = False
-                    for parent, children in list(tree.items()):
-                        for child in list(children):
-                            if child == parent:
-                                children.discard(child)
-                                changed = True
-                                continue
-                            if child in tree and parent in tree.get(child, set()):
-                                # Remover link direto para quebrar ciclo
-                                children.discard(child)
-                                changed = True
-            clean_cycles()
-            return tree
-        except Exception:
-            return None
 
     def _preview_classification(self):
         try:
@@ -2202,6 +1516,11 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.30 (2026-11-08)
+        - Novo: até 10 categorias pai (Categoria 1 ... Categoria 10) para agrupar categorias do fornecedor
+        - Removida a aba Organizador de Categorias (arrastar/soltar)
+        - Mantido o mapeamento direto de categorias pai na conversão
+
         v0.3.29 (2026-11-08)
         - Novo: mapeamento de categorias do fornecedor para categoria pai da Jumpseller (até 10 associações)
         - Campo 1: categoria do fornecedor; Campo 2: categoria pai da Jumpseller

@@ -345,7 +345,6 @@ def get_category_settings():
         cats = settings.get("category_mapping", {})
         return {
             "new_categories": cats.get("new_categories", ["", "", "", "", "", "", "", "", "", ""]),
-            "new_categories_parent": cats.get("new_categories_parent", ["", "", "", "", "", "", "", "", "", ""]),
             "apply_to_all": cats.get("apply_to_all", True),
             "selected_prefix": cats.get("selected_prefix", ""),
             "use_parent": cats.get("use_parent", True),
@@ -353,14 +352,13 @@ def get_category_settings():
     except Exception:
         return {
             "new_categories": ["", "", "", "", "", "", "", "", "", ""],
-            "new_categories_parent": ["", "", "", "", "", "", "", "", "", ""],
             "apply_to_all": True,
             "selected_prefix": "",
             "use_parent": True,
         }
 
 
-def set_category_settings(new_categories=None, new_categories_parent=None, apply_to_all=None, selected_prefix=None, use_parent=None):
+def set_category_settings(new_categories=None, apply_to_all=None, selected_prefix=None, use_parent=None):
     """Define configurações de categorias."""
     try:
         data = _read_config()
@@ -368,8 +366,6 @@ def set_category_settings(new_categories=None, new_categories_parent=None, apply
         cats = settings.setdefault("category_mapping", {})
         if new_categories is not None:
             cats["new_categories"] = list(new_categories)[:10]
-        if new_categories_parent is not None:
-            cats["new_categories_parent"] = list(new_categories_parent)[:10]
         if apply_to_all is not None:
             cats["apply_to_all"] = bool(apply_to_all)
         if selected_prefix is not None:
