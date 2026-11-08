@@ -907,9 +907,10 @@ class App(Tk):
         from tkinterdnd2 import TkinterDnD
         TkinterDnD.require(self)
         self.title("Conversor CSV → Jumpseller")
-        self.geometry("760x620")
-        self.minsize(700, 580)
+        self.geometry("1200x800")
+        self.minsize(900, 650)
         self.resizable(True, True)
+        self.state("zoomed")  # abre maximizado
         self.last_output = None
         self._status_widget = None   # widget onde _set_drop_text escreve
         self._build_ui()
@@ -996,8 +997,8 @@ class App(Tk):
                 try:
                     from PIL import Image, ImageTk
                     im = Image.open(p)
-                    # Limitar largura e altura para caber no header
-                    max_w, max_h = 18, 12
+                    # Limitar largura e altura para caber no header (logo pequeno, não empurra as tabs)
+                    max_w, max_h = 200, 70
                     ratio = min(max_w / im.width, max_h / im.height, 1.0)
                     im2 = im.resize((int(im.width * ratio), int(im.height * ratio)), Image.LANCZOS)
                     img = ImageTk.PhotoImage(im2)
@@ -2250,6 +2251,11 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.28 (2026-11-08)
+        - Janela agora abre maximizada
+        - Logo redimensionado para não empurrar as tabs e botões do cabeçalho
+        - Fundo apenas na área de drop da conversão
+
         v0.3.27 (2026-11-07)
         - Novo: integração das logos/identidade com assets/logo.png e assets/fundo.png
         - Consistência: opção "RETIRAR PRODUTOS INDISPONÍVEIS" aplicada também ao fluxo "Atualizar loja" (merge_update)
