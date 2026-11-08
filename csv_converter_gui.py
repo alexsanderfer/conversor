@@ -907,8 +907,8 @@ class App(Tk):
         from tkinterdnd2 import TkinterDnD
         TkinterDnD.require(self)
         self.title("Conversor CSV → Jumpseller")
-        self.geometry("720x560")
-        self.minsize(680, 520)
+        self.geometry("760x620")
+        self.minsize(700, 580)
         self.resizable(True, True)
         self.last_output = None
         self._status_widget = None   # widget onde _set_drop_text escreve
@@ -994,19 +994,19 @@ class App(Tk):
             p = ASSETS / name
             if p.is_file():
                 try:
-                    img = tk.PhotoImage(file=str(p))
+                    from PIL import Image, ImageTk
+                    im = Image.open(p)
+                    # Limitar largura e altura para caber no header
+                    max_w, max_h = 18, 12
+                    ratio = min(max_w / im.width, max_h / im.height, 1.0)
+                    im2 = im.resize((int(im.width * ratio), int(im.height * ratio)), Image.LANCZOS)
+                    img = ImageTk.PhotoImage(im2)
                     lbl = tk.Label(self, image=img, bg=BG_WINDOW)
-                    lbl.image = img  # keep reference
+                    lbl.image = img
                     return lbl
                 except Exception:
                     try:
-                        from PIL import Image, ImageTk
-                        im = Image.open(p)
-                        # scale to reasonable height
-                        htarget = 40
-                        ratio = htarget / im.height if im.height else 1
-                        im2 = im.resize((int(im.width * ratio), htarget), Image.LANCZOS)
-                        img = ImageTk.PhotoImage(im2)
+                        img = tk.PhotoImage(file=str(p))
                         lbl = tk.Label(self, image=img, bg=BG_WINDOW)
                         lbl.image = img
                         return lbl
@@ -1021,9 +1021,9 @@ class App(Tk):
                 try:
                     from PIL import Image, ImageTk
                     im = Image.open(p)
-                    # Mantém o tamanho original ou um limite razoável,
-                    # não redimensiona fixo para não distorcer.
-                    img = ImageTk.PhotoImage(im)
+                    # Redimensionar para caber na área de drop (~300x200)
+                    im2 = im.resize((300, 200), Image.LANCZOS)
+                    img = ImageTk.PhotoImage(im2)
                     return img
                 except Exception:
                     try:
@@ -1348,6 +1348,10 @@ class App(Tk):
         self._org_load_btn.pack(side="left")
         ttk.Button(org_btn_frame, text="Guardar Organização", command=self._save_category_organization).pack(side="left", padx=(4, 0))
         ttk.Button(org_btn_frame, text="Editar Selecionado", command=lambda: self._edit_category_name(self._get_selected_category())).pack(side="left", padx=(4, 0))
+
+        # Botões de expansão
+        ttk.Button(org_btn_frame, text="Expandir Todos", command=self._expand_all).pack(side="left", padx=(4, 0))
+        ttk.Button(org_btn_frame, text="Esconder Todos", command=self._collapse_all).pack(side="left", padx=(4, 0))
 
         self._org_container = ttk.Frame(tab_organizer)
         self._org_container.pack(fill="both", expand=True, pady=(4, 0))
@@ -2005,7 +2009,7 @@ class App(Tk):
                     self._category_tree[old_parent].discard(cat)
                 self._category_tree.setdefault("", set()).add(cat)
                 moved = True
-                move_msg = f"'{cat}' movido para a raiz."
+                move_msg = f"'{cat}' movido para a categoria raiz/pai."
 
         orig_place = (self._drag_data or {}).get("orig_place") or {}
         self._drag_data = {"item": None, "category": None, "parent": None, "level": 0, "hover_target": None, "orig_place": None, "last_motion_ts": 0.0}
@@ -2040,6 +2044,17 @@ class App(Tk):
                 restored = False
             if not restored:
                 self.after_idle(self._rebuild_org_tree)
+
+    def _expand_all(self):
+        # Implementação para expandir (por enquanto rebuild força a exibição completa)
+        self._rebuild_org_tree()
+        messagebox.showinfo("Expandido", "Todas as categorias foram expandidas.", parent=self)
+
+    def _collapse_all(self):
+        # Implementação para esconder (colapsar)
+        # Uma abordagem simples seria filtrar a árvore para mostrar apenas raízes
+        # Precisa ser alinhado com a lógica de renderização
+        messagebox.showinfo("Em desenvolvimento", "Funcionalidade de 'Esconder Todos' em implementação.", parent=self)
 
     # Compatibilidade com referências antigas (se existirem)
     def _on_drag_start(self, *args, **kwargs):
