@@ -291,65 +291,29 @@ def build_categories(row: dict, mapping: dict = None) -> str:
     try:
         cat_settings = get_category_settings()
         new_cats = [c.strip() for c in cat_settings.get("new_categories", []) if c.strip()]
-        if new_cats and categories:
-            parent_cat = new_cats[0]
-            use_parent = cat_settings.get("use_parent", True)
-            apply_to_all = cat_settings.get("apply_to_all", True)
-
-            if apply_to_all:
+        new_cats_parent = cat_settings.get("new_categories_parent", [""]*10)
+        # Construir dicionário: categoria_fornecedor -> categoria_pai
+        cat_to_parent = {}
+        for i, nc in enumerate(new_cats):
+            if nc:
+                par = new_cats_parent[i].strip() if i < len(new_cats_parent) else ""
+                cat_to_parent[nc] = par
+        if cat_to_parent and categories:
+            # Determinar o pai para a categoria principal (familia)
+            familia = categories[0] if categories else ""
+            parent_cat = cat_to_parent.get(familia, "")
+            if parent_cat:
                 # Jumpseller needs ALL hierarchy levels from root to leaf.
                 # When mapping to a parent, output: [parent, parent/cat1, parent/cat1/cat2, ...]
-                if use_parent:
-                    result = [parent_cat]
-                    for cat_path in categories:
-                        cp = (cat_path or "").strip().strip("/")
-                        if not cp:
-                            continue
-                        prefixed = f"{parent_cat}/{cp}"
-                        if prefixed not in result:
-                            result.append(prefixed)
-                    return ",".join(result)
-                else:
-                    return parent_cat
-
-            # apply_to_all == False: only categories matching selected_prefix get the parent mapping
-            selected_prefix = cat_settings.get("selected_prefix", "").strip().lower()
-            if selected_prefix:
-                matched_paths = []
-                unmatched_paths = []
+                result = [parent_cat]
                 for cat_path in categories:
-                    cp = (cat_path or "").strip()
-                    cp_low = cp.lower()
-                    if cp_low.startswith(selected_prefix) or selected_prefix in cp_low:
-                        matched_paths.append(cp)
-                    else:
-                        unmatched_paths.append(cp)
-
-                if matched_paths:
-                    result = []
-                    if use_parent:
-                        # Expand to full hierarchy from the mapping parent, preserving matched structure
-                        result.append(parent_cat)
-                        for cat_path in matched_paths:
-                            cp = cat_path.strip().strip("/")
-                            if not cp:
-                                continue
-                            prefixed = f"{parent_cat}/{cp}"
-                            if prefixed not in result:
-                                result.append(prefixed)
-                        # Keep unmatched categories as-is (full paths already built)
-                        for up in unmatched_paths:
-                            upc = (up or "").strip()
-                            if upc and upc not in result:
-                                result.append(upc)
-                    else:
-                        result.append(parent_cat)
-                        for up in unmatched_paths:
-                            upc = (up or "").strip()
-                            if upc and upc not in result:
-                                result.append(upc)
-                    return ",".join(result)
-                # No matches: fall through to original categories
+                    cp = (cat_path or "").strip().strip("/")
+                    if not cp:
+                        continue
+                    prefixed = f"{parent_cat}/{cp}"
+                    if prefixed not in result:
+                        result.append(prefixed)
+                return ",".join(result)
     except Exception:
         pass
 
@@ -1284,44 +1248,29 @@ class App(Tk):
         cat_notebook.add(tab_organizer, text="  Organizador  ")
 
         # Aba Mapeamento
-        ttk.Label(tab_macro, text="Enviar categorias para uma nova categoria pai", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
-        ttk.Label(tab_macro, text="Crie até 5 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 8))
+        ttk.Label(tab_macro, text="Associar categorias do fornecedor a categorias pai da Jumpseller", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+        ttk.Label(tab_macro, text="Crie até 10 associações. No campo 1 escreve o nome da categoria do fornecedor; no campo 2 escolhe a categoria pai da Jumpseller.", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 8))
 
         cat_settings = get_category_settings()
         self._cat_new_vars = []
-        for i in range(5):
-            val = cat_settings.get("new_categories", ["","","","",""])[i] if i < len(cat_settings.get("new_categories", [])) else ""
+        self._cat_parent_vars = []
+        for i in range(10):
+            val = cat_settings.get("new_categories", [""]*10)[i] if i < len(cat_settings.get("new_categories", [])) else ""
+            par = cat_settings.get("new_categories_parent", [""]*10)[i] if i < len(cat_settings.get("new_categories_parent", [])) else ""
             v = tk.StringVar(value=val)
+            pv = tk.StringVar(value=par)
             self._cat_new_vars.append(v)
+            self._cat_parent_vars.append(pv)
             row = ttk.Frame(tab_macro)
             row.pack(fill="x", pady=1)
-            ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
-            ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True)
+            ttk.Label(row, text=f"{i+1}.", width=3).pack(side="left")
+            ttk.Label(row, text="Categoria do fornecedor:", width=22).pack(side="left")
+            ttk.Entry(row, textvariable=v, width=28).pack(side="left", padx=(4, 6))
+            ttk.Label(row, text="→ Categoria pai Jumpseller:", width=24).pack(side="left")
+            ttk.Entry(row, textvariable=pv, width=28).pack(side="left", padx=(4, 6))
             ttk.Button(row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
-        self._cat_apply_all_var = tk.BooleanVar(value=cat_settings.get("apply_to_all", True))
-        self._cat_use_parent_var = tk.BooleanVar(value=cat_settings.get("use_parent", True))
-        self._cat_prefix_var = tk.StringVar(value=cat_settings.get("selected_prefix", ""))
-
-        ttk.Separator(tab_macro, orient="horizontal").pack(fill="x", pady=(8, 6))
-        ttk.Checkbutton(tab_macro, text="Aplicar a TODAS as categorias do ficheiro", variable=self._cat_apply_all_var).pack(anchor="w", pady=1)
-        ttk.Checkbutton(tab_macro, text="Manter hierarquia original (NovaCategoria/CategoriaOriginal/Subcategoria)", variable=self._cat_use_parent_var).pack(anchor="w", pady=1)
-
-        prefix_row = ttk.Frame(tab_macro)
-        prefix_row.pack(fill="x", pady=(6, 4))
-        ttk.Label(prefix_row, text="Aplicar apenas se a categoria contiver:").pack(side="left")
-        ttk.Entry(prefix_row, textvariable=self._cat_prefix_var, width=25).pack(side="left", padx=(6, 0))
-        ttk.Button(prefix_row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
-
-        ttk.Label(
-            tab_macro,
-            text=(
-                "Filtro (opcional): o mapeamento só será aplicado às categorias cujo nome contenha este texto.\n"
-                "Ex.: se escrever 'SOM', aplica em 'SOM E LUZ' e 'ACESSÓRIOS SOM', mas não em 'ILUMINAÇÃO'.\n"
-                "Deixe em branco para aplicar a todas (quando 'Aplicar a TODAS...' estiver marcado)."
-            ),
-            font=("Segoe UI", 8), foreground=GRAY_600, justify="left", wraplength=820,
-        ).pack(anchor="w", pady=(8, 6))
+        self._cat_prefix_var = tk.StringVar(value="")
 
         ttk.Button(tab_macro, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(4, 0))
 
@@ -2218,11 +2167,13 @@ class App(Tk):
     def _save_category_settings(self):
         try:
             new_cats = [v.get().strip() for v in self._cat_new_vars]
+            new_cats_parent = [v.get().strip() for v in self._cat_parent_vars]
             set_category_settings(
                 new_categories=new_cats,
-                apply_to_all=self._cat_apply_all_var.get(),
-                selected_prefix=self._cat_prefix_var.get().strip(),
-                use_parent=self._cat_use_parent_var.get(),
+                new_categories_parent=new_cats_parent,
+                apply_to_all=True,
+                selected_prefix="",
+                use_parent=True,
             )
         except Exception:
             # Guardar silencioso no mapeamento (sem alertas)
@@ -2251,9 +2202,14 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.29 (2026-11-08)
+        - Novo: mapeamento de categorias do fornecedor para categoria pai da Jumpseller (até 10 associações)
+        - Campo 1: categoria do fornecedor; Campo 2: categoria pai da Jumpseller
+        - Substituído o sistema de arrastar/soltar por mapeamento direto de categorias pai
+
         v0.3.28 (2026-11-08)
         - Janela agora abre maximizada
-        - Logo redimensionado para não empurrar as tabs e botões do cabeçalho
+        - Logo redimensionado (máx 200x70) para não empurrar as tabs e botões do cabeçalho
         - Fundo apenas na área de drop da conversão
 
         v0.3.27 (2026-11-07)
