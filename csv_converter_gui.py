@@ -1043,7 +1043,7 @@ class App(Tk):
                     from PIL import Image, ImageTk
                     im = Image.open(p)
                     # Limitar largura e altura para caber no header (logo pequeno, não empurra as tabs)
-                    max_w, max_h = 140, 50
+                    max_w, max_h = 100, 35
                     ratio = min(max_w / im.width, max_h / im.height, 1.0)
                     im2 = im.resize((int(im.width * ratio), int(im.height * ratio)), Image.LANCZOS)
                     img = ImageTk.PhotoImage(im2)
@@ -1334,11 +1334,11 @@ class App(Tk):
             row = ttk.Frame(frm)
             row.pack(fill="x", pady=2)
             ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
-            ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True, padx=(4, 8))
+            ttk.Entry(row, textvariable=v, width=20).pack(side="left", padx=(4, 6))
             ttk.Label(row, text="Palavras-chave:").pack(side="left")
             kw = tk.StringVar()
             self._cat_kw_vars.append(kw)
-            ttk.Entry(row, textvariable=kw, width=30).pack(side="left", padx=(4, 0))
+            ttk.Entry(row, textvariable=kw, width=20).pack(side="left", padx=(4, 0))
             ttk.Button(row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
         self._cat_apply_all_var = tk.BooleanVar(value=cat_settings.get("apply_to_all", True))
