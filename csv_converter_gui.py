@@ -18,6 +18,7 @@ import sys
 import threading
 import tkinter as tk
 import unicodedata
+import webbrowser
 from collections import OrderedDict
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
@@ -1625,6 +1626,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.36 (2026-11-09)
+        - Sobre: links clicáveis para e-mail (mailto) e WhatsApp (wa.me) nos contatos do desenvolvedor, revendedor e suporte
+
         v0.3.35 (2026-11-09)
         - Novo: Mapeamento de Categorias por Palavras-Chave com Prioridade na aba "Categorias"
         - Associar produtos a uma categoria pai através de palavras-chave, com sistema de prioridade (regras mais recentes vencem)
@@ -1809,17 +1813,17 @@ class App(Tk):
 
         ttk.Label(frm, text="Desenvolvedor", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(16, 4))
         ttk.Label(frm, text="Alexsander Fernandes", font=("Segoe UI", 10)).pack(anchor="w")
-        ttk.Label(frm, text="afgouveia90@gmail.com", font=("Segoe UI", 10)).pack(anchor="w")
-        ttk.Label(frm, text="WhatsApp: +351 923 337 992", font=("Segoe UI", 10)).pack(anchor="w")
+        self._make_link_label(frm, "afgouveia90@gmail.com", "mailto:afgouveia90@gmail.com").pack(anchor="w")
+        self._make_link_label(frm, "WhatsApp: +351 923 337 992", "https://wa.me/351923337992").pack(anchor="w")
 
         ttk.Label(frm, text="Revendedor Autorizado", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(16, 4))
         ttk.Label(frm, text="Miguel Meireles", font=("Segoe UI", 10)).pack(anchor="w")
-        ttk.Label(frm, text="inforgreen.recondicionados@gmail.com", font=("Segoe UI", 10)).pack(anchor="w")
-        ttk.Label(frm, text="WhatsApp: +351 914 321 860", font=("Segoe UI", 10)).pack(anchor="w")
+        self._make_link_label(frm, "inforgreen.recondicionados@gmail.com", "mailto:inforgreen.recondicionados@gmail.com").pack(anchor="w")
+        self._make_link_label(frm, "WhatsApp: +351 914 321 860", "https://wa.me/351914321860").pack(anchor="w")
 
         ttk.Label(frm, text="Contacto", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(16, 4))
-        ttk.Label(frm, text="E-mail de Suporte: afgouveia90@gmail.com", font=("Segoe UI", 10)).pack(anchor="w")
-        ttk.Label(frm, text="E-mail de Vendas: inforgreen.recondicionados@gmail.com", font=("Segoe UI", 10)).pack(anchor="w")
+        self._make_link_label(frm, "E-mail de Suporte: afgouveia90@gmail.com", "mailto:afgouveia90@gmail.com").pack(anchor="w")
+        self._make_link_label(frm, "E-mail de Vendas: inforgreen.recondicionados@gmail.com", "mailto:inforgreen.recondicionados@gmail.com").pack(anchor="w")
 
         btn_lic = tk.Button(
             frm,
@@ -1835,6 +1839,18 @@ class App(Tk):
             cursor="hand2",
         )
         btn_lic.pack(anchor="w", pady=(12, 0))
+
+    def _make_link_label(self, parent, text: str, url: str) -> tk.Label:
+        """Cria um label de texto azul, sublinhado e clicável que abre url no navegador."""
+        lbl = tk.Label(
+            parent,
+            text=text,
+            fg="#1565C0",
+            cursor="hand2",
+            font=("Segoe UI", 10, "underline"),
+        )
+        lbl.bind("<Button-1>", lambda e: webbrowser.open(url))
+        return lbl
 
     # -- handlers -------------------------------------------------------
 
