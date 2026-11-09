@@ -14,10 +14,10 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 # Permitir imports do projeto ao executar a partir desta pasta
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from csv_converter_gui import _read_csv_any_delimiter, get_mapped_value  # noqa: E402
-from field_mapping import load_field_mapping  # noqa: E402
+from gui.csv_converter_gui import _read_csv_any_delimiter, get_mapped_value  # noqa: E402
+from core.field_mapping import load_field_mapping  # noqa: E402
 
 try:
     from theme import (

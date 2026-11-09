@@ -25,11 +25,11 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from tkinterdnd2 import DND_FILES, Tk
 
-from license_dialog import LicenseDialog
-from license_manager import check_license, load_license_state
-from stripe_integration import open_stripe_checkout
-from updater import check_for_updates, get_current_version
-from theme import (
+from core.license_dialog import LicenseDialog
+from core.license_manager import check_license, load_license_state
+from core.stripe_integration import open_stripe_checkout
+from core.updater import check_for_updates, get_current_version
+from gui.theme import (
     BG_WINDOW,
     ERROR_BG,
     ERROR_FG,
@@ -44,7 +44,7 @@ from theme import (
     apply_theme,
     style_drop_area,
 )
-from field_mapping import (
+from core.field_mapping import (
     load_field_mapping, get_mapped_value, save_field_mapping, DEFAULT_FIELD_MAPPING,
     list_profiles, get_active_profile, set_active_profile,
     get_profile_mapping, save_profile, delete_profile, _PROFILE_DEFAULT,
@@ -52,7 +52,7 @@ from field_mapping import (
     get_category_settings, set_category_settings,
     add_keyword_rule, remove_keyword_rule, apply_keyword_rules, get_keyword_rules,
 )
-from category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
+from core.category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
 
 # Cache for category settings
 _category_settings_cache = None
@@ -72,7 +72,7 @@ DEST_COLUMNS = [
 ]
 
 LICENSE_DIR = Path(os.environ.get("LOCALAPPDATA", "")) / "ConversorJumpseller" / "licenses"
-ASSETS = Path(__file__).parent / "assets"
+ASSETS = Path(__file__).resolve().parent.parent / "assets"
 
 # ---------------------------------------------------------------------------
 # LOGICA DE CONVERSAO (mesma do CLI, intacta)

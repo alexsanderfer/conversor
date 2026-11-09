@@ -19,11 +19,11 @@ if os.path.exists('field_mapping_config.json'):
     datas.append(('field_mapping_config.json', '.'))
 
 a = Analysis(
-    ['csv_converter_gui.py'],
-    pathex=[],
+    ['gui/csv_converter_gui.py'],
+    pathex=['gui', 'core'],
     binaries=[],
     datas=datas,
-    hiddenimports=['tkinterdnd2', 'openpyxl', 'stripe_integration', 'updater', 'PIL', 'PIL._tkinter_finder'],
+    hiddenimports=['tkinterdnd2', 'openpyxl', 'core.stripe_integration', 'core.updater', 'PIL', 'PIL._tkinter_finder'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

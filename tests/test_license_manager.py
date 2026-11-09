@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import license_manager as lm
+import core.license_manager as lm
 
 TEST_SECRET = "segredo-de-teste-apenas-para-estes-testes"
 

@@ -10,10 +10,10 @@ import tempfile
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from csv_converter_gui import process_csv, load_field_mapping
-from field_mapping import (
+from gui.csv_converter_gui import process_csv, load_field_mapping
+from core.field_mapping import (
     DEFAULT_FIELD_MAPPING,
     load_field_mapping as fm_load,
     get_mapped_value,
@@ -139,7 +139,7 @@ def test_field_mapping_dialog():
     
     try:
         import tkinter as tk
-        from csv_converter_gui import FieldMappingDialog
+        from gui.csv_converter_gui import FieldMappingDialog
         
         root = tk.Tk()
         root.withdraw()  # Hide the main window

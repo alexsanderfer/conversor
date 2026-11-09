@@ -92,8 +92,8 @@ def _config_path():
             return config_file
     except Exception:
         pass
-    # Development mode
-    return Path(__file__).parent / "field_mapping_config.json"
+    # Development mode: ficheiro de config fica na raiz do projeto
+    return Path(__file__).resolve().parent.parent / "field_mapping_config.json"
 
 
 def _read_config():

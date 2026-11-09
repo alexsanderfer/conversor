@@ -8,10 +8,10 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from csv_converter_gui import process_csv, load_field_mapping, get_mapped_value
-from field_mapping import DEFAULT_FIELD_MAPPING
+from gui.csv_converter_gui import process_csv, load_field_mapping, get_mapped_value
+from core.field_mapping import DEFAULT_FIELD_MAPPING
 
 def test_csv_file(csv_path: str, expected_fields: dict = None):
     """Test conversion of a CSV file."""

@@ -9,9 +9,9 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from csv_converter_gui import process_csv
+from gui.csv_converter_gui import process_csv
 
 def test_complete_conversion():
     """Test complete conversion of produtos.csv with field mapping."""

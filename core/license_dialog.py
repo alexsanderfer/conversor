@@ -12,8 +12,8 @@ from tkinter import filedialog, messagebox
 
 from tkinterdnd2 import DND_FILES
 
-from license_manager import compute_machine_fingerprint
-from theme import (
+from core.license_manager import compute_machine_fingerprint
+from gui.theme import (
     BG_WINDOW,
     ERROR_BG,
     ERROR_FG,
