@@ -1372,6 +1372,12 @@ class App(Tk):
 
         ttk.Button(frm, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(4, 0))
 
+        # Dropdown com as categorias pai já configuradas (visibilidade do que foi guardado)
+        ttk.Label(frm, text="Categorias pai configuradas:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
+        self._cat_pai_combo = ttk.Combobox(frm, state="readonly", width=45)
+        self._cat_pai_combo.pack(anchor="w", pady=(0, 6))
+        self._refresh_cat_pai_combo()
+
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
         ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
         cat_frame = ttk.Frame(frm)
@@ -1540,6 +1546,17 @@ class App(Tk):
             )
         except Exception:
             # Guardar silencioso no mapeamento (sem alertas)
+            pass
+        self._refresh_cat_pai_combo()
+
+    def _refresh_cat_pai_combo(self):
+        """Preenche o dropdown com as categorias pai já configuradas."""
+        try:
+            cat_settings = get_category_settings()
+            new_cats = [c.strip() for c in cat_settings.get("new_categories", []) if c.strip()]
+            if hasattr(self, "_cat_pai_combo"):
+                self._cat_pai_combo["values"] = new_cats
+        except Exception:
             pass
 
     def _build_tab_sobre(self):
