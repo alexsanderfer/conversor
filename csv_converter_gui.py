@@ -354,6 +354,37 @@ def build_categories(row: dict, mapping: dict = None) -> str:
     except Exception:
         pass
 
+    # Mapeamento por palavras-chave por categoria (Categoria 1-10 com suas palavras-chave)
+    try:
+        cat_settings = get_category_settings()
+        new_cats = [c.strip() for c in cat_settings.get("new_categories", []) if c.strip()]
+        cat_kws = cat_settings.get("cat_keywords", [])
+        if new_cats and categories:
+            product_name = get_mapped_value(row, "design", mapping)
+            for i, parent_cat in enumerate(new_cats):
+                kws = cat_kws[i] if i < len(cat_kws) else ""
+                if not parent_cat or not kws:
+                    continue
+                keywords = [k.strip().lower() for k in kws.replace(",", ";").split(";") if k.strip()]
+                text = f"{product_name} {','.join(categories)}".lower()
+                for kw in keywords:
+                    if kw and kw in text:
+                        # Jumpseller precisa de toda a hierarquia da raiz até a folha
+                        if cat_settings.get("use_parent", True):
+                            result = [parent_cat]
+                            for cat_path in categories:
+                                cp = (cat_path or "").strip().strip("/")
+                                if not cp:
+                                    continue
+                                prefixed = f"{parent_cat}/{cp}"
+                                if prefixed not in result:
+                                    result.append(prefixed)
+                            return ",".join(result)
+                        else:
+                            return parent_cat
+    except Exception:
+        pass
+
     # Mapeamento por palavras-chave (prioridade): forçar categoria pai quando o produto ou categoria casa com alguma regra
     try:
         product_name = get_mapped_value(row, "design", mapping)
@@ -1290,52 +1321,45 @@ class App(Tk):
         frm = ttk.Frame(self.tab_categorias, padding=6)
         frm.pack(fill="both", expand=True)
 
-        # Criar notebook para separar seções
-        cat_notebook = ttk.Notebook(frm)
-        cat_notebook.pack(fill="both", expand=True)
-
-        # Aba Mapeamento
-        tab_map = ttk.Frame(cat_notebook, padding=10)
-        cat_notebook.add(tab_map, text="  Mapeamento de Categorias  ")
-
-        tab_macro = ttk.Frame(cat_notebook, padding=10)
-        cat_notebook.add(tab_macro, text="  Mapeamento  ")
-
-        # Aba Mapeamento
-        ttk.Label(tab_macro, text="Enviar categorias para uma nova categoria pai", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
-        ttk.Label(tab_macro, text="Crie até 10 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 8))
+        ttk.Label(frm, text="Mapeamento", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+        ttk.Label(frm, text="Crie até 10 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 8))
 
         cat_settings = get_category_settings()
         self._cat_new_vars = []
+        self._cat_kw_vars = []
         for i in range(10):
             val = cat_settings.get("new_categories", [""]*10)[i] if i < len(cat_settings.get("new_categories", [])) else ""
             v = tk.StringVar(value=val)
             self._cat_new_vars.append(v)
-            row = ttk.Frame(tab_macro)
-            row.pack(fill="x", pady=1)
+            row = ttk.Frame(frm)
+            row.pack(fill="x", pady=2)
             ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
-            ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True)
+            ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True, padx=(4, 8))
+            ttk.Label(row, text="Palavras-chave:").pack(side="left")
+            kw = tk.StringVar()
+            self._cat_kw_vars.append(kw)
+            ttk.Entry(row, textvariable=kw, width=30).pack(side="left", padx=(4, 0))
             ttk.Button(row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
         self._cat_apply_all_var = tk.BooleanVar(value=cat_settings.get("apply_to_all", True))
         self._cat_use_parent_var = tk.BooleanVar(value=cat_settings.get("use_parent", True))
         self._cat_prefix_var = tk.StringVar(value=cat_settings.get("selected_prefix", ""))
 
-        ttk.Separator(tab_macro, orient="horizontal").pack(fill="x", pady=(8, 6))
-        ttk.Checkbutton(tab_macro, text="Aplicar a TODAS as categorias do ficheiro", variable=self._cat_apply_all_var).pack(anchor="w", pady=1)
-        ttk.Checkbutton(tab_macro, text="Manter hierarquia original (NovaCategoria/CategoriaOriginal/Subcategoria)", variable=self._cat_use_parent_var).pack(anchor="w", pady=1)
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
+        ttk.Checkbutton(frm, text="Aplicar a TODAS as categorias do ficheiro", variable=self._cat_apply_all_var).pack(anchor="w", pady=1)
+        ttk.Checkbutton(frm, text="Manter hierarquia original (NovaCategoria/CategoriaOriginal/Subcategoria)", variable=self._cat_use_parent_var).pack(anchor="w", pady=1)
 
-        prefix_row = ttk.Frame(tab_macro)
+        prefix_row = ttk.Frame(frm)
         prefix_row.pack(fill="x", pady=(6, 4))
         ttk.Label(prefix_row, text="Aplicar apenas se a categoria contiver:").pack(side="left")
         ttk.Entry(prefix_row, textvariable=self._cat_prefix_var, width=25).pack(side="left", padx=(6, 0))
         ttk.Button(prefix_row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
-        # Seção de Mapeamento por Palavras-Chave
-        ttk.Separator(tab_macro, orient="horizontal").pack(fill="x", pady=(15, 10))
-        ttk.Label(tab_macro, text="Mapeamento Avançado por Palavras-Chave (Prioridade)", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+        # Seção de Mapeamento por Palavras-Chave (prioridade)
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(15, 10))
+        ttk.Label(frm, text="Mapeamento Avançado por Palavras-Chave (Prioridade)", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
 
-        frm_kw = ttk.Frame(tab_macro)
+        frm_kw = ttk.Frame(frm)
         frm_kw.pack(fill="x", pady=(0, 5))
 
         ttk.Label(frm_kw, text="Categoria Pai:").pack(side="left")
@@ -1348,19 +1372,20 @@ class App(Tk):
 
         ttk.Button(frm_kw, text="Adicionar Regra", command=self._add_kw_rule).pack(side="left", padx=5)
 
-        self._kw_list_text = tk.Text(tab_macro, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        self._kw_list_text = tk.Text(frm, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
         self._kw_list_text.pack(fill="x", pady=(5, 0))
         self._kw_list_text.config(state="disabled")
 
-        ttk.Button(tab_macro, text="Remover última regra", command=self._remove_last_kw_rule).pack(anchor="w", pady=5)
+        ttk.Button(frm, text="Remover última regra", command=self._remove_last_kw_rule).pack(anchor="w", pady=5)
 
 
         self._refresh_kw_list()
 
-        ttk.Button(tab_macro, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(4, 0))
+        ttk.Button(frm, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(4, 0))
 
-        ttk.Separator(tab_macro, orient="horizontal").pack(fill="x", pady=(10, 6))
-        cat_frame = ttk.Frame(tab_macro)
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
+        ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        cat_frame = ttk.Frame(frm)
         cat_frame.pack(fill="both", expand=True)
         self._cat_list_text = tk.Text(cat_frame, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
         cat_scroll = ttk.Scrollbar(cat_frame, orient="vertical", command=self._cat_list_text.yview)
@@ -1516,8 +1541,10 @@ class App(Tk):
     def _save_category_settings(self):
         try:
             new_cats = [v.get().strip() for v in self._cat_new_vars]
+            cat_kws = [v.get().strip() for v in self._cat_kw_vars]
             set_category_settings(
                 new_categories=new_cats,
+                cat_keywords=cat_kws,
                 apply_to_all=self._cat_apply_all_var.get(),
                 selected_prefix=self._cat_prefix_var.get().strip(),
                 use_parent=self._cat_use_parent_var.get(),

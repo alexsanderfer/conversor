@@ -373,7 +373,7 @@ def get_category_settings() -> dict:
         return {}
 
 
-def set_category_settings(new_categories=None, apply_to_all=None, selected_prefix=None, use_parent=None):
+def set_category_settings(new_categories=None, cat_keywords=None, apply_to_all=None, selected_prefix=None, use_parent=None):
     """Define configurações de categorias."""
     try:
         data = _read_config()
@@ -381,6 +381,8 @@ def set_category_settings(new_categories=None, apply_to_all=None, selected_prefi
         cats = settings.setdefault("category_mapping", {})
         if new_categories is not None:
             cats["new_categories"] = list(new_categories)[:10]
+        if cat_keywords is not None:
+            cats["cat_keywords"] = list(cat_keywords)[:10]
         if apply_to_all is not None:
             cats["apply_to_all"] = bool(apply_to_all)
         if selected_prefix is not None:
