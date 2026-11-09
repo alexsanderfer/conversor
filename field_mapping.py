@@ -354,6 +354,42 @@ def set_keyword_mapping_settings(enabled=None, parent_category=None, keywords=No
         return False
 
 
+def get_keyword_mapping_settings():
+    """Retorna configurações de mapeamento por palavras-chave."""
+    try:
+        data = _read_config()
+        settings = data.get("settings", {})
+        kw = settings.get("keyword_mapping", {})
+        return {
+            "parent_category": kw.get("parent_category", ""),
+            "keywords": kw.get("keywords", ""),
+            "enabled": kw.get("enabled", False),
+        }
+    except Exception:
+        return {
+            "parent_category": "",
+            "keywords": "",
+            "enabled": False,
+        }
+
+
+def set_keyword_mapping_settings(parent_category=None, keywords=None, enabled=None):
+    """Define configurações de mapeamento por palavras-chave."""
+    try:
+        data = _read_config()
+        settings = data.setdefault("settings", {})
+        kw = settings.setdefault("keyword_mapping", {})
+        if parent_category is not None:
+            kw["parent_category"] = str(parent_category)
+        if keywords is not None:
+            kw["keywords"] = str(keywords)
+        if enabled is not None:
+            kw["enabled"] = bool(enabled)
+        return _write_config(data)
+    except Exception:
+        return False
+
+
 def load_field_mapping():
     """
     Load field mapping from the active profile, or return default.
