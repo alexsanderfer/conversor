@@ -918,14 +918,22 @@ class App(Tk):
     def _build_ui(self):
         apply_theme(self)
 
+        # aplicar fundo
+        bg_img = self._load_background()
+        if bg_img:
+            self.bg_label = tk.Label(self, image=bg_img)
+            self.bg_label.image = bg_img
+            self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+
         # container superior com logo, botão de compra e botão de atualização
         top_container = tk.Frame(self, bg=BG_WINDOW)
-        top_container.pack(fill="x", pady=(0, 4))
+        top_container.pack(fill="x", pady=0)
+        top_container.lift()  # garantir que fique acima do fundo
 
         # logo (graceful: se o asset faltar, o label nao aparece)
         self._logo_label = self._load_logo()
         if self._logo_label:
-            self._logo_label.pack(in_=top_container, anchor="w", pady=(0, 4))
+            self._logo_label.pack(in_=top_container, anchor="w", pady=2)
 
         # botão comprar licença (desativado até integrar Stripe)
         self._buy_license_btn = tk.Button(
@@ -939,11 +947,11 @@ class App(Tk):
             relief="flat",
             font=("Segoe UI", 9, "bold"),
             padx=12,
-            pady=4,
+            pady=2,
             cursor="hand2",
             state="disabled",
         )
-        self._buy_license_btn.pack(in_=top_container, side="right", padx=(0, 8), pady=(0, 4))
+        self._buy_license_btn.pack(in_=top_container, side="right", padx=(0, 8), pady=2)
 
         # botão verificar atualizações
         self._check_updates_btn = tk.Button(
@@ -957,18 +965,14 @@ class App(Tk):
             relief="flat",
             font=("Segoe UI", 9),
             padx=12,
-            pady=4,
+            pady=2,
             cursor="hand2",
         )
-        self._check_updates_btn.pack(in_=top_container, side="right", pady=(0, 4))
+        self._check_updates_btn.pack(in_=top_container, side="right", pady=2)
 
         # barra de separadores
         self.tabs = ttk.Notebook(self)
-        self.tabs.pack(fill="both", expand=True, padx=8, pady=(0, 6))
-
-        # barra de separadores
-        self.tabs = ttk.Notebook(self)
-        self.tabs.pack(fill="both", expand=True, padx=8, pady=(0, 6))
+        self.tabs.pack(fill="both", expand=True, padx=8, pady=(2, 6))
 
         self.tab_novo = ttk.Frame(self.tabs, padding=8)
         self.tab_update = ttk.Frame(self.tabs, padding=8)
@@ -1022,8 +1026,10 @@ class App(Tk):
                 try:
                     from PIL import Image, ImageTk
                     im = Image.open(p)
-                    # Redimensionar para caber na área de drop (~300x200)
-                    im2 = im.resize((300, 200), Image.LANCZOS)
+                    # Redimensionar para preencher a tela (será fixado pelo place() com relwidth/relheight)
+                    # Como o label será colocado com place(), o tamanho exato não importa tanto aqui,
+                    # mas ajuda a evitar erro de memória com imagens gigantes.
+                    im2 = im.resize((1200, 800), Image.LANCZOS)
                     img = ImageTk.PhotoImage(im2)
                     return img
                 except Exception:
@@ -1516,6 +1522,12 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.32 (2026-11-09)
+        - UI: Janela maximizada por padrão
+        - UI: Fundo aplicado em toda a janela
+        - UI: Logo redimensionado (máx 140x50) e espaço vazio reduzido no cabeçalho
+        - Correção: duplicidade na criação de abas (causava espaço extra)
+
         v0.3.31 (2026-11-09)
         - Logo redimensionado (máx 140x50) para não empurrar as tabs e botões do cabeçalho
         - PIL/Pillow necessário para redimensionamento automático da logo
@@ -1683,12 +1695,17 @@ class App(Tk):
 
         ttk.Label(frm, text="Desenvolvedor", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(16, 4))
         ttk.Label(frm, text="Alexsander Fernandes", font=("Segoe UI", 10)).pack(anchor="w")
-        ttk.Label(frm, text="alexsanderfer@gmail.com", font=("Segoe UI", 10)).pack(anchor="w")
-        ttk.Label(frm, text="WhatsApp: +351 910 000 000", font=("Segoe UI", 10)).pack(anchor="w")
+        ttk.Label(frm, text="afgouveia90@gmail.com", font=("Segoe UI", 10)).pack(anchor="w")
+        ttk.Label(frm, text="WhatsApp: +351 923 337 992", font=("Segoe UI", 10)).pack(anchor="w")
+
+        ttk.Label(frm, text="Revendedor Autorizado", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(16, 4))
+        ttk.Label(frm, text="Miguel Meireles", font=("Segoe UI", 10)).pack(anchor="w")
+        ttk.Label(frm, text="inforgreen.recondicionados@gmail.com", font=("Segoe UI", 10)).pack(anchor="w")
+        ttk.Label(frm, text="WhatsApp: +351 914 321 860", font=("Segoe UI", 10)).pack(anchor="w")
 
         ttk.Label(frm, text="Contacto", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(16, 4))
-        ttk.Label(frm, text="GitHub: github.com/alexsanderfer/conversor", font=("Segoe UI", 10)).pack(anchor="w")
-        ttk.Label(frm, text="Releases: github.com/alexsanderfer/conversor/releases", font=("Segoe UI", 10)).pack(anchor="w")
+        ttk.Label(frm, text="E-mail de Suporte: afgouveia90@gmail.com", font=("Segoe UI", 10)).pack(anchor="w")
+        ttk.Label(frm, text="E-mail de Vendas: inforgreen.recondicionados@gmail.com", font=("Segoe UI", 10)).pack(anchor="w")
 
         btn_lic = tk.Button(
             frm,
