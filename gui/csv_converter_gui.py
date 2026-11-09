@@ -72,7 +72,21 @@ DEST_COLUMNS = [
 ]
 
 LICENSE_DIR = Path(os.environ.get("LOCALAPPDATA", "")) / "ConversorJumpseller" / "licenses"
-ASSETS = Path(__file__).resolve().parent.parent / "assets"
+
+
+def _assets_dir() -> Path:
+    """Resolve a pasta de assets tanto em modo dev quanto no exe congelado.
+
+    No exe (PyInstaller) os dados empacotados via ``datas`` ficam sob
+    ``sys._MEIPASS/assets``; em desenvolvimento ficam na raiz do projeto
+    (sibling do pacote ``gui/``).
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "assets"
+    return Path(__file__).resolve().parent.parent / "assets"
+
+
+ASSETS = _assets_dir()
 
 # ---------------------------------------------------------------------------
 # LOGICA DE CONVERSAO (mesma do CLI, intacta)
