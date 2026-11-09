@@ -49,6 +49,7 @@ from field_mapping import (
     get_profile_mapping, save_profile, delete_profile, _PROFILE_DEFAULT,
     get_profit_margin, get_price_settings, set_price_settings,
     get_category_settings, set_category_settings,
+    add_keyword_rule, remove_keyword_rule, apply_keyword_rules, get_keyword_rules,
 )
 from category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
 
@@ -350,6 +351,15 @@ def build_categories(row: dict, mapping: dict = None) -> str:
                                 result.append(upc)
                     return ",".join(result)
                 # No matches: fall through to original categories
+    except Exception:
+        pass
+
+    # Mapeamento por palavras-chave (prioridade): forçar categoria pai quando o produto ou categoria casa com alguma regra
+    try:
+        product_name = get_mapped_value(row, "design", mapping)
+        kw_parent = apply_keyword_rules(",".join(categories), product_name)
+        if kw_parent:
+            return kw_parent
     except Exception:
         pass
 
@@ -1284,6 +1294,10 @@ class App(Tk):
         cat_notebook = ttk.Notebook(frm)
         cat_notebook.pack(fill="both", expand=True)
 
+        # Aba Mapeamento
+        tab_map = ttk.Frame(cat_notebook, padding=10)
+        cat_notebook.add(tab_map, text="  Mapeamento de Categorias  ")
+
         tab_macro = ttk.Frame(cat_notebook, padding=10)
         cat_notebook.add(tab_macro, text="  Mapeamento  ")
 
@@ -1317,20 +1331,35 @@ class App(Tk):
         ttk.Entry(prefix_row, textvariable=self._cat_prefix_var, width=25).pack(side="left", padx=(6, 0))
         ttk.Button(prefix_row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
-        ttk.Label(
-            tab_macro,
-            text=(
-                "Filtro (opcional): o mapeamento só será aplicado às categorias cujo nome contenha este texto.\n"
-                "Ex.: se escrever 'SOM', aplica em 'SOM E LUZ' e 'ACESSÓRIOS SOM', mas não em 'ILUMINAÇÃO'.\n"
-                "Deixe em branco para aplicar a todas (quando 'Aplicar a TODAS...' estiver marcado)."
-            ),
-            font=("Segoe UI", 8), foreground=GRAY_600, justify="left", wraplength=820,
-        ).pack(anchor="w", pady=(8, 6))
+        # Seção de Mapeamento por Palavras-Chave
+        ttk.Separator(tab_macro, orient="horizontal").pack(fill="x", pady=(15, 10))
+        ttk.Label(tab_macro, text="Mapeamento Avançado por Palavras-Chave (Prioridade)", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+
+        frm_kw = ttk.Frame(tab_macro)
+        frm_kw.pack(fill="x", pady=(0, 5))
+
+        ttk.Label(frm_kw, text="Categoria Pai:").pack(side="left")
+        self._kw_parent_combo = ttk.Combobox(frm_kw, values=[v.get() for v in self._cat_new_vars if v.get()], width=20)
+        self._kw_parent_combo.pack(side="left", padx=5)
+
+        ttk.Label(frm_kw, text="Palavras-chave:").pack(side="left")
+        self._kw_entry = ttk.Entry(frm_kw, width=30)
+        self._kw_entry.pack(side="left", padx=5)
+
+        ttk.Button(frm_kw, text="Adicionar Regra", command=self._add_kw_rule).pack(side="left", padx=5)
+
+        self._kw_list_text = tk.Text(tab_macro, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        self._kw_list_text.pack(fill="x", pady=(5, 0))
+        self._kw_list_text.config(state="disabled")
+
+        ttk.Button(tab_macro, text="Remover última regra", command=self._remove_last_kw_rule).pack(anchor="w", pady=5)
+
+
+        self._refresh_kw_list()
 
         ttk.Button(tab_macro, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(4, 0))
 
         ttk.Separator(tab_macro, orient="horizontal").pack(fill="x", pady=(10, 6))
-        ttk.Label(tab_macro, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
         cat_frame = ttk.Frame(tab_macro)
         cat_frame.pack(fill="both", expand=True)
         self._cat_list_text = tk.Text(cat_frame, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
@@ -1487,16 +1516,63 @@ class App(Tk):
     def _save_category_settings(self):
         try:
             new_cats = [v.get().strip() for v in self._cat_new_vars]
-            new_cats_parent = [v.get().strip() for v in self._cat_parent_vars]
             set_category_settings(
                 new_categories=new_cats,
-                new_categories_parent=new_cats_parent,
-                apply_to_all=True,
-                selected_prefix="",
-                use_parent=True,
+                apply_to_all=self._cat_apply_all_var.get(),
+                selected_prefix=self._cat_prefix_var.get().strip(),
+                use_parent=self._cat_use_parent_var.get(),
             )
         except Exception:
             # Guardar silencioso no mapeamento (sem alertas)
+            pass
+
+    def _add_kw_rule(self):
+        """Adiciona uma regra de mapeamento por palavras-chave com prioridade."""
+        try:
+            parent = (self._kw_parent_combo.get() or "").strip()
+            keywords_raw = (self._kw_entry.get() or "").strip()
+            if not parent or not keywords_raw:
+                messagebox.showwarning("Atenção", "Escolha a categoria pai e digite ao menos uma palavra-chave.", parent=self)
+                return
+            keywords = [k.strip() for k in keywords_raw.replace(",", ";").split(";") if k.strip()]
+            # Prioridade: regras mais recentes têm prioridade maior
+            rules = get_keyword_rules()
+            next_priority = max([int(r.get("priority", 0)) for r in rules], default=0) + 10
+            if add_keyword_rule(keywords, parent, priority=next_priority):
+                self._kw_entry.delete(0, tk.END)
+                self._refresh_kw_list()
+                messagebox.showinfo("Guardado", "Regra de palavras-chave adicionada com sucesso.", parent=self)
+            else:
+                messagebox.showerror("Erro", "Não foi possível guardar a regra.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao adicionar regra:\n{e}", parent=self)
+
+    def _remove_last_kw_rule(self):
+        """Remove a última regra de palavras-chave (a de maior prioridade)."""
+        try:
+            rules = get_keyword_rules()
+            if not rules:
+                return
+            if remove_keyword_rule(0):
+                self._refresh_kw_list()
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao remover regra:\n{e}", parent=self)
+
+    def _refresh_kw_list(self):
+        """Atualiza o texto que lista as regras de palavras-chave."""
+        try:
+            rules = get_keyword_rules()
+            lines = []
+            for i, r in enumerate(rules):
+                kws = ", ".join(r.get("keywords", []))
+                parent = r.get("parent_category", "")
+                prio = r.get("priority", 0)
+                lines.append(f"[{i}] prio={prio} | {kws} -> {parent}")
+            self._kw_list_text.config(state="normal")
+            self._kw_list_text.delete("1.0", "end")
+            self._kw_list_text.insert("1.0", "\n".join(lines) if lines else "Nenhuma regra de palavras-chave")
+            self._kw_list_text.config(state="disabled")
+        except Exception:
             pass
 
     def _build_tab_sobre(self):
@@ -1522,6 +1598,12 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.35 (2026-11-09)
+        - Novo: Mapeamento de Categorias por Palavras-Chave com Prioridade na aba "Categorias"
+        - Associar produtos a uma categoria pai através de palavras-chave, com sistema de prioridade (regras mais recentes vencem)
+        - Funciona tanto na "Conversão" (novo ficheiro) quanto no "Atualizar Loja" (merge)
+        - Interface: categoria pai + palavras-chave + botão "Adicionar Regra" + lista de regras
+
         v0.3.33 (2026-11-09)
         - Atualizada página de download e version.txt para v0.3.32
         - Botão 'Verificar Atualizações' consulta o site público (version.txt)

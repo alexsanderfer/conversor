@@ -337,25 +337,40 @@ def set_price_settings(profit_percentage=None, iva_percentage=None, shipping_cos
         return False
 
 
-def get_category_settings():
-    """Retorna configurações de categorias."""
+def set_keyword_mapping_settings(enabled=None, parent_category=None, keywords=None):
+    """Define configurações de mapeamento por palavras-chave."""
     try:
         data = _read_config()
-        settings = data.get("settings", {})
-        cats = settings.get("category_mapping", {})
-        return {
-            "new_categories": cats.get("new_categories", ["", "", "", "", "", "", "", "", "", ""]),
-            "apply_to_all": cats.get("apply_to_all", True),
-            "selected_prefix": cats.get("selected_prefix", ""),
-            "use_parent": cats.get("use_parent", True),
-        }
+        settings = data.setdefault("settings", {})
+        kw = settings.setdefault("keyword_mapping", {})
+        if enabled is not None:
+            kw["enabled"] = bool(enabled)
+        if parent_category is not None:
+            kw["parent_category"] = str(parent_category)
+        if keywords is not None:
+            kw["keywords"] = str(keywords)
+        return _write_config(data)
     except Exception:
-        return {
-            "new_categories": ["", "", "", "", "", "", "", "", "", ""],
-            "apply_to_all": True,
-            "selected_prefix": "",
-            "use_parent": True,
-        }
+        return False
+
+
+def load_field_mapping():
+    """
+    Load field mapping from the active profile, or return default.
+
+    Returns:
+        dict: Mapping of expected field names to source column names
+    """
+    return get_profile_mapping(get_active_profile())
+
+
+def get_category_settings() -> dict:
+    """Retorna as configurações de mapeamento de categorias (nova categoria pai, aplicar a todos, prefixo, usar hierarquia)."""
+    try:
+        data = _read_config()
+        return data.get("settings", {}).get("category_mapping", {})
+    except Exception:
+        return {}
 
 
 def set_category_settings(new_categories=None, apply_to_all=None, selected_prefix=None, use_parent=None):
@@ -377,14 +392,124 @@ def set_category_settings(new_categories=None, apply_to_all=None, selected_prefi
         return False
 
 
-def load_field_mapping():
+def get_keyword_mapping_settings():
+    """Retorna configurações de mapeamento por palavras-chave (legado - uma regra única)."""
+    try:
+        data = _read_config()
+        settings = data.get("settings", {})
+        kw = settings.get("keyword_mapping", {})
+        return {
+            "enabled": kw.get("enabled", False),
+            "parent_category": kw.get("parent_category", ""),
+            "keywords": kw.get("keywords", ""),
+        }
+    except Exception:
+        return {
+            "enabled": False,
+            "parent_category": "",
+            "keywords": "",
+        }
+
+
+def set_keyword_mapping_settings(enabled=None, parent_category=None, keywords=None):
+    """Define configurações de mapeamento por palavras-chave (legado - uma regra única)."""
+    try:
+        data = _read_config()
+        settings = data.setdefault("settings", {})
+        kw = settings.setdefault("keyword_mapping", {})
+        if enabled is not None:
+            kw["enabled"] = bool(enabled)
+        if parent_category is not None:
+            kw["parent_category"] = str(parent_category)
+        if keywords is not None:
+            kw["keywords"] = str(keywords)
+        return _write_config(data)
+    except Exception:
+        return False
+
+
+def get_keyword_rules() -> list:
     """
-    Load field mapping from the active profile, or return default.
+    Retorna a lista de regras de mapeamento por palavras-chave com prioridade.
+
+    Cada regra: {"keywords": [str, ...], "parent_category": str, "priority": int}
+    Ordenadas por prioridade decrescente (maior prioridade primeiro).
+    """
+    try:
+        data = _read_config()
+        rules = data.get("settings", {}).get("keyword_rules", [])
+        if not isinstance(rules, list):
+            rules = []
+        return sorted(rules, key=lambda r: int(r.get("priority", 0)), reverse=True)
+    except Exception:
+        return []
+
+
+def set_keyword_rules(rules: list) -> bool:
+    """Guarda a lista completa de regras de palavras-chave."""
+    try:
+        data = _read_config()
+        settings = data.setdefault("settings", {})
+        settings["keyword_rules"] = list(rules)
+        return _write_config(data)
+    except Exception:
+        return False
+
+
+def add_keyword_rule(keywords, parent_category: str, priority: int = 10) -> bool:
+    """Adiciona uma regra de mapeamento por palavras-chave."""
+    try:
+        kw_list = [str(k).strip() for k in keywords if str(k).strip()]
+        if not kw_list or not parent_category or not str(parent_category).strip():
+            return False
+        rules = get_keyword_rules()
+        rules.append({
+            "keywords": kw_list,
+            "parent_category": str(parent_category).strip(),
+            "priority": int(priority),
+        })
+        return set_keyword_rules(rules)
+    except Exception:
+        return False
+
+
+def remove_keyword_rule(index: int) -> bool:
+    """Remove a regra de palavras-chave na posição dada (na lista ordenada por prioridade)."""
+    try:
+        rules = get_keyword_rules()
+        if 0 <= index < len(rules):
+            del rules[index]
+            return set_keyword_rules(rules)
+        return False
+    except Exception:
+        return False
+
+
+def apply_keyword_rules(category_path: str, product_name: str = "") -> str:
+    """
+    Aplica as regras de palavras-chave sobre uma categoria (ou caminho de categoria).
+
+    Percorre as regras ordenadas por prioridade decrescente. Se alguma palavra-chave
+    da regra estiver presente no nome do produto ou na categoria, devolve a
+    categoria pai da regra (primeira regra vencedora por prioridade).
+
+    Args:
+        category_path: Caminho da categoria já construído (ex: "Eletronica/Som").
+        product_name: Nome do produto para fazer match das palavras-chave.
 
     Returns:
-        dict: Mapping of expected field names to source column names
+        str: Nome da categoria pai da regra vencedora, ou string vazia se nenhuma regra casar.
     """
-    return get_profile_mapping(get_active_profile())
+    text = f"{product_name} {category_path}".lower()
+    for rule in get_keyword_rules():
+        parent = str(rule.get("parent_category", "")).strip()
+        if not parent:
+            continue
+        for kw in rule.get("keywords", []):
+            kn = str(kw).strip().lower()
+            if kn and kn in text:
+                return parent
+    return ""
 
 
 def get_mapped_value(row: dict, expected_field: str, mapping: dict = None) -> str:

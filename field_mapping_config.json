@@ -43,6 +43,7 @@
       ],
       "apply_to_all": true,
       "use_parent": true
-    }
+    },
+    "keyword_rules": []
   }
 }
