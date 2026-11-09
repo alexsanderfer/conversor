@@ -998,7 +998,7 @@ class App(Tk):
                     from PIL import Image, ImageTk
                     im = Image.open(p)
                     # Limitar largura e altura para caber no header (logo pequeno, não empurra as tabs)
-                    max_w, max_h = 200, 70
+                    max_w, max_h = 140, 50
                     ratio = min(max_w / im.width, max_h / im.height, 1.0)
                     im2 = im.resize((int(im.width * ratio), int(im.height * ratio)), Image.LANCZOS)
                     img = ImageTk.PhotoImage(im2)
@@ -1016,7 +1016,7 @@ class App(Tk):
         return None
 
     def _load_background(self):
-        for name in ("fundo.png", "background.png", "bg.png"):
+        for name in ("fundo.jpeg", "background.png", "bg.png"):
             p = ASSETS / name
             if p.is_file():
                 try:
@@ -1516,6 +1516,10 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.31 (2026-11-09)
+        - Logo redimensionado (máx 140x50) para não empurrar as tabs e botões do cabeçalho
+        - PIL/Pillow necessário para redimensionamento automático da logo
+
         v0.3.30 (2026-11-08)
         - Novo: até 10 categorias pai (Categoria 1 ... Categoria 10) para agrupar categorias do fornecedor
         - Removida a aba Organizador de Categorias (arrastar/soltar)
