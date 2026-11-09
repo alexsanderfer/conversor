@@ -1525,6 +1525,7 @@ class App(Tk):
         v0.3.33 (2026-11-09)
         - Atualizada página de download e version.txt para v0.3.32
         - Botão 'Verificar Atualizações' consulta o site público (version.txt)
+        - Simplificado estilo de alerta na página de download (removido border lateral)
 
         v0.3.32 (2026-11-09)
         - UI: Janela maximizada por padrão
