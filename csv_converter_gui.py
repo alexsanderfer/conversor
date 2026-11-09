@@ -979,8 +979,8 @@ class App(Tk):
         self.tab_lucro = ttk.Frame(self.tabs, padding=8)
         self.tab_categorias = ttk.Frame(self.tabs, padding=8)
         self.tab_sobre = ttk.Frame(self.tabs, padding=8)
-        self.tabs.add(self.tab_novo, text="  Novo ficheiro  ")
-        self.tabs.add(self.tab_update, text="  Atualizar loja  ")
+        self.tabs.add(self.tab_novo, text="  Novo Ficheiro  ")
+        self.tabs.add(self.tab_update, text="  Atualizar Loja  ")
         self.tabs.add(self.tab_lucro, text="  Lucro e Taxas  ")
         self.tabs.add(self.tab_categorias, text="  Categorias  ")
         self.tabs.add(self.tab_sobre, text="  Sobre  ")
@@ -1522,6 +1522,10 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.33 (2026-11-09)
+        - Atualizada página de download e version.txt para v0.3.32
+        - Botão 'Verificar Atualizações' consulta o site público (version.txt)
+
         v0.3.32 (2026-11-09)
         - UI: Janela maximizada por padrão
         - UI: Fundo aplicado em toda a janela
