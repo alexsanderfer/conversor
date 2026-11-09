@@ -1062,7 +1062,7 @@ class App(Tk):
         return None
 
     def _load_background(self):
-        for name in ("fundo.jpeg", "background.png", "bg.png"):
+        for name in ("fundo.jpeg", "fundo.png", "background.png", "bg.png"):
             p = ASSETS / name
             if p.is_file():
                 try:
