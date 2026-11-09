@@ -1370,32 +1370,6 @@ class App(Tk):
         ttk.Entry(prefix_row, textvariable=self._cat_prefix_var, width=25).pack(side="left", padx=(6, 0))
         ttk.Button(prefix_row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
-        # Seção de Mapeamento por Palavras-Chave (prioridade)
-        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(15, 10))
-        ttk.Label(frm, text="Mapeamento Avançado por Palavras-Chave (Prioridade)", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
-
-        frm_kw = ttk.Frame(frm)
-        frm_kw.pack(fill="x", pady=(0, 5))
-
-        ttk.Label(frm_kw, text="Categoria Pai:").pack(side="left")
-        self._kw_parent_combo = ttk.Combobox(frm_kw, values=[v.get() for v in self._cat_new_vars if v.get()], width=20)
-        self._kw_parent_combo.pack(side="left", padx=5)
-
-        ttk.Label(frm_kw, text="Palavras-chave:").pack(side="left")
-        self._kw_entry = ttk.Entry(frm_kw, width=30)
-        self._kw_entry.pack(side="left", padx=5)
-
-        ttk.Button(frm_kw, text="Adicionar Regra", command=self._add_kw_rule).pack(side="left", padx=5)
-
-        self._kw_list_text = tk.Text(frm, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
-        self._kw_list_text.pack(fill="x", pady=(5, 0))
-        self._kw_list_text.config(state="disabled")
-
-        ttk.Button(frm, text="Remover última regra", command=self._remove_last_kw_rule).pack(anchor="w", pady=5)
-
-
-        self._refresh_kw_list()
-
         ttk.Button(frm, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(4, 0))
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
@@ -1566,55 +1540,6 @@ class App(Tk):
             )
         except Exception:
             # Guardar silencioso no mapeamento (sem alertas)
-            pass
-
-    def _add_kw_rule(self):
-        """Adiciona uma regra de mapeamento por palavras-chave com prioridade."""
-        try:
-            parent = (self._kw_parent_combo.get() or "").strip()
-            keywords_raw = (self._kw_entry.get() or "").strip()
-            if not parent or not keywords_raw:
-                messagebox.showwarning("Atenção", "Escolha a categoria pai e digite ao menos uma palavra-chave.", parent=self)
-                return
-            keywords = [k.strip() for k in keywords_raw.replace(",", ";").split(";") if k.strip()]
-            # Prioridade: regras mais recentes têm prioridade maior
-            rules = get_keyword_rules()
-            next_priority = max([int(r.get("priority", 0)) for r in rules], default=0) + 10
-            if add_keyword_rule(keywords, parent, priority=next_priority):
-                self._kw_entry.delete(0, tk.END)
-                self._refresh_kw_list()
-                messagebox.showinfo("Guardado", "Regra de palavras-chave adicionada com sucesso.", parent=self)
-            else:
-                messagebox.showerror("Erro", "Não foi possível guardar a regra.", parent=self)
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao adicionar regra:\n{e}", parent=self)
-
-    def _remove_last_kw_rule(self):
-        """Remove a última regra de palavras-chave (a de maior prioridade)."""
-        try:
-            rules = get_keyword_rules()
-            if not rules:
-                return
-            if remove_keyword_rule(0):
-                self._refresh_kw_list()
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao remover regra:\n{e}", parent=self)
-
-    def _refresh_kw_list(self):
-        """Atualiza o texto que lista as regras de palavras-chave."""
-        try:
-            rules = get_keyword_rules()
-            lines = []
-            for i, r in enumerate(rules):
-                kws = ", ".join(r.get("keywords", []))
-                parent = r.get("parent_category", "")
-                prio = r.get("priority", 0)
-                lines.append(f"[{i}] prio={prio} | {kws} -> {parent}")
-            self._kw_list_text.config(state="normal")
-            self._kw_list_text.delete("1.0", "end")
-            self._kw_list_text.insert("1.0", "\n".join(lines) if lines else "Nenhuma regra de palavras-chave")
-            self._kw_list_text.config(state="disabled")
-        except Exception:
             pass
 
     def _build_tab_sobre(self):
