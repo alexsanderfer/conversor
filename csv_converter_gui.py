@@ -49,6 +49,7 @@ from field_mapping import (
     get_profile_mapping, save_profile, delete_profile, _PROFILE_DEFAULT,
     get_profit_margin, get_price_settings, set_price_settings,
     get_category_settings, set_category_settings,
+    get_keyword_mapping_settings, set_keyword_mapping_settings,
 )
 from category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
 
@@ -350,6 +351,36 @@ def build_categories(row: dict, mapping: dict = None) -> str:
                                 result.append(upc)
                     return ",".join(result)
                 # No matches: fall through to original categories
+    except Exception:
+        pass
+
+    # Mapeamento por palavras-chave: se habilitado e o produto corresponde,
+    # associar à categoria pai selecionada.
+    try:
+        kw_settings = get_keyword_mapping_settings()
+        if kw_settings.get("enabled", False):
+            parent_cat = (kw_settings.get("parent_category") or "").strip()
+            keywords_raw = kw_settings.get("keywords") or ""
+            keywords = [k.strip() for k in keywords_raw.split(",") if k.strip()]
+            if parent_cat and keywords:
+                product_name = get_mapped_value(row, "design", mapping) or ""
+                product_brand = get_mapped_value(row, "marca", mapping) or ""
+                text_to_match = f"{product_name} {product_brand}".lower()
+                matched = any(k.lower() in text_to_match for k in keywords)
+                if matched:
+                    if categories:
+                        # Jumpseller precisa de todos os níveis da hierarquia
+                        result = [parent_cat]
+                        for cat_path in categories:
+                            cp = (cat_path or "").strip().strip("/")
+                            if not cp:
+                                continue
+                            prefixed = f"{parent_cat}/{cp}"
+                            if prefixed not in result:
+                                result.append(prefixed)
+                        return ",".join(result)
+                    else:
+                        return parent_cat
     except Exception:
         pass
 
@@ -1020,7 +1051,7 @@ class App(Tk):
         return None
 
     def _load_background(self):
-        for name in ("fundo.jpeg", "background.png", "bg.png"):
+        for name in ("fundo.png", "background.png", "bg.png"):
             p = ASSETS / name
             if p.is_file():
                 try:
@@ -1113,6 +1144,43 @@ class App(Tk):
             text="RETIRAR PRODUTOS INDISPONÍVEIS (stock 0 / not-available)",
             variable=self.exclude_unavailable_var,
         ).pack(side="left")
+
+        # Mapeamento por palavras-chave
+        frm_keyword = ttk.Frame(self.tab_novo)
+        frm_keyword.pack(fill="x", pady=(0, 4))
+        ttk.Label(frm_keyword, text="Mapeamento por palavras-chave:").grid(
+            row=0, column=0, sticky="w", padx=(0, 8)
+        )
+        self.keyword_enabled_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            frm_keyword,
+            text="Ativar",
+            variable=self.keyword_enabled_var,
+            command=self._toggle_keyword_mapping,
+        ).grid(row=0, column=1, sticky="w", padx=(0, 8))
+
+        ttk.Label(frm_keyword, text="Categoria pai:").grid(
+            row=1, column=0, sticky="w", padx=(0, 8), pady=(2, 0)
+        )
+        self.keyword_parent_var = tk.StringVar()
+        self.keyword_parent_combo = ttk.Combobox(
+            frm_keyword, textvariable=self.keyword_parent_var, width=30
+        )
+        self.keyword_parent_combo.grid(row=1, column=1, sticky="w", padx=(0, 8), pady=(2, 0))
+
+        ttk.Label(frm_keyword, text="Palavras-chave (separadas por vírgula):").grid(
+            row=2, column=0, sticky="w", padx=(0, 8), pady=(2, 0)
+        )
+        self.keyword_keywords_var = tk.StringVar()
+        self.keyword_entry = ttk.Entry(frm_keyword, textvariable=self.keyword_keywords_var, width=40)
+        self.keyword_entry.grid(row=2, column=1, sticky="w", padx=(0, 8), pady=(2, 0))
+
+        ttk.Button(
+            frm_keyword, text="Salvar", command=self._save_keyword_mapping, width=10
+        ).grid(row=2, column=2, sticky="w", padx=(0, 8), pady=(2, 0))
+
+        frm_keyword.columnconfigure(1, weight=1)
+        self._load_keyword_mapping()
 
         frm_bot = ttk.Frame(self.tab_novo)
         frm_bot.pack(fill="x", pady=(0, 4))
@@ -2070,6 +2138,50 @@ class App(Tk):
                 )
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao apagar perfil:\n{e}", parent=self)
+
+    def _toggle_keyword_mapping(self):
+        """Habilita/desabilita os campos de mapeamento por palavras-chave."""
+        enabled = self.keyword_enabled_var.get()
+        state = "normal" if enabled else "disabled"
+        self.keyword_parent_combo.config(state="readonly" if enabled else "disabled")
+        self.keyword_entry.config(state=state)
+        # Não habilitar/desabilitar o botão Salvar para permitir leitura mesmo quando desabilitado
+
+    def _load_keyword_mapping(self):
+        """Carrega as configurações salvas de mapeamento por palavras-chave."""
+        settings = get_keyword_mapping_settings()
+        self.keyword_enabled_var.set(settings.get("enabled", False))
+        self.keyword_parent_var.set(settings.get("parent_category", ""))
+        self.keyword_keywords_var.set(settings.get("keywords", ""))
+        self._populate_parent_categories()
+        self._toggle_keyword_mapping()
+
+    def _save_keyword_mapping(self):
+        """Salva as configurações de mapeamento por palavras-chave."""
+        try:
+            set_keyword_mapping_settings(
+                parent_category=self.keyword_parent_var.get().strip(),
+                keywords=self.keyword_keywords_var.get().strip(),
+                enabled=self.keyword_enabled_var.get(),
+            )
+            messagebox.showinfo(
+                "Mapeamento salvo",
+                "As configurações de mapeamento por palavras-chave foram salvas.",
+                parent=self,
+            )
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao salvar mapeamento:\n{e}", parent=self)
+
+    def _populate_parent_categories(self):
+        """Preenche o combobox de categoria pai com categorias existentes."""
+        try:
+            cats = get_category_settings()
+            new_cats = cats.get("new_categories", [])
+            # Filtrar categorias não vazias
+            categories = [c.strip() for c in new_cats if c and c.strip()]
+            self.keyword_parent_combo["values"] = categories
+        except Exception:
+            pass
 
     def _open_field_mapping(self):
         """Botão 'Mapear Campos...': abre o diálogo de mapeamento de campos."""
