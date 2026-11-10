@@ -155,24 +155,28 @@ def _calc_price(raw_preco: str) -> str:
     if preco is None:
         return ""
     try:
-        from field_mapping import get_active_profile
+        from core.field_mapping import get_active_profile
         settings = get_price_settings(get_active_profile())
         formula = settings.get("price_formula", "margin")
-        if formula == "detailed":
-            profit_pct = float(settings.get("profit_percentage", 40.0))
-            iva_pct = float(settings.get("iva_percentage", 0.0))
-            shipping = float(settings.get("shipping_cost", 0.0))
+        iva_pct = float(settings.get("iva_percentage", 0.0))
+        shipping = float(settings.get("shipping_cost", 0.0))
+        profit_margin = float(settings.get("profit_margin", 1.40))
+        profit_pct = float(settings.get("profit_percentage", 40.0))
+
+        if formula == "detailed" or iva_pct > 0 or shipping > 0:
             # Preço final = (Preço custo * (1 + lucro%)) + portes + IVA
             price = preco * (1.0 + profit_pct / 100.0) + shipping
             if iva_pct and iva_pct > 0:
                 price = price * (1.0 + iva_pct / 100.0)
             return str(round(price, 2))
         else:
-            price = preco * get_profit_margin()
+            price = preco * profit_margin
             return str(round(price, 2))
     except Exception:
         try:
-            price = preco * get_profit_margin()
+            settings = get_price_settings(get_active_profile())
+            profit_margin = float(settings.get("profit_margin", 1.40))
+            price = preco * profit_margin
             return str(round(price, 2))
         except Exception:
             return str(round(preco, 2))
@@ -1365,7 +1369,7 @@ class App(Tk):
         frm_preco.pack(fill="x", pady=(0, 8))
 
         try:
-            from field_mapping import get_active_profile
+            from core.field_mapping import get_active_profile
             price_settings = get_price_settings(get_active_profile())
         except Exception:
             price_settings = get_price_settings()
@@ -2800,13 +2804,60 @@ class App(Tk):
                     pass
 
             formula = self._price_formula_var.get().strip()
-            from field_mapping import get_active_profile
+            from core.field_mapping import get_active_profile
             if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula=formula, profile_name=get_active_profile()):
                 messagebox.showinfo("Guardado", "Configurações de preços guardadas para este perfil.", parent=self)
             else:
                 messagebox.showerror("Erro", "Não foi possível guardar as configurações de preços.", parent=self)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
+
+    def _auto_save_price_settings(self):
+        """Guarda automaticamente as configurações de preços da interface antes de converter."""
+        try:
+            if not hasattr(self, "_price_profit_var"):
+                return
+            profit_str = self._price_profit_var.get().strip().replace(",", ".")
+            iva_str = self._price_iva_var.get().strip().replace(",", ".")
+            shipping_str = self._price_shipping_var.get().strip().replace(",", ".")
+
+            profit_pct = None
+            iva_pct = None
+            shipping = None
+
+            if profit_str:
+                try:
+                    p = float(profit_str)
+                    if p > 0:
+                        profit_pct = p
+                except ValueError:
+                    pass
+            if iva_str:
+                try:
+                    p = float(iva_str)
+                    if p >= 0:
+                        iva_pct = p
+                except ValueError:
+                    pass
+            if shipping_str:
+                try:
+                    p = float(shipping_str)
+                    if p >= 0:
+                        shipping = p
+                except ValueError:
+                    pass
+
+            formula = self._price_formula_var.get().strip() if hasattr(self, "_price_formula_var") else "margin"
+            from core.field_mapping import get_active_profile, set_price_settings
+            set_price_settings(
+                profit_percentage=profit_pct,
+                iva_percentage=iva_pct,
+                shipping_cost=shipping,
+                price_formula=formula,
+                profile_name=get_active_profile()
+            )
+        except Exception:
+            pass
 
     def _open_stripe_checkout(self):
         """Botão 'Comprar Licença': abre a página de pagamento Stripe."""
@@ -2916,6 +2967,7 @@ class App(Tk):
         if not raw:
             messagebox.showwarning("Campo vazio", "Selecione ou digite um arquivo CSV primeiro.", parent=self)
             return
+        self._auto_save_price_settings()
         self.convert_btn.config(state="disabled")
         self._set_drop_text("A processar conversão em background (otimizado com cache e threads)...", "#FFF9C4", "#F57F17", widget=self._status_widget)
         self.update_idletasks()

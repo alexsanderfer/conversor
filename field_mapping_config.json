@@ -1,5 +1,5 @@
 {
-  "active_profile": "Greenfever",
+  "active_profile": "Default",
   "profiles": {
     "Greenfever": {
       "design": "Name",
@@ -25,6 +25,15 @@
       "familia_principal": "familia_principal",
       "sub_familia": "sub_familia",
       "sub_sub_familia": "sub_sub_familia"
+    },
+    "Default": {
+      "price_settings": {
+        "profit_percentage": 40.0,
+        "profit_margin": 1.4,
+        "iva_percentage": 23.0,
+        "shipping_cost": 5.0,
+        "price_formula": "margin"
+      }
     }
   },
   "settings": {
