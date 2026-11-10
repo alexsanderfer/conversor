@@ -1634,7 +1634,16 @@ class App(Tk):
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
         self._cat_found_title_var = tk.StringVar(value="Categorias encontradas no ficheiro selecionado (0)")
-        ttk.Label(frm, textvariable=self._cat_found_title_var, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(frm, textvariable=self._cat_found_title_var, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 2))
+
+        search_row = ttk.Frame(frm)
+        search_row.pack(fill="x", pady=(0, 4))
+        ttk.Label(search_row, text="🔍 Pesquisar:").pack(side="left", padx=(0, 4))
+        self._cat_search_var = tk.StringVar()
+        self._cat_search_var.trace_add("write", lambda *args: self._filter_categories())
+        ttk.Entry(search_row, textvariable=self._cat_search_var, width=28).pack(side="left", padx=(0, 8))
+        ttk.Button(search_row, text="🔄 Recarregar", command=self._reload_categories, width=14).pack(side="left")
+
         cat_frame = ttk.Frame(frm)
         cat_frame.pack(fill="both", expand=True)
         self._cat_list_text = tk.Text(cat_frame, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
@@ -1648,6 +1657,7 @@ class App(Tk):
         try:
             if not filepath or not os.path.isfile(filepath):
                 return
+            self._last_loaded_filepath = filepath
             headers, rows = _read_csv_any_delimiter(filepath)
             if not headers:
                 return
@@ -1667,27 +1677,57 @@ class App(Tk):
                         cats_set.add(f"{familia}/{sub_familia}/{sub_sub_familia}")
                 except Exception:
                     continue
-            cats_list = sorted(list(cats_set)) if cats_set else []
-            count = len(cats_list)
-            title = f"Categorias encontradas no ficheiro selecionado ({count})"
+            self._all_categories = sorted(list(cats_set)) if cats_set else []
+            self._filter_categories()
+        except Exception:
+            pass
+
+    def _filter_categories(self):
+        try:
+            query = getattr(self, "_cat_search_var", None)
+            q = query.get().strip().lower() if query else ""
+            all_cats = getattr(self, "_all_categories", [])
+            filtered = [c for c in all_cats if not q or q in c.lower()]
+            count = len(filtered)
+            total = len(all_cats)
+            title = f"Categorias encontradas no ficheiro selecionado ({count} de {total})" if q else f"Categorias encontradas no ficheiro selecionado ({total})"
+
             # Atualizar aba Categorias
             if hasattr(self, '_cat_found_title_var'):
                 self._cat_found_title_var.set(title)
             if hasattr(self, '_cat_list_text'):
                 self._cat_list_text.config(state="normal")
                 self._cat_list_text.delete("1.0", "end")
-                self._cat_list_text.insert("1.0", "\n".join(cats_list) if cats_list else "(nenhuma categoria encontrada)")
+                self._cat_list_text.insert("1.0", "\n".join(filtered) if filtered else "(nenhuma categoria encontrada)")
                 self._cat_list_text.config(state="disabled")
+
             # Atualizar aba Destaques e Marcas
             if hasattr(self, '_hb_found_title_var'):
                 self._hb_found_title_var.set(title)
             if hasattr(self, '_hb_list_text'):
                 self._hb_list_text.config(state="normal")
                 self._hb_list_text.delete("1.0", "end")
-                self._hb_list_text.insert("1.0", "\n".join(cats_list) if cats_list else "(nenhuma categoria encontrada)")
+                self._hb_list_text.insert("1.0", "\n".join(filtered) if filtered else "(nenhuma categoria encontrada)")
                 self._hb_list_text.config(state="disabled")
         except Exception:
             pass
+
+    def _reload_categories(self):
+        try:
+            path = getattr(self, "path_var", None)
+            filepath = path.get().strip() if path else getattr(self, "_last_loaded_filepath", "")
+            if not filepath:
+                # Tentar detetar do campo fornecedor_var
+                forn = getattr(self, "fornecedor_var", None)
+                if forn:
+                    filepath = forn.get().strip()
+            if filepath and os.path.isfile(filepath):
+                self._extract_categories_from_file(filepath)
+                messagebox.showinfo("Sucesso", "Categorias recarregadas com sucesso a partir do ficheiro!", parent=self)
+            else:
+                messagebox.showwarning("Atenção", "Nenhum ficheiro CSV válido selecionado para recarregar.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao recarregar categorias: {e}", parent=self)
 
     def _toggle_auto_classification(self):
         try:
