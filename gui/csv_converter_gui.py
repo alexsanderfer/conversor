@@ -968,7 +968,7 @@ class App(Tk):
         super().__init__()
         from tkinterdnd2 import TkinterDnD
         TkinterDnD.require(self)
-        self.title("Conversor CSV → Jumpseller")
+        self.title("CsvFast - File Converter")
         self.geometry("1200x800")
         self.minsize(900, 650)
         self.resizable(True, True)
@@ -1429,22 +1429,24 @@ class App(Tk):
         ttk.Label(adv_row, text="Regra:").pack(side="left", padx=(4, 2))
         self._cat_pai_combo = ttk.Combobox(adv_row, state="readonly", width=30)
         self._cat_pai_combo.pack(side="left", padx=(0, 4))
-        ttk.Button(adv_row, text="Adicionar Regra", command=self._add_advanced_keyword_rule, width=14).pack(side="left")
+        ttk.Button(adv_row, text="Adicionar Regra", command=self._add_advanced_keyword_rule, width=14).pack(side="left", padx=(0, 4))
+        ttk.Button(adv_row, text="Remover Regra", command=self._remove_advanced_keyword_rule, width=14).pack(side="left")
         self._refresh_cat_pai_combo()
 
-        ttk.Label(frm, text="Regras configuradas (mais recente = maior prioridade):", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(6, 2))
+        ttk.Label(frm, text="Regras configuradas (mais recente = maior prioridade) — selecione para remover:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(6, 2))
         adv_frame = ttk.Frame(frm)
         adv_frame.pack(fill="both", expand=True)
-        self._adv_rules_text = tk.Text(adv_frame, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
-        adv_scroll = ttk.Scrollbar(adv_frame, orient="vertical", command=self._adv_rules_text.yview)
-        self._adv_rules_text.configure(yscrollcommand=adv_scroll.set)
-        self._adv_rules_text.pack(side="left", fill="both", expand=True)
+        self._adv_rules_listbox = tk.Listbox(adv_frame, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), selectmode="single")
+        adv_scroll = ttk.Scrollbar(adv_frame, orient="vertical", command=self._adv_rules_listbox.yview)
+        self._adv_rules_listbox.configure(yscrollcommand=adv_scroll.set)
+        self._adv_rules_listbox.pack(side="left", fill="both", expand=True)
         adv_scroll.pack(side="right", fill="y")
-        self._adv_rules_text.config(state="disabled")
+        self._adv_rules_listbox.bind("<Double-Button-1>", lambda e: self._remove_advanced_keyword_rule())
         self._refresh_adv_rules_list()
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
-        ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        self._cat_found_title_var = tk.StringVar(value="Categorias encontradas no ficheiro selecionado (0)")
+        ttk.Label(frm, textvariable=self._cat_found_title_var, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
         cat_frame = ttk.Frame(frm)
         cat_frame.pack(fill="both", expand=True)
         self._cat_list_text = tk.Text(cat_frame, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
@@ -1481,12 +1483,25 @@ class App(Tk):
                         cats_set.add(f"{familia_n}/{sub_familia_n}/{sub_sub_familia_n}")
                 except Exception:
                     continue
-            if hasattr(self, '_cat_list_text') and cats_set:
-                cats_list = sorted(list(cats_set))
+            cats_list = sorted(list(cats_set)) if cats_set else []
+            count = len(cats_list)
+            title = f"Categorias encontradas no ficheiro selecionado ({count})"
+            # Atualizar aba Categorias
+            if hasattr(self, '_cat_found_title_var'):
+                self._cat_found_title_var.set(title)
+            if hasattr(self, '_cat_list_text'):
                 self._cat_list_text.config(state="normal")
                 self._cat_list_text.delete("1.0", "end")
-                self._cat_list_text.insert("1.0", "\n".join(cats_list))
+                self._cat_list_text.insert("1.0", "\n".join(cats_list) if cats_list else "(nenhuma categoria encontrada)")
                 self._cat_list_text.config(state="disabled")
+            # Atualizar aba Destaques e Marcas
+            if hasattr(self, '_hb_found_title_var'):
+                self._hb_found_title_var.set(title)
+            if hasattr(self, '_hb_list_text'):
+                self._hb_list_text.config(state="normal")
+                self._hb_list_text.delete("1.0", "end")
+                self._hb_list_text.insert("1.0", "\n".join(cats_list) if cats_list else "(nenhuma categoria encontrada)")
+                self._hb_list_text.config(state="disabled")
         except Exception:
             pass
 
@@ -1667,17 +1682,36 @@ class App(Tk):
         """Preenche a lista de regras avançadas (maior prioridade primeiro)."""
         try:
             rules = get_keyword_rules()
-            lines = []
-            for r in rules:
-                kws = ", ".join(r.get("keywords", []))
-                lines.append(f"[P{r.get('priority', 0)}] {kws} -> {r.get('parent_category', '')}")
-            if hasattr(self, "_adv_rules_text"):
-                self._adv_rules_text.config(state="normal")
-                self._adv_rules_text.delete("1.0", "end")
-                self._adv_rules_text.insert("1.0", "\n".join(lines) if lines else "Nenhuma regra avançada configurada")
-                self._adv_rules_text.config(state="disabled")
+            if hasattr(self, "_adv_rules_listbox"):
+                self._adv_rules_listbox.delete(0, tk.END)
+                if rules:
+                    for r in rules:
+                        kws = ", ".join(r.get("keywords", []))
+                        self._adv_rules_listbox.insert(tk.END, f"[P{r.get('priority', 0)}] {kws} -> {r.get('parent_category', '')}")
+                else:
+                    self._adv_rules_listbox.insert(tk.END, "(Nenhuma regra avançada configurada)")
         except Exception:
             pass
+
+    def _remove_advanced_keyword_rule(self):
+        """Remove a regra selecionada na lista de regras avançadas (aba Categorias)."""
+        rules = get_keyword_rules()
+        if not rules:
+            messagebox.showinfo("Informação", "Não há regras para remover.", parent=self)
+            return
+        sel = self._adv_rules_listbox.curselection()
+        if sel:
+            index = sel[0]
+            if index < len(rules):
+                r = rules[index]
+                kws = ", ".join(r.get("keywords", []))
+                cat = r.get("parent_category", "")
+                if messagebox.askyesno("Remover Regra", f"Remover a regra:\n'{kws} → {cat}'?", parent=self):
+                    remove_keyword_rule(index)
+                    self._refresh_adv_rules_list()
+                    self._refresh_hb_adv_rules_list()
+            return
+        messagebox.showwarning("Atenção", "Selecione uma regra na lista para remover.", parent=self)
 
     def _build_tab_sku_prefix(self):
         """Constrói a aba 'Prefixo SKU' — prefixo de 3 letras + traço por fornecedor."""
@@ -1724,7 +1758,7 @@ class App(Tk):
         ).pack(anchor="w", pady=(8, 0))
 
     def _refresh_sku_fornecedor_combo(self):
-        """Preenche o dropdown de fornecedor da aba Prefixo SKU."""
+        """Preenche o dropdown de fornecedor da aba Prefixo SKU e carrega o prefixo salvo."""
         try:
             profiles = list_profiles()
             if hasattr(self, "_sku_fornecedor_combo"):
@@ -1733,6 +1767,9 @@ class App(Tk):
                 if active not in profiles:
                     active = profiles[0] if profiles else ""
                 self._sku_fornecedor_var.set(active)
+                # Carregar o prefixo salvo do fornecedor ativo
+                if active and hasattr(self, "_sku_prefix_var"):
+                    self._sku_prefix_var.set(get_sku_prefix(active))
         except Exception:
             pass
 
@@ -1816,22 +1853,24 @@ class App(Tk):
         ttk.Label(hb_adv_row, text="Regra:").pack(side="left", padx=(4, 2))
         self._hb_pai_combo = ttk.Combobox(hb_adv_row, state="readonly", width=30)
         self._hb_pai_combo.pack(side="left", padx=(0, 4))
-        ttk.Button(hb_adv_row, text="Adicionar Regra", command=self._hb_add_advanced_keyword_rule, width=14).pack(side="left")
+        ttk.Button(hb_adv_row, text="Adicionar Regra", command=self._hb_add_advanced_keyword_rule, width=14).pack(side="left", padx=(0, 4))
+        ttk.Button(hb_adv_row, text="Remover Regra", command=self._hb_remove_advanced_keyword_rule, width=14).pack(side="left")
         self._refresh_hb_pai_combo()
 
-        ttk.Label(frm, text="Regras configuradas (mais recente = maior prioridade):", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(6, 2))
+        ttk.Label(frm, text="Regras configuradas (mais recente = maior prioridade) — selecione para remover:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(6, 2))
         hb_adv_frame = ttk.Frame(frm)
         hb_adv_frame.pack(fill="both", expand=True)
-        self._hb_adv_rules_text = tk.Text(hb_adv_frame, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
-        hb_adv_scroll = ttk.Scrollbar(hb_adv_frame, orient="vertical", command=self._hb_adv_rules_text.yview)
-        self._hb_adv_rules_text.configure(yscrollcommand=hb_adv_scroll.set)
-        self._hb_adv_rules_text.pack(side="left", fill="both", expand=True)
+        self._hb_adv_rules_listbox = tk.Listbox(hb_adv_frame, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), selectmode="single")
+        hb_adv_scroll = ttk.Scrollbar(hb_adv_frame, orient="vertical", command=self._hb_adv_rules_listbox.yview)
+        self._hb_adv_rules_listbox.configure(yscrollcommand=hb_adv_scroll.set)
+        self._hb_adv_rules_listbox.pack(side="left", fill="both", expand=True)
         hb_adv_scroll.pack(side="right", fill="y")
-        self._hb_adv_rules_text.config(state="disabled")
+        self._hb_adv_rules_listbox.bind("<Double-Button-1>", lambda e: self._hb_remove_advanced_keyword_rule())
         self._refresh_hb_adv_rules_list()
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
-        ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        self._hb_found_title_var = tk.StringVar(value="Categorias encontradas no ficheiro selecionado (0)")
+        ttk.Label(frm, textvariable=self._hb_found_title_var, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
         cat_frame = ttk.Frame(frm)
         cat_frame.pack(fill="both", expand=True)
         self._hb_list_text = tk.Text(cat_frame, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
@@ -1888,7 +1927,7 @@ class App(Tk):
                 self._active_fornecedor_var.set(name)
                 # Recarrega as categorias do novo perfil ativo
                 self._refresh_hb_pai_combo()
-                if hasattr(self, "_hb_adv_rules_text"):
+                if hasattr(self, "_hb_adv_rules_listbox"):
                     self._refresh_hb_adv_rules_list()
             except Exception as e:
                 messagebox.showerror("Erro", f"Erro ao alterar perfil: {e}", parent=self)
@@ -1914,17 +1953,36 @@ class App(Tk):
         """Preenche a lista de regras avançadas de Destaques e Marcas (maior prioridade primeiro)."""
         try:
             rules = get_keyword_rules()
-            lines = []
-            for r in rules:
-                kws = ", ".join(r.get("keywords", []))
-                lines.append(f"[P{r.get('priority', 0)}] {kws} -> {r.get('parent_category', '')}")
-            if hasattr(self, "_hb_adv_rules_text"):
-                self._hb_adv_rules_text.config(state="normal")
-                self._hb_adv_rules_text.delete("1.0", "end")
-                self._hb_adv_rules_text.insert("1.0", "\n".join(lines) if lines else "Nenhuma regra avançada configurada")
-                self._hb_adv_rules_text.config(state="disabled")
+            if hasattr(self, "_hb_adv_rules_listbox"):
+                self._hb_adv_rules_listbox.delete(0, tk.END)
+                if rules:
+                    for r in rules:
+                        kws = ", ".join(r.get("keywords", []))
+                        self._hb_adv_rules_listbox.insert(tk.END, f"[P{r.get('priority', 0)}] {kws} -> {r.get('parent_category', '')}")
+                else:
+                    self._hb_adv_rules_listbox.insert(tk.END, "(Nenhuma regra avançada configurada)")
         except Exception:
             pass
+
+    def _hb_remove_advanced_keyword_rule(self):
+        """Remove a regra selecionada na lista de regras avançadas (aba Destaques e Marcas)."""
+        rules = get_keyword_rules()
+        if not rules:
+            messagebox.showinfo("Informação", "Não há regras para remover.", parent=self)
+            return
+        sel = self._hb_adv_rules_listbox.curselection()
+        if sel:
+            index = sel[0]
+            if index < len(rules):
+                r = rules[index]
+                kws = ", ".join(r.get("keywords", []))
+                cat = r.get("parent_category", "")
+                if messagebox.askyesno("Remover Regra", f"Remover a regra:\n'{kws} → {cat}'?", parent=self):
+                    remove_keyword_rule(index)
+                    self._refresh_hb_adv_rules_list()
+                    self._refresh_adv_rules_list()
+            return
+        messagebox.showwarning("Atenção", "Selecione uma regra na lista para remover.", parent=self)
 
     def _build_tab_sobre(self):
         """Constrói a aba 'Sobre' com informações da aplicação."""
@@ -1949,6 +2007,11 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.52 (2026-11-10)
+        - Mapeamento Avançado: botão "Remover Regra" e seleção por lista adicionados nas abas Categorias Pai e Destaques e Marcas
+        - Contagem de categorias: exibição da quantidade de categorias encontradas no ficheiro
+        - Prefixo SKU: carregamento e persistência corrigidos por fornecedor ao iniciar/mudar perfil
+
         v0.3.51 (2026-11-10)
         - Visual / cabeçalho: logo reduzida no header e ícone da janela aplicado (assets/icon.png)
 
