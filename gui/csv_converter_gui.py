@@ -1050,27 +1050,24 @@ class App(Tk):
         self.tab_novo = ttk.Frame(self.tabs, padding=8)
         self.tab_update = ttk.Frame(self.tabs, padding=8)
         self.tab_lucro = ttk.Frame(self.tabs, padding=8)
-        self.tab_categorias = ttk.Frame(self.tabs, padding=8)
         self.tab_sku_prefix = ttk.Frame(self.tabs, padding=8)
+        self.tab_categorias = ttk.Frame(self.tabs, padding=8)
         self.tab_highlights_brands = ttk.Frame(self.tabs, padding=8)
-        self.tab_como_usar = ttk.Frame(self.tabs, padding=8)
         self.tab_sobre = ttk.Frame(self.tabs, padding=8)
         self.tabs.add(self.tab_novo, text="  Novo Ficheiro  ")
         self.tabs.add(self.tab_update, text="  Atualizar Loja  ")
         self.tabs.add(self.tab_lucro, text="  Lucro e Taxas  ")
-        self.tabs.add(self.tab_categorias, text="  Categorias  ")
         self.tabs.add(self.tab_sku_prefix, text="  Prefixo SKU  ")
+        self.tabs.add(self.tab_categorias, text="  Categorias Pai  ")
         self.tabs.add(self.tab_highlights_brands, text="  Destaques e Marcas  ")
-        self.tabs.add(self.tab_como_usar, text="  Como Usar  ")
         self.tabs.add(self.tab_sobre, text="  Sobre  ")
 
         self._build_tab_novo()
         self._build_tab_update()
         self._build_tab_lucro()
-        self._build_tab_categorias()
         self._build_tab_sku_prefix()
+        self._build_tab_categorias()
         self._build_tab_highlights_brands()
-        self._build_tab_como_usar()
         self._build_tab_sobre()
         self._build_footer()
 
@@ -1914,91 +1911,6 @@ class App(Tk):
         except Exception:
             pass
 
-    def _build_tab_como_usar(self):
-        """Constrói a aba 'Como Usar' com passo-a-passo instrutivo."""
-        frm = ttk.Frame(self.tab_como_usar, padding=12)
-        frm.pack(fill="both", expand=True)
-
-        ttk.Label(frm, text="Como Usar o Conversor Jumpseller", font=("Segoe UI", 14, "bold")).pack(anchor="w", pady=(0, 12))
-
-        texto = tk.Text(
-            frm,
-            relief="flat",
-            bg=BG_WINDOW,
-            fg=GRAY_800,
-            font=("Segoe UI", 10),
-            borderwidth=0,
-            wrap="word",
-            padx=0,
-            pady=0,
-        )
-        texto.pack(fill="both", expand=True)
-        texto.insert("1.0", """
-PASSO 1 — Ative a licença
-    Abra o programa. Aparece um ecrã verde com o código do seu computador.
-    Clique em "Copiar" e envie esse código para nós.
-    Receba um ficheiro .lic por email ou WhatsApp e arraste-o para a janela.
-    A licença fica activa durante 12 meses.
-
-PASSO 2 — Escolha o fornecedor (perfil)
-    No topo da janela aparece o fornecedor (perfil activo).
-    Pode alterá-lo em qualquer separador através do seletor "Fornecedor".
-    Cada fornecedor tem o seu próprio mapeamento de campos, prefixo SKU e
-    categorias pai, guardados independentemente.
-
-PASSO 3 — Converta um ficheiro novo (aba "Novo Ficheiro")
-    1. Arraste o CSV do fornecedor para a área de drop ou selecione-o.
-    2. Verifique o mapeamento de campos em "Mapear Campos..." (ajusta os nomes
-       das colunas do CSV do fornecedor aos campos do programa).
-    3. Em "Lucro e Taxas" defina margem de lucro, IVA e portes, se necessário.
-    4. Clique em "Converter". O resultado é um CSV no formato de importação
-       da Jumpseller, pronto a importar na loja.
-
-PASSO 4 — Atualize a loja (aba "Atualizar Loja")
-    1. Carregue o export actual da loja (CSV da Jumpseller).
-    2. Carregue o novo ficheiro do fornecedor.
-    3. O programa cruza os dados e actualiza preços e stock sem duplicar
-       produtos.
-    4. Marque "Retirar produtos indisponíveis" para ignorar stock 0 /
-       not-available.
-    5. Clique em "Atualizar loja".
-
-PASSO 5 — Categorias pai (aba "Categorias")
-    Crie até 10 categorias pai para agrupar as categorias do fornecedor.
-    Escolha o fornecedor no seletor ao lado.
-    A hierarquia original é sempre mantida (NovaCategoria/CategoriaOriginal/Subcategoria).
-    O dropdown "Regra" no Mapeamento Avançado mostra as categorias pai já configuradas.
-
-PASSO 6 — Mapeamento Avançado por palavra-chave (aba "Categorias")
-    Associe automaticamente produtos a uma categoria pai quando o nome ou
-    categoria casar com uma palavra-chave.
-    Exemplo: palavra-chave "iphone" → categoria pai "Eletronica/Telefonia".
-    Regras mais recentes têm maior prioridade.
-    Aplica tanto na "Conversão" como no "Atualizar Loja".
-
-PASSO 7 — Prefixo SKU (aba "Prefixo SKU")
-    O prefixo SKU identifica o fornecedor do produto numa encomenda.
-    Formato: 3 letras + traço (ex: VIP-). O prefixo fica antes do SKU.
-    Cada fornecedor pode ter o seu próprio prefixo.
-    Selecione o fornecedor, escreva o prefixo e clique em "Salvar".
-    Exemplo: SKU "12345" com prefixo "VIP-" fica "VIP-12345".
-
-PASSO 8 — Destaques e Marcas (aba "Destaques e Marcas")
-    É exactamente igual ao separador Categorias, mas para criar uma lista
-    de Destaques e Marcas. Os 10 campos são suficientes para criar
-    categorias de destaques e categorias de marcas.
-    Escolha o fornecedor no seletor ao lado.
-    Em baixo, no Mapeamento Avançado, pode escolher a categoria pai de
-    destaques ou de marcas e agrupar as respectivas categorias.
-    A lista de categorias é usada para orientação ou edição, porque são
-    as que aparecem em baixo no mapeamento avançado.
-
-PASSO 9 — Sobre (aba "Sobre")
-    Mostra a versão do programa, notas de versão, desenvolvedor e contacto.
-    Também inclui o estado da licença e o botão "Verificar Atualizações".
-""")
-        texto.config(state="disabled")
-
     def _build_tab_sobre(self):
         """Constrói a aba 'Sobre' com informações da aplicação."""
         frm = ttk.Frame(self.tab_sobre, padding=12)
@@ -2022,6 +1934,9 @@ PASSO 9 — Sobre (aba "Sobre")
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.50 (2026-11-10)
+        - Reordenação das abas: 1 Novo Ficheiro, 2 Atualizar Loja, 3 Lucro e Taxas, 4 Prefixo SKU, 5 Categorias Pai, 6 Destaques e Marcas, 7 Sobre; removida aba Como Usar; renomeada aba Categorias para Categorias Pai
+
         v0.3.49 (2026-11-10)
         - UI / aba Categorias e Destaques e Marcas: dropdown "Regra" integrado na linha do Mapeamento Avançado (substitui o segundo campo categoria pai), removido dropdown separado abaixo da lista de regras
 
