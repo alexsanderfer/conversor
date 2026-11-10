@@ -2838,5 +2838,12 @@ if __name__ == "__main__":
     # dialog de activacao. E preciso rodar o loop para o dialog funcionar.
     app._licensed = False
     app._last_license_message = ""
-    app._ensure_license()
-    app.mainloop()
+    app.update_idletasks()
+    app.lift()
+    app.attributes('-topmost', True)
+    app.after(100, lambda: app.attributes('-topmost', False))
+    if app._ensure_license():
+        app.lift()
+        app.attributes('-topmost', True)
+        app.after(100, lambda: app.attributes('-topmost', False))
+        app.mainloop()
