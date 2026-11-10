@@ -1653,22 +1653,18 @@ class App(Tk):
                 return
             mapping = load_field_mapping()
             cats_set = set()
-            for row in rows[:1000]:  # Limitar para performance
+            for row in rows:  # Analisar todas as linhas do ficheiro sem limite artificial
                 try:
-                    familia = get_mapped_value(row, "familia_principal", mapping)
-                    sub_familia = get_mapped_value(row, "sub_familia", mapping)
-                    sub_sub_familia = get_mapped_value(row, "sub_sub_familia", mapping)
-                    def normalize(val):
-                        return re.sub(r'\s*/\s*', ' e ', val)
-                    familia_n = normalize(familia)
-                    sub_familia_n = normalize(sub_familia)
-                    sub_sub_familia_n = normalize(sub_sub_familia)
-                    if familia_n:
-                        cats_set.add(familia_n)
-                    if sub_familia_n and familia_n:
-                        cats_set.add(f"{familia_n}/{sub_familia_n}")
-                    if sub_sub_familia_n and familia_n and sub_familia_n:
-                        cats_set.add(f"{familia_n}/{sub_familia_n}/{sub_sub_familia_n}")
+                    familia = str(get_mapped_value(row, "familia_principal", mapping)).strip()
+                    sub_familia = str(get_mapped_value(row, "sub_familia", mapping)).strip()
+                    sub_sub_familia = str(get_mapped_value(row, "sub_sub_familia", mapping)).strip()
+
+                    if familia:
+                        cats_set.add(familia)
+                    if sub_familia and familia:
+                        cats_set.add(f"{familia}/{sub_familia}")
+                    if sub_sub_familia and familia and sub_familia:
+                        cats_set.add(f"{familia}/{sub_familia}/{sub_sub_familia}")
                 except Exception:
                     continue
             cats_list = sorted(list(cats_set)) if cats_set else []
