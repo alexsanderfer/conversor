@@ -2974,11 +2974,21 @@ class App(Tk):
 
         def worker():
             try:
+                import time
+                start_time = time.time()
                 out_dir = self.out_dir_var.get()
                 exclude_unavailable = bool(getattr(self, "exclude_unavailable_var", None) and self.exclude_unavailable_var.get())
                 n, out, removed = process_csv(raw, out_dir, exclude_unavailable=exclude_unavailable)
+                elapsed = time.time() - start_time
+                if elapsed < 60:
+                    time_str = f"{elapsed:.1f} segundos"
+                else:
+                    mins = int(elapsed // 60)
+                    secs = int(elapsed % 60)
+                    time_str = f"{mins}m {secs}s"
+
                 self.last_output = Path(out)
-                status_msg = f"Concluido: {n} linha(s) -> {self.last_output.name}"
+                status_msg = f"Concluído: {n} linha(s) em {time_str} -> {self.last_output.name}"
                 if exclude_unavailable and removed:
                     status_msg += f" | Removidos indisponíveis: {removed}"
 
@@ -2988,11 +2998,11 @@ class App(Tk):
                         GREEN_100, GREEN_700, widget=self._status_widget,
                     )
                     self.open_folder_btn.config(state="normal")
-                    info_msg = f"{n} linha(s) escrita(s) em:\n{out}"
+                    info_msg = f"{n} linha(s) convertidas com sucesso em {time_str}!\nFicheiro guardado em:\n{out}"
                     if exclude_unavailable:
                         info_msg += f"\n\nProdutos indisponíveis removidos (stock 0 / not-available): {removed}"
                     info_msg += "\n\nAbrir pasta do resultado abaixo."
-                    messagebox.showinfo("Concluido", info_msg, parent=self)
+                    messagebox.showinfo("Concluído", info_msg, parent=self)
                     self.convert_btn.config(state="normal")
                 self.after(0, on_success)
             except FileNotFoundError as exc:
