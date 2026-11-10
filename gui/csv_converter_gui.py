@@ -53,6 +53,7 @@ from core.field_mapping import (
     add_keyword_rule, remove_keyword_rule, apply_keyword_rules, get_keyword_rules,
     get_sku_prefix, set_sku_prefix,
     get_highlights_brands_settings, set_highlights_brands_settings,
+    get_highlights_brands_keyword_rules, add_highlights_brands_keyword_rule, remove_highlights_brands_keyword_rule,
 )
 from core.category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
 
