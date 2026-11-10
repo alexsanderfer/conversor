@@ -409,6 +409,67 @@ def get_category_settings() -> dict:
         return {}
 
 
+# ---------------------------------------------------------------------------
+# Prefixo SKU (identifica o fornecedor do produto numa encomenda)
+# ---------------------------------------------------------------------------
+
+def get_sku_prefix() -> str:
+    """Retorna o prefixo SKU configurado (ex: 'VIP-')."""
+    try:
+        data = _read_config()
+        return str(data.get("settings", {}).get("sku_prefix", ""))
+    except Exception:
+        return ""
+
+
+def set_sku_prefix(prefix: str) -> bool:
+    """Define o prefixo SKU (3 letras + traço, ex: 'VIP-')."""
+    try:
+        data = _read_config()
+        settings = data.setdefault("settings", {})
+        settings["sku_prefix"] = str(prefix).strip()
+        return _write_config(data)
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Categorias pai de Destaques e Marcas (mapeamento avançado)
+# ---------------------------------------------------------------------------
+
+def get_highlights_brands_settings() -> dict:
+    """Retorna as configurações de categorias pai para Destaques e Marcas."""
+    try:
+        data = _read_config()
+        return data.get("settings", {}).get("highlights_brands", {})
+    except Exception:
+        return {}
+
+
+def set_highlights_brands_settings(
+    highlights_parent: str = None,
+    highlights_keywords: list = None,
+    brands_parent: str = None,
+    brands_keywords: list = None,
+) -> bool:
+    """Define as configurações de categorias pai para Destaques e Marcas."""
+    try:
+        data = _read_config()
+        settings = data.setdefault("settings", {})
+        hb = settings.setdefault("highlights_brands", {})
+        if highlights_parent is not None:
+            hb["highlights_parent"] = str(highlights_parent).strip()
+        if highlights_keywords is not None:
+            hb["highlights_keywords"] = list(highlights_keywords)[:10]
+        if brands_parent is not None:
+            hb["brands_parent"] = str(brands_parent).strip()
+        if brands_keywords is not None:
+            hb["brands_keywords"] = list(brands_keywords)[:10]
+        return _write_config(data)
+    except Exception:
+        return False
+
+
 def set_category_settings(new_categories=None, cat_keywords=None, apply_to_all=None, selected_prefix=None, use_parent=None):
     """Define configurações de categorias."""
     try:

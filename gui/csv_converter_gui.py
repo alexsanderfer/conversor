@@ -51,6 +51,8 @@ from core.field_mapping import (
     get_profit_margin, get_price_settings, set_price_settings,
     get_category_settings, set_category_settings,
     add_keyword_rule, remove_keyword_rule, apply_keyword_rules, get_keyword_rules,
+    get_sku_prefix, set_sku_prefix,
+    get_highlights_brands_settings, set_highlights_brands_settings,
 )
 from core.category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
 
@@ -452,7 +454,11 @@ def convert_row(row: dict, mapping: dict = None) -> dict:
     dest_row["Featured"] = "NO"
     stock_val = parse_stock(get_mapped_value(row, "stock", mapping))
     dest_row["Status"] = "available" if stock_val > 0 else "not-available"
-    dest_row["SKU"] = get_mapped_value(row, "ref", mapping)
+    sku = get_mapped_value(row, "ref", mapping)
+    sku_prefix = get_sku_prefix()
+    if sku_prefix and sku and not sku.startswith(sku_prefix):
+        sku = sku_prefix + sku
+    dest_row["SKU"] = sku
     dest_row["Weight"] = get_mapped_value(row, "peso", mapping)
     dest_row["Cost per item"] = ""
     dest_row["Compare at price"] = ""
@@ -1034,17 +1040,23 @@ class App(Tk):
         self.tab_update = ttk.Frame(self.tabs, padding=8)
         self.tab_lucro = ttk.Frame(self.tabs, padding=8)
         self.tab_categorias = ttk.Frame(self.tabs, padding=8)
+        self.tab_sku_prefix = ttk.Frame(self.tabs, padding=8)
+        self.tab_highlights_brands = ttk.Frame(self.tabs, padding=8)
         self.tab_sobre = ttk.Frame(self.tabs, padding=8)
         self.tabs.add(self.tab_novo, text="  Novo Ficheiro  ")
         self.tabs.add(self.tab_update, text="  Atualizar Loja  ")
         self.tabs.add(self.tab_lucro, text="  Lucro e Taxas  ")
         self.tabs.add(self.tab_categorias, text="  Categorias  ")
+        self.tabs.add(self.tab_sku_prefix, text="  Prefixo SKU  ")
+        self.tabs.add(self.tab_highlights_brands, text="  Destaques e Marcas  ")
         self.tabs.add(self.tab_sobre, text="  Sobre  ")
 
         self._build_tab_novo()
         self._build_tab_update()
         self._build_tab_lucro()
         self._build_tab_categorias()
+        self._build_tab_sku_prefix()
+        self._build_tab_highlights_brands()
         self._build_tab_sobre()
         self._build_footer()
 
@@ -1656,6 +1668,139 @@ class App(Tk):
         except Exception:
             pass
 
+    def _build_tab_sku_prefix(self):
+        """Constrói a aba 'Prefixo SKU' — prefixo de 3 letras + traço para identificar o fornecedor."""
+        frm = ttk.Frame(self.tab_sku_prefix, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, text="Prefixo SKU", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
+        ttk.Label(
+            frm,
+            text=(
+                "O prefixo SKU é usado para certificar quem é o fornecedor dos produtos numa venda, "
+                "quando há mais de 1 fornecedor e a encomenda pode ter produtos de vários fornecedores.\n\n"
+                "Formato: 3 letras e um traço (ex: VIP-). O prefixo será colocado antes do SKU dos produtos."
+            ),
+            font=("Segoe UI", 9),
+            foreground=GRAY_600,
+            justify="left",
+            wraplength=700,
+        ).pack(anchor="w", pady=(0, 12))
+
+        self._sku_prefix_var = tk.StringVar(value=get_sku_prefix())
+        row = ttk.Frame(frm)
+        row.pack(fill="x", pady=4)
+        ttk.Label(row, text="Prefixo SKU:").pack(side="left")
+        self._sku_prefix_entry = ttk.Entry(row, textvariable=self._sku_prefix_var, width=12)
+        self._sku_prefix_entry.pack(side="left", padx=(6, 0))
+        ttk.Button(row, text="Guardar", command=self._save_sku_prefix, width=10).pack(side="left", padx=(8, 0))
+
+        ttk.Label(
+            frm,
+            text="Exemplo: SKU '12345' com prefixo 'VIP-' fica 'VIP-12345'.",
+            font=("Segoe UI", 8),
+            foreground=GRAY_600,
+        ).pack(anchor="w", pady=(8, 0))
+
+    def _save_sku_prefix(self):
+        """Guarda o prefixo SKU digitado."""
+        prefix = self._sku_prefix_var.get().strip()
+        if not prefix:
+            set_sku_prefix("")
+            messagebox.showinfo("Guardado", "Prefixo SKU removido.", parent=self)
+            return
+        # Valida: 3 letras + traço (ex: VIP-)
+        import re
+        if not re.match(r"^[A-Za-z]{3}-$", prefix):
+            messagebox.showwarning("Atenção", "O prefixo deve ter 3 letras seguidas de um traço (ex: VIP-).", parent=self)
+            return
+        prefix = prefix.upper()
+        self._sku_prefix_var.set(prefix)
+        if set_sku_prefix(prefix):
+            messagebox.showinfo("Guardado", f"Prefixo SKU '{prefix}' guardado com sucesso.", parent=self)
+        else:
+            messagebox.showerror("Erro", "Não foi possível guardar o prefixo SKU.", parent=self)
+
+    def _build_tab_highlights_brands(self):
+        """Constrói a aba 'Destaques e Marcas' — categorias pai para destaques e marcas."""
+        frm = ttk.Frame(self.tab_highlights_brands, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, text="Destaques e Marcas", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
+        ttk.Label(
+            frm,
+            text=(
+                "Cria categorias pai para Destaques de produtos e Marcas, associando categorias e subcategorias "
+                "do ficheiro CSV. Usa os 2 campos de mapeamento avançado abaixo."
+            ),
+            font=("Segoe UI", 9),
+            foreground=GRAY_600,
+            justify="left",
+            wraplength=700,
+        ).pack(anchor="w", pady=(0, 12))
+
+        hb = get_highlights_brands_settings()
+
+        # Destaques
+        ttk.Label(frm, text="Destaques", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        row_d = ttk.Frame(frm)
+        row_d.pack(fill="x", pady=2)
+        self._hl_parent_var = tk.StringVar(value=hb.get("highlights_parent", ""))
+        ttk.Label(row_d, text="Categoria pai:").pack(side="left")
+        ttk.Entry(row_d, textvariable=self._hl_parent_var, width=24).pack(side="left", padx=(4, 8))
+        self._hl_kw_var = tk.StringVar(value=", ".join(hb.get("highlights_keywords", [])))
+        ttk.Label(row_d, text="Palavras-chave:").pack(side="left")
+        ttk.Entry(row_d, textvariable=self._hl_kw_var, width=24).pack(side="left", padx=(4, 0))
+        ttk.Button(row_d, text="Guardar Destaques", command=self._save_highlights, width=14).pack(side="left", padx=(8, 0))
+
+        ttk.Label(
+            frm,
+            text="Como funciona: escreva palavras-chave (ex: 'promoção, oferta') e a categoria pai de destino. Quando o nome do produto casar com alguma palavra, ele é associado à categoria pai de Destaques.",
+            font=("Segoe UI", 8),
+            foreground=GRAY_600,
+            justify="left",
+            wraplength=700,
+        ).pack(anchor="w", pady=(6, 12))
+
+        # Marcas
+        ttk.Label(frm, text="Marcas", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        row_b = ttk.Frame(frm)
+        row_b.pack(fill="x", pady=2)
+        self._br_parent_var = tk.StringVar(value=hb.get("brands_parent", ""))
+        ttk.Label(row_b, text="Categoria pai:").pack(side="left")
+        ttk.Entry(row_b, textvariable=self._br_parent_var, width=24).pack(side="left", padx=(4, 8))
+        self._br_kw_var = tk.StringVar(value=", ".join(hb.get("brands_keywords", [])))
+        ttk.Label(row_b, text="Palavras-chave:").pack(side="left")
+        ttk.Entry(row_b, textvariable=self._br_kw_var, width=24).pack(side="left", padx=(4, 0))
+        ttk.Button(row_b, text="Guardar Marcas", command=self._save_brands, width=14).pack(side="left", padx=(8, 0))
+
+        ttk.Label(
+            frm,
+            text="Como funciona: escreva palavras-chave de marca (ex: 'nike, adidas') e a categoria pai de destino. Quando o nome do produto casar com alguma palavra, ele é associado à categoria pai de Marcas.",
+            font=("Segoe UI", 8),
+            foreground=GRAY_600,
+            justify="left",
+            wraplength=700,
+        ).pack(anchor="w", pady=(6, 0))
+
+    def _save_highlights(self):
+        """Guarda as configurações de Destaques."""
+        parent = self._hl_parent_var.get().strip()
+        kws = [k.strip() for k in self._hl_kw_var.get().split(",") if k.strip()]
+        if set_highlights_brands_settings(highlights_parent=parent, highlights_keywords=kws):
+            messagebox.showinfo("Guardado", "Configurações de Destaques guardadas com sucesso.", parent=self)
+        else:
+            messagebox.showerror("Erro", "Não foi possível guardar as configurações de Destaques.", parent=self)
+
+    def _save_brands(self):
+        """Guarda as configurações de Marcas."""
+        parent = self._br_parent_var.get().strip()
+        kws = [k.strip() for k in self._br_kw_var.get().split(",") if k.strip()]
+        if set_highlights_brands_settings(brands_parent=parent, brands_keywords=kws):
+            messagebox.showinfo("Guardado", "Configurações de Marcas guardadas com sucesso.", parent=self)
+        else:
+            messagebox.showerror("Erro", "Não foi possível guardar as configurações de Marcas.", parent=self)
+
     def _build_tab_sobre(self):
         """Constrói a aba 'Sobre' com informações da aplicação."""
         frm = ttk.Frame(self.tab_sobre, padding=12)
@@ -1679,6 +1824,11 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.41 (2026-11-10)
+        - Novo separador Prefixo SKU: prefixo de 3 letras + traço (ex: VIP-) antes do SKU para identificar o fornecedor
+        - Novo separador Destaques e Marcas: categorias pai para destaques e marcas com mapeamento avançado
+        - Fix: Sobre mostra a versão correta (get_current_version lê VERSION.txt da raiz do projeto)
+
         v0.3.40 (2026-11-10)
         - UI / aba Categorias: removidas as colunas de palavras-chave das 10 categorias pai
         - UI / aba Categorias: adicionado seletor de fornecedor na linha de instrução
