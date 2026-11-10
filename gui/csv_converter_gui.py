@@ -1061,7 +1061,7 @@ class App(Tk):
         self.tabs.add(self.tab_update, text="  Atualizar Loja  ")
         self.tabs.add(self.tab_lucro, text="  Lucro e Taxas  ")
         self.tabs.add(self.tab_sku_prefix, text="  Prefixo SKU  ")
-        self.tabs.add(self.tab_categorias, text="  Categorias Pai  ")
+        self.tabs.add(self.tab_categorias, text="  Categorias  ")
         self.tabs.add(self.tab_highlights_brands, text="  Destaques e Marcas  ")
         self.tabs.add(self.tab_sobre, text="  Sobre  ")
 
@@ -1383,7 +1383,7 @@ class App(Tk):
             text=(
                 "Aqui pode criar novos fornecedores, remover fornecedores antigos ou selecionar qual o fornecedor "
                 "ativo no momento. O fornecedor ativo é propagado automaticamente para todas as abas do programa "
-                "(Novo Ficheiro, Atualizar Loja, Lucro e Taxas, Prefixo SKU, Categorias Pai e Destaques e Marcas)."
+                "(Novo Ficheiro, Atualizar Loja, Lucro e Taxas, Prefixo SKU, Categorias e Destaques e Marcas)."
             ),
             font=("Segoe UI", 9),
             foreground=GRAY_600,
@@ -2094,7 +2094,7 @@ class App(Tk):
             messagebox.showwarning("Atenção", "Preencha a palavra-chave e selecione a categoria pai.", parent=self)
             return
         try:
-            if add_keyword_rule([kw], cat, priority=10):
+            if add_highlights_brands_keyword_rule([kw], cat, priority=10):
                 self._hb_adv_kw_var.set("")
                 self._refresh_hb_adv_rules_list()
                 messagebox.showinfo("Guardado", "Regra avançada adicionada com sucesso.", parent=self)
@@ -2106,7 +2106,7 @@ class App(Tk):
     def _refresh_hb_adv_rules_list(self):
         """Preenche a lista de regras avançadas de Destaques e Marcas (maior prioridade primeiro)."""
         try:
-            rules = get_keyword_rules()
+            rules = get_highlights_brands_keyword_rules()
             if hasattr(self, "_hb_adv_rules_listbox"):
                 self._hb_adv_rules_listbox.delete(0, tk.END)
                 if rules:
@@ -2120,7 +2120,7 @@ class App(Tk):
 
     def _hb_remove_advanced_keyword_rule(self):
         """Remove a regra selecionada na lista de regras avançadas (aba Destaques e Marcas)."""
-        rules = get_keyword_rules()
+        rules = get_highlights_brands_keyword_rules()
         if not rules:
             messagebox.showinfo("Informação", "Não há regras para remover.", parent=self)
             return
@@ -2132,9 +2132,8 @@ class App(Tk):
                 kws = ", ".join(r.get("keywords", []))
                 cat = r.get("parent_category", "")
                 if messagebox.askyesno("Remover Regra", f"Remover a regra:\n'{kws} → {cat}'?", parent=self):
-                    remove_keyword_rule(index)
+                    remove_highlights_brands_keyword_rule(index)
                     self._refresh_hb_adv_rules_list()
-                    self._refresh_adv_rules_list()
             return
         messagebox.showwarning("Atenção", "Selecione uma regra na lista para remover.", parent=self)
 

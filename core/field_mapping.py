@@ -600,6 +600,58 @@ def remove_keyword_rule(index: int) -> bool:
         return False
 
 
+def get_highlights_brands_keyword_rules() -> list:
+    """Retorna a lista de regras de palavras-chave para Destaques e Marcas."""
+    try:
+        data = _read_config()
+        rules = data.get("settings", {}).get("highlights_brands_keyword_rules", [])
+        if not isinstance(rules, list):
+            rules = []
+        return sorted(rules, key=lambda r: int(r.get("priority", 0)), reverse=True)
+    except Exception:
+        return []
+
+
+def set_highlights_brands_keyword_rules(rules: list) -> bool:
+    """Guarda a lista completa de regras de palavras-chave para Destaques e Marcas."""
+    try:
+        data = _read_config()
+        settings = data.setdefault("settings", {})
+        settings["highlights_brands_keyword_rules"] = list(rules)
+        return _write_config(data)
+    except Exception:
+        return False
+
+
+def add_highlights_brands_keyword_rule(keywords, parent_category: str, priority: int = 10) -> bool:
+    """Adiciona uma regra de palavras-chave para Destaques e Marcas."""
+    try:
+        kw_list = [str(k).strip() for k in keywords if str(k).strip()]
+        if not kw_list or not parent_category or not str(parent_category).strip():
+            return False
+        rules = get_highlights_brands_keyword_rules()
+        rules.append({
+            "keywords": kw_list,
+            "parent_category": str(parent_category).strip(),
+            "priority": int(priority),
+        })
+        return set_highlights_brands_keyword_rules(rules)
+    except Exception:
+        return False
+
+
+def remove_highlights_brands_keyword_rule(index: int) -> bool:
+    """Remove a regra de palavras-chave de Destaques e Marcas na posição dada."""
+    try:
+        rules = get_highlights_brands_keyword_rules()
+        if 0 <= index < len(rules):
+            del rules[index]
+            return set_highlights_brands_keyword_rules(rules)
+        return False
+    except Exception:
+        return False
+
+
 def apply_keyword_rules(category_path: str, product_name: str = "") -> str:
     """
     Aplica as regras de palavras-chave sobre uma categoria (ou caminho de categoria).
