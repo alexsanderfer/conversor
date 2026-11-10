@@ -1337,23 +1337,28 @@ class App(Tk):
         frm.pack(fill="both", expand=True)
 
         ttk.Label(frm, text="Mapeamento", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
-        ttk.Label(frm, text="Crie até 10 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 8))
+
+        # Linha de instrução com seletor de fornecedor ao lado
+        header_row = ttk.Frame(frm)
+        header_row.pack(fill="x", pady=(0, 8))
+        ttk.Label(header_row, text="Crie até 10 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(side="left")
+        ttk.Label(header_row, text="  Fornecedor:", font=("Segoe UI", 9)).pack(side="left", padx=(10, 4))
+        self._cat_fornecedor_var = tk.StringVar(value=get_active_profile())
+        self._cat_fornecedor_combo = ttk.Combobox(header_row, textvariable=self._cat_fornecedor_var, state="readonly", width=24)
+        self._cat_fornecedor_combo.pack(side="left")
+        self._cat_fornecedor_combo.bind("<<ComboboxSelected>>", self._on_cat_fornecedor_change)
+        self._refresh_cat_fornecedor_combo()
 
         cat_settings = get_category_settings()
         self._cat_new_vars = []
-        self._cat_kw_vars = []
         for i in range(10):
-            val = cat_settings.get("new_categories", [""]*10)[i] if i < len(cat_settings.get("new_categories", [])) else ""
+            val = cat_settings.get("new_categories", [""] * 10)[i] if i < len(cat_settings.get("new_categories", [])) else ""
             v = tk.StringVar(value=val)
             self._cat_new_vars.append(v)
             row = ttk.Frame(frm)
             row.pack(fill="x", pady=2)
             ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
-            ttk.Entry(row, textvariable=v, width=20).pack(side="left", padx=(4, 6))
-            ttk.Label(row, text="Palavras-chave:").pack(side="left")
-            kw = tk.StringVar()
-            self._cat_kw_vars.append(kw)
-            ttk.Entry(row, textvariable=kw, width=20).pack(side="left", padx=(4, 0))
+            ttk.Entry(row, textvariable=v, width=34).pack(side="left", padx=(4, 6))
             ttk.Button(row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
         self._cat_apply_all_var = tk.BooleanVar(value=cat_settings.get("apply_to_all", True))
@@ -1377,6 +1382,30 @@ class App(Tk):
         self._cat_pai_combo = ttk.Combobox(frm, state="readonly", width=45)
         self._cat_pai_combo.pack(anchor="w", pady=(0, 6))
         self._refresh_cat_pai_combo()
+
+        # ---- Mapeamento Avançado (regras por palavra-chave) ----
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
+        ttk.Label(frm, text="Mapeamento Avançado — regras por palavra-chave", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(frm, text="Associe automaticamente produtos a uma categoria pai quando o nome ou categoria casar com uma palavra-chave.", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 6))
+
+        adv_row = ttk.Frame(frm)
+        adv_row.pack(fill="x", pady=2)
+        self._adv_kw_var = tk.StringVar()
+        ttk.Entry(adv_row, textvariable=self._adv_kw_var, width=22).pack(side="left", padx=(0, 4))
+        self._adv_cat_var = tk.StringVar()
+        ttk.Entry(adv_row, textvariable=self._adv_cat_var, width=22).pack(side="left", padx=(0, 4))
+        ttk.Button(adv_row, text="Adicionar Regra", command=self._add_advanced_keyword_rule, width=14).pack(side="left")
+
+        ttk.Label(frm, text="Regras configuradas (mais recente = maior prioridade):", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(6, 2))
+        adv_frame = ttk.Frame(frm)
+        adv_frame.pack(fill="both", expand=True)
+        self._adv_rules_text = tk.Text(adv_frame, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        adv_scroll = ttk.Scrollbar(adv_frame, orient="vertical", command=self._adv_rules_text.yview)
+        self._adv_rules_text.configure(yscrollcommand=adv_scroll.set)
+        self._adv_rules_text.pack(side="left", fill="both", expand=True)
+        adv_scroll.pack(side="right", fill="y")
+        self._adv_rules_text.config(state="disabled")
+        self._refresh_adv_rules_list()
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
         ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
@@ -1536,10 +1565,9 @@ class App(Tk):
     def _save_category_settings(self):
         try:
             new_cats = [v.get().strip() for v in self._cat_new_vars]
-            cat_kws = [v.get().strip() for v in self._cat_kw_vars]
             set_category_settings(
                 new_categories=new_cats,
-                cat_keywords=cat_kws,
+                cat_keywords=[""] * len(new_cats),
                 apply_to_all=self._cat_apply_all_var.get(),
                 selected_prefix=self._cat_prefix_var.get().strip(),
                 use_parent=self._cat_use_parent_var.get(),
@@ -1548,6 +1576,7 @@ class App(Tk):
             # Guardar silencioso no mapeamento (sem alertas)
             pass
         self._refresh_cat_pai_combo()
+        self._refresh_cat_fornecedor_combo()
 
     def _refresh_cat_pai_combo(self):
         """Preenche o dropdown com as categorias pai já configuradas."""
@@ -1556,6 +1585,61 @@ class App(Tk):
             new_cats = [c.strip() for c in cat_settings.get("new_categories", []) if c.strip()]
             if hasattr(self, "_cat_pai_combo"):
                 self._cat_pai_combo["values"] = new_cats
+        except Exception:
+            pass
+
+    def _refresh_cat_fornecedor_combo(self):
+        """Preenche o dropdown de fornecedor da aba Categorias com os perfis."""
+        try:
+            profiles = list_profiles()
+            if hasattr(self, "_cat_fornecedor_combo"):
+                self._cat_fornecedor_combo["values"] = profiles
+                if not self._cat_fornecedor_var.get():
+                    self._cat_fornecedor_var.set(get_active_profile())
+        except Exception:
+            pass
+
+    def _on_cat_fornecedor_change(self, _event=None):
+        """Muda o perfil ativo quando o usuário escolhe um fornecedor na aba Categorias."""
+        name = self._cat_fornecedor_var.get().strip()
+        if name:
+            try:
+                set_active_profile(name)
+                self._refresh_profile_combo()
+            except Exception as e:
+                messagebox.showerror("Erro", f"Erro ao alterar perfil: {e}", parent=self)
+
+    def _add_advanced_keyword_rule(self):
+        """Adiciona uma regra de mapeamento avançado por palavra-chave."""
+        kw = self._adv_kw_var.get().strip()
+        cat = self._adv_cat_var.get().strip()
+        if not kw or not cat:
+            messagebox.showwarning("Atenção", "Preencha a palavra-chave e a categoria pai.", parent=self)
+            return
+        try:
+            if add_keyword_rule([kw], cat, priority=10):
+                self._adv_kw_var.set("")
+                self._adv_cat_var.set("")
+                self._refresh_adv_rules_list()
+                messagebox.showinfo("Guardado", "Regra avançada adicionada com sucesso.", parent=self)
+            else:
+                messagebox.showerror("Erro", "Não foi possível guardar a regra.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao guardar regra: {e}", parent=self)
+
+    def _refresh_adv_rules_list(self):
+        """Preenche a lista de regras avançadas (maior prioridade primeiro)."""
+        try:
+            rules = get_keyword_rules()
+            lines = []
+            for r in rules:
+                kws = ", ".join(r.get("keywords", []))
+                lines.append(f"[P{r.get('priority', 0)}] {kws} -> {r.get('parent_category', '')}")
+            if hasattr(self, "_adv_rules_text"):
+                self._adv_rules_text.config(state="normal")
+                self._adv_rules_text.delete("1.0", "end")
+                self._adv_rules_text.insert("1.0", "\n".join(lines) if lines else "Nenhuma regra avançada configurada")
+                self._adv_rules_text.config(state="disabled")
         except Exception:
             pass
 
@@ -1582,6 +1666,11 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.40 (2026-11-10)
+        - UI / aba Categorias: removidas as colunas de palavras-chave das 10 categorias pai
+        - UI / aba Categorias: adicionado seletor de fornecedor na linha de instrução
+        - UI / aba Categorias: restaurada a seção de Mapeamento Avançado (regras por palavra-chave com prioridade)
+
         v0.3.36 (2026-11-09)
         - Sobre: links clicáveis para e-mail (mailto) e WhatsApp (wa.me) nos contatos do desenvolvedor, revendedor e suporte
 
