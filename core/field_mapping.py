@@ -571,16 +571,19 @@ def set_keyword_rules(rules: list) -> bool:
         return False
 
 
-def add_keyword_rule(keywords, parent_category: str, priority: int = 10) -> bool:
-    """Adiciona uma regra de mapeamento por palavras-chave."""
+def add_keyword_rule(category: str, subcategory: str, parent_category: str, priority: int = 10) -> bool:
+    """Adiciona uma regra de mapeamento avançado baseada em Categoria e Subcategoria."""
     try:
-        kw_list = [str(k).strip() for k in keywords if str(k).strip()]
-        if not kw_list or not parent_category or not str(parent_category).strip():
+        cat_str = str(category).strip()
+        subcat_str = str(subcategory).strip()
+        parent_str = str(parent_category).strip()
+        if not cat_str or not parent_str:
             return False
         rules = get_keyword_rules()
         rules.append({
-            "keywords": kw_list,
-            "parent_category": str(parent_category).strip(),
+            "category": cat_str,
+            "subcategory": subcat_str,
+            "parent_category": parent_str,
             "priority": int(priority),
         })
         return set_keyword_rules(rules)
@@ -589,7 +592,7 @@ def add_keyword_rule(keywords, parent_category: str, priority: int = 10) -> bool
 
 
 def remove_keyword_rule(index: int) -> bool:
-    """Remove a regra de palavras-chave na posição dada (na lista ordenada por prioridade)."""
+    """Remove a regra na posição dada (na lista ordenada por prioridade)."""
     try:
         rules = get_keyword_rules()
         if 0 <= index < len(rules):
@@ -601,7 +604,7 @@ def remove_keyword_rule(index: int) -> bool:
 
 
 def get_highlights_brands_keyword_rules() -> list:
-    """Retorna a lista de regras de palavras-chave para Destaques e Marcas."""
+    """Retorna a lista de regras de Destaques e Marcas."""
     try:
         data = _read_config()
         rules = data.get("settings", {}).get("highlights_brands_keyword_rules", [])
@@ -613,7 +616,7 @@ def get_highlights_brands_keyword_rules() -> list:
 
 
 def set_highlights_brands_keyword_rules(rules: list) -> bool:
-    """Guarda a lista completa de regras de palavras-chave para Destaques e Marcas."""
+    """Guarda a lista completa de regras para Destaques e Marcas."""
     try:
         data = _read_config()
         settings = data.setdefault("settings", {})
@@ -623,16 +626,19 @@ def set_highlights_brands_keyword_rules(rules: list) -> bool:
         return False
 
 
-def add_highlights_brands_keyword_rule(keywords, parent_category: str, priority: int = 10) -> bool:
-    """Adiciona uma regra de palavras-chave para Destaques e Marcas."""
+def add_highlights_brands_keyword_rule(category: str, subcategory: str, parent_category: str, priority: int = 10) -> bool:
+    """Adiciona uma regra de mapeamento avançado baseada em Categoria e Subcategoria para Destaques e Marcas."""
     try:
-        kw_list = [str(k).strip() for k in keywords if str(k).strip()]
-        if not kw_list or not parent_category or not str(parent_category).strip():
+        cat_str = str(category).strip()
+        subcat_str = str(subcategory).strip()
+        parent_str = str(parent_category).strip()
+        if not cat_str or not parent_str:
             return False
         rules = get_highlights_brands_keyword_rules()
         rules.append({
-            "keywords": kw_list,
-            "parent_category": str(parent_category).strip(),
+            "category": cat_str,
+            "subcategory": subcat_str,
+            "parent_category": parent_str,
             "priority": int(priority),
         })
         return set_highlights_brands_keyword_rules(rules)
@@ -641,7 +647,7 @@ def add_highlights_brands_keyword_rule(keywords, parent_category: str, priority:
 
 
 def remove_highlights_brands_keyword_rule(index: int) -> bool:
-    """Remove a regra de palavras-chave de Destaques e Marcas na posição dada."""
+    """Remove a regra de Destaques e Marcas na posição dada."""
     try:
         rules = get_highlights_brands_keyword_rules()
         if 0 <= index < len(rules):
@@ -652,30 +658,51 @@ def remove_highlights_brands_keyword_rule(index: int) -> bool:
         return False
 
 
-def apply_keyword_rules(category_path: str, product_name: str = "") -> str:
+def apply_keyword_rules(familia: str, sub_familia: str = "") -> str:
     """
-    Aplica as regras de palavras-chave sobre uma categoria (ou caminho de categoria).
-
-    Percorre as regras ordenadas por prioridade decrescente. Se alguma palavra-chave
-    da regra estiver presente no nome do produto ou na categoria, devolve a
-    categoria pai da regra (primeira regra vencedora por prioridade).
-
-    Args:
-        category_path: Caminho da categoria já construído (ex: "Eletronica/Som").
-        product_name: Nome do produto para fazer match das palavras-chave.
-
-    Returns:
-        str: Nome da categoria pai da regra vencedora, ou string vazia se nenhuma regra casar.
+    Aplica as regras de mapeamento avançado baseadas em Categoria e Subcategoria do fornecedor.
     """
-    text = f"{product_name} {category_path}".lower()
+    fam_norm = str(familia).strip().lower()
+    sub_norm = str(sub_familia).strip().lower()
     for rule in get_keyword_rules():
         parent = str(rule.get("parent_category", "")).strip()
         if not parent:
             continue
-        for kw in rule.get("keywords", []):
-            kn = str(kw).strip().lower()
-            if kn and kn in text:
-                return parent
+        if "keywords" in rule:
+            text = f"{fam_norm} {sub_norm}"
+            for kw in rule.get("keywords", []):
+                if str(kw).strip().lower() and str(kw).strip().lower() in text:
+                    return parent
+        else:
+            rule_cat = str(rule.get("category", "")).strip().lower()
+            rule_sub = str(rule.get("subcategory", "")).strip().lower()
+            if rule_cat and rule_cat == fam_norm:
+                if not rule_sub or rule_sub == sub_norm or rule_sub in sub_norm:
+                    return parent
+    return ""
+
+
+def apply_highlights_brands_keyword_rules(familia: str, sub_familia: str = "") -> str:
+    """
+    Aplica as regras de Destaques e Marcas baseadas em Categoria e Subcategoria.
+    """
+    fam_norm = str(familia).strip().lower()
+    sub_norm = str(sub_familia).strip().lower()
+    for rule in get_highlights_brands_keyword_rules():
+        parent = str(rule.get("parent_category", "")).strip()
+        if not parent:
+            continue
+        if "keywords" in rule:
+            text = f"{fam_norm} {sub_norm}"
+            for kw in rule.get("keywords", []):
+                if str(kw).strip().lower() and str(kw).strip().lower() in text:
+                    return parent
+        else:
+            rule_cat = str(rule.get("category", "")).strip().lower()
+            rule_sub = str(rule.get("subcategory", "")).strip().lower()
+            if rule_cat and rule_cat == fam_norm:
+                if not rule_sub or rule_sub == sub_norm or rule_sub in sub_norm:
+                    return parent
     return ""
 
 

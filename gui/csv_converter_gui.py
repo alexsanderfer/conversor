@@ -403,12 +403,24 @@ def build_categories(row: dict, mapping: dict = None) -> str:
     except Exception:
         pass
 
-    # Mapeamento por palavras-chave (prioridade): forçar categoria pai quando o produto ou categoria casa com alguma regra
+    # Mapeamento avançado por Categoria e Subcategoria (prioridade)
     try:
-        product_name = get_mapped_value(row, "design", mapping)
-        kw_parent = apply_keyword_rules(",".join(categories), product_name)
+        familia = get_mapped_value(row, "familia_principal", mapping)
+        sub_familia = get_mapped_value(row, "sub_familia", mapping)
+        kw_parent = apply_keyword_rules(familia, sub_familia)
         if kw_parent:
-            return kw_parent
+            if cat_settings.get("use_parent", True):
+                result = [kw_parent]
+                for cat_path in categories:
+                    cp = (cat_path or "").strip().strip("/")
+                    if not cp:
+                        continue
+                    prefixed = f"{kw_parent}/{cp}"
+                    if prefixed not in result:
+                        result.append(prefixed)
+                return ",".join(result)
+            else:
+                return kw_parent
     except Exception:
         pass
 
@@ -1577,17 +1589,16 @@ class App(Tk):
 
         ttk.Button(frm, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(4, 0))
 
-        # ---- Mapeamento Avançado (regras por palavra-chave) ----
+        # ---- Mapeamento Avançado (regras por Categoria e Subcategoria) ----
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
-        ttk.Label(frm, text="Mapeamento Avançado — regras por palavra-chave", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
-        ttk.Label(frm, text="Associe automaticamente produtos a uma categoria pai quando o nome ou categoria casar com uma palavra-chave.", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 2))
+        ttk.Label(frm, text="Mapeamento Avançado — regras por Categoria e Subcategoria", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(frm, text="Associe automaticamente produtos a uma categoria pai com base na Categoria e Subcategoria originais do fornecedor.", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 2))
         ttk.Label(
             frm,
             text=(
-                "Como funciona: escreva uma palavra-chave (ex: 'iphone') e a categoria pai destino (ex: 'Eletronica/Telefonia'). "
-                "Quando o nome do produto ou a categoria do fornecedor contiver essa palavra, o produto é associado à categoria pai indicada. "
-                "Regras mais recentes têm maior prioridade (vencem as anteriores). "
-                "Aplica tanto na 'Conversão' (novo ficheiro) como no 'Atualizar Loja' (merge)."
+                "Como funciona: indique a Categoria e a Subcategoria do fornecedor (deixe a subcategoria vazia para aplicar a toda a categoria) "
+                "e selecione a Categoria Pai de destino. Evita falsos positivos no nome dos produtos (ex: 'teclado' no nome de um portátil). "
+                "Regras mais recentes têm maior prioridade. Aplica na 'Conversão' e no 'Atualizar Loja'."
             ),
             font=("Segoe UI", 8),
             foreground=GRAY_600,
@@ -1597,10 +1608,14 @@ class App(Tk):
 
         adv_row = ttk.Frame(frm)
         adv_row.pack(fill="x", pady=2)
-        self._adv_kw_var = tk.StringVar()
-        ttk.Entry(adv_row, textvariable=self._adv_kw_var, width=22).pack(side="left", padx=(0, 4))
-        ttk.Label(adv_row, text="Regra:").pack(side="left", padx=(4, 2))
-        self._cat_pai_combo = ttk.Combobox(adv_row, state="readonly", width=30)
+        ttk.Label(adv_row, text="Cat.:").pack(side="left", padx=(0, 2))
+        self._adv_cat_var = tk.StringVar()
+        ttk.Entry(adv_row, textvariable=self._adv_cat_var, width=18).pack(side="left", padx=(0, 4))
+        ttk.Label(adv_row, text="Subcat.:").pack(side="left", padx=(4, 2))
+        self._adv_subcat_var = tk.StringVar()
+        ttk.Entry(adv_row, textvariable=self._adv_subcat_var, width=18).pack(side="left", padx=(0, 4))
+        ttk.Label(adv_row, text="Pai:").pack(side="left", padx=(4, 2))
+        self._cat_pai_combo = ttk.Combobox(adv_row, state="readonly", width=22)
         self._cat_pai_combo.pack(side="left", padx=(0, 4))
         ttk.Button(adv_row, text="Adicionar Regra", command=self._add_advanced_keyword_rule, width=14).pack(side="left", padx=(0, 4))
         ttk.Button(adv_row, text="Remover Regra", command=self._remove_advanced_keyword_rule, width=14).pack(side="left")
@@ -1830,15 +1845,17 @@ class App(Tk):
             self._set_active_profile_global(name)
 
     def _add_advanced_keyword_rule(self):
-        """Adiciona uma regra de mapeamento avançado por palavra-chave."""
-        kw = self._adv_kw_var.get().strip()
-        cat = self._cat_pai_combo.get().strip()
-        if not kw or not cat:
-            messagebox.showwarning("Atenção", "Preencha a palavra-chave e selecione a categoria pai.", parent=self)
+        """Adiciona uma regra de mapeamento avançado baseada em Categoria e Subcategoria."""
+        cat_in = self._adv_cat_var.get().strip()
+        subcat_in = self._adv_subcat_var.get().strip()
+        parent_cat = self._cat_pai_combo.get().strip()
+        if not cat_in or not parent_cat:
+            messagebox.showwarning("Atenção", "Preencha a Categoria e selecione a Categoria Pai de destino.", parent=self)
             return
         try:
-            if add_keyword_rule([kw], cat, priority=10):
-                self._adv_kw_var.set("")
+            if add_keyword_rule(cat_in, subcat_in, parent_cat, priority=10):
+                self._adv_cat_var.set("")
+                self._adv_subcat_var.set("")
                 self._refresh_adv_rules_list()
                 messagebox.showinfo("Guardado", "Regra avançada adicionada com sucesso.", parent=self)
             else:
@@ -1854,8 +1871,15 @@ class App(Tk):
                 self._adv_rules_listbox.delete(0, tk.END)
                 if rules:
                     for r in rules:
-                        kws = ", ".join(r.get("keywords", []))
-                        self._adv_rules_listbox.insert(tk.END, f"[P{r.get('priority', 0)}] {kws} -> {r.get('parent_category', '')}")
+                        if "keywords" in r:
+                            kws = ", ".join(r.get("keywords", []))
+                            self._adv_rules_listbox.insert(tk.END, f"[P{r.get('priority', 0)}] [Legado] {kws} -> {r.get('parent_category', '')}")
+                        else:
+                            c = r.get("category", "")
+                            s = r.get("subcategory", "")
+                            p = r.get("parent_category", "")
+                            sub_txt = f" > {s}" if s else " (Todas subcats)"
+                            self._adv_rules_listbox.insert(tk.END, f"[P{r.get('priority', 0)}] Cat: {c}{sub_txt} -> {p}")
                 else:
                     self._adv_rules_listbox.insert(tk.END, "(Nenhuma regra avançada configurada)")
         except Exception:
@@ -1872,12 +1896,14 @@ class App(Tk):
             index = sel[0]
             if index < len(rules):
                 r = rules[index]
-                kws = ", ".join(r.get("keywords", []))
+                if "keywords" in r:
+                    desc = ", ".join(r.get("keywords", []))
+                else:
+                    desc = f"Cat: {r.get('category','')}" + (f" > {r.get('subcategory','')}" if r.get('subcategory','') else "")
                 cat = r.get("parent_category", "")
-                if messagebox.askyesno("Remover Regra", f"Remover a regra:\n'{kws} → {cat}'?", parent=self):
+                if messagebox.askyesno("Remover Regra", f"Remover a regra:\n'{desc} → {cat}'?", parent=self):
                     remove_keyword_rule(index)
                     self._refresh_adv_rules_list()
-                    self._refresh_hb_adv_rules_list()
             return
         messagebox.showwarning("Atenção", "Selecione uma regra na lista para remover.", parent=self)
 
@@ -2005,16 +2031,20 @@ class App(Tk):
 
         ttk.Button(frm, text="Guardar todas as configurações de Destaques e Marcas", command=self._save_highlights_brands_settings, width=45).pack(anchor="w", pady=(4, 0))
 
-        # ---- Mapeamento Avançado (regras por palavra-chave) ----
+        # ---- Mapeamento Avançado (regras por Categoria e Subcategoria) ----
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
-        ttk.Label(frm, text="Mapeamento Avançado — regras por palavra-chave", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
-        ttk.Label(frm, text="Associe automaticamente produtos a uma categoria pai de destaques/marcas quando o nome ou categoria casar com uma palavra-chave.", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 2))
+        ttk.Label(frm, text="Mapeamento Avançado — regras por Categoria e Subcategoria", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(frm, text="Associe automaticamente produtos a uma categoria pai de destaques/marcas com base na Categoria e Subcategoria do fornecedor.", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 2))
         hb_adv_row = ttk.Frame(frm)
         hb_adv_row.pack(fill="x", pady=2)
-        self._hb_adv_kw_var = tk.StringVar()
-        ttk.Entry(hb_adv_row, textvariable=self._hb_adv_kw_var, width=22).pack(side="left", padx=(0, 4))
-        ttk.Label(hb_adv_row, text="Regra:").pack(side="left", padx=(4, 2))
-        self._hb_pai_combo = ttk.Combobox(hb_adv_row, state="readonly", width=30)
+        ttk.Label(hb_adv_row, text="Cat.:").pack(side="left", padx=(0, 2))
+        self._hb_adv_cat_var = tk.StringVar()
+        ttk.Entry(hb_adv_row, textvariable=self._hb_adv_cat_var, width=18).pack(side="left", padx=(0, 4))
+        ttk.Label(hb_adv_row, text="Subcat.:").pack(side="left", padx=(4, 2))
+        self._hb_adv_subcat_var = tk.StringVar()
+        ttk.Entry(hb_adv_row, textvariable=self._hb_adv_subcat_var, width=18).pack(side="left", padx=(0, 4))
+        ttk.Label(hb_adv_row, text="Pai:").pack(side="left", padx=(4, 2))
+        self._hb_pai_combo = ttk.Combobox(hb_adv_row, state="readonly", width=22)
         self._hb_pai_combo.pack(side="left", padx=(0, 4))
         ttk.Button(hb_adv_row, text="Adicionar Regra", command=self._hb_add_advanced_keyword_rule, width=14).pack(side="left", padx=(0, 4))
         ttk.Button(hb_adv_row, text="Remover Regra", command=self._hb_remove_advanced_keyword_rule, width=14).pack(side="left")
@@ -2087,15 +2117,17 @@ class App(Tk):
             self._set_active_profile_global(name)
 
     def _hb_add_advanced_keyword_rule(self):
-        """Adiciona uma regra de mapeamento avançado por palavra-chave (Destaques e Marcas)."""
-        kw = self._hb_adv_kw_var.get().strip()
-        cat = self._hb_pai_combo.get().strip()
-        if not kw or not cat:
-            messagebox.showwarning("Atenção", "Preencha a palavra-chave e selecione a categoria pai.", parent=self)
+        """Adiciona uma regra de mapeamento avançado baseada em Categoria e Subcategoria (Destaques e Marcas)."""
+        cat_in = self._hb_adv_cat_var.get().strip()
+        subcat_in = self._hb_adv_subcat_var.get().strip()
+        parent_cat = self._hb_pai_combo.get().strip()
+        if not cat_in or not parent_cat:
+            messagebox.showwarning("Atenção", "Preencha a Categoria e selecione a Categoria Pai de destino.", parent=self)
             return
         try:
-            if add_highlights_brands_keyword_rule([kw], cat, priority=10):
-                self._hb_adv_kw_var.set("")
+            if add_highlights_brands_keyword_rule(cat_in, subcat_in, parent_cat, priority=10):
+                self._hb_adv_cat_var.set("")
+                self._hb_adv_subcat_var.set("")
                 self._refresh_hb_adv_rules_list()
                 messagebox.showinfo("Guardado", "Regra avançada adicionada com sucesso.", parent=self)
             else:
@@ -2111,8 +2143,15 @@ class App(Tk):
                 self._hb_adv_rules_listbox.delete(0, tk.END)
                 if rules:
                     for r in rules:
-                        kws = ", ".join(r.get("keywords", []))
-                        self._hb_adv_rules_listbox.insert(tk.END, f"[P{r.get('priority', 0)}] {kws} -> {r.get('parent_category', '')}")
+                        if "keywords" in r:
+                            kws = ", ".join(r.get("keywords", []))
+                            self._hb_adv_rules_listbox.insert(tk.END, f"[P{r.get('priority', 0)}] [Legado] {kws} -> {r.get('parent_category', '')}")
+                        else:
+                            c = r.get("category", "")
+                            s = r.get("subcategory", "")
+                            p = r.get("parent_category", "")
+                            sub_txt = f" > {s}" if s else " (Todas subcats)"
+                            self._hb_adv_rules_listbox.insert(tk.END, f"[P{r.get('priority', 0)}] Cat: {c}{sub_txt} -> {p}")
                 else:
                     self._hb_adv_rules_listbox.insert(tk.END, "(Nenhuma regra avançada configurada)")
         except Exception:
@@ -2129,9 +2168,12 @@ class App(Tk):
             index = sel[0]
             if index < len(rules):
                 r = rules[index]
-                kws = ", ".join(r.get("keywords", []))
+                if "keywords" in r:
+                    desc = ", ".join(r.get("keywords", []))
+                else:
+                    desc = f"Cat: {r.get('category','')}" + (f" > {r.get('subcategory','')}" if r.get('subcategory','') else "")
                 cat = r.get("parent_category", "")
-                if messagebox.askyesno("Remover Regra", f"Remover a regra:\n'{kws} → {cat}'?", parent=self):
+                if messagebox.askyesno("Remover Regra", f"Remover a regra:\n'{desc} → {cat}'?", parent=self):
                     remove_highlights_brands_keyword_rule(index)
                     self._refresh_hb_adv_rules_list()
             return
