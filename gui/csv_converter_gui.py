@@ -997,6 +997,17 @@ class App(Tk):
         if self._logo_label:
             self._logo_label.pack(in_=top_container, anchor="w", pady=2)
 
+        # indicador do fornecedor ativo
+        self._active_fornecedor_var = tk.StringVar(value=get_active_profile())
+        self._active_fornecedor_lbl = tk.Label(
+            top_container,
+            textvariable=self._active_fornecedor_var,
+            font=("Segoe UI", 9, "bold"),
+            fg=GRAY_800,
+            bg=BG_WINDOW,
+        )
+        self._active_fornecedor_lbl.pack(in_=top_container, side="left", padx=(16, 0), pady=2)
+
         # botão comprar licença (desativado até integrar Stripe)
         self._buy_license_btn = tk.Button(
             top_container,
@@ -1631,6 +1642,7 @@ class App(Tk):
             try:
                 set_active_profile(name)
                 self._refresh_profile_combo()
+                self._active_fornecedor_var.set(name)
             except Exception as e:
                 messagebox.showerror("Erro", f"Erro ao alterar perfil: {e}", parent=self)
 
@@ -1824,6 +1836,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.42 (2026-11-10)
+        - UI / cabeçalho: o fornecedor (perfil ativo) fica visível no topo da janela, para orientar quem está a trabalhar
+
         v0.3.41 (2026-11-10)
         - Novo separador Prefixo SKU: prefixo de 3 letras + traço (ex: VIP-) antes do SKU para identificar o fornecedor
         - Novo separador Destaques e Marcas: categorias pai para destaques e marcas com mapeamento avançado
@@ -2345,6 +2360,7 @@ class App(Tk):
         if name:
             try:
                 set_active_profile(name)
+                self._active_fornecedor_var.set(name)
                 # Reload price settings for the new profile
                 try:
                     price_settings = get_price_settings(name)
