@@ -1777,7 +1777,17 @@ class App(Tk):
         frm.pack(fill="both", expand=True)
 
         ttk.Label(frm, text="Mapeamento", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
-        ttk.Label(frm, text="Crie até 10 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 8))
+
+        # Linha de instrução com seletor de fornecedor ao lado (igual ao separador Categorias)
+        hb_header_row = ttk.Frame(frm)
+        hb_header_row.pack(fill="x", pady=(0, 8))
+        ttk.Label(hb_header_row, text="Crie até 10 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(side="left")
+        ttk.Label(hb_header_row, text="  Fornecedor:", font=("Segoe UI", 9)).pack(side="left", padx=(10, 4))
+        self._hb_fornecedor_var = tk.StringVar(value=get_active_profile())
+        self._hb_fornecedor_combo = ttk.Combobox(hb_header_row, textvariable=self._hb_fornecedor_var, state="readonly", width=24)
+        self._hb_fornecedor_combo.pack(side="left")
+        self._hb_fornecedor_combo.bind("<<ComboboxSelected>>", self._on_hb_fornecedor_change)
+        self._refresh_hb_fornecedor_combo()
 
         hb_settings = get_highlights_brands_settings()
         self._hb_new_vars = []
@@ -1871,6 +1881,34 @@ class App(Tk):
         except Exception:
             pass
 
+    def _refresh_hb_fornecedor_combo(self):
+        """Preenche o dropdown de fornecedor da aba Destaques e Marcas."""
+        try:
+            profiles = list_profiles()
+            if hasattr(self, "_hb_fornecedor_combo"):
+                self._hb_fornecedor_combo["values"] = profiles
+                active = get_active_profile()
+                if active not in profiles:
+                    active = profiles[0] if profiles else ""
+                self._hb_fornecedor_var.set(active)
+        except Exception:
+            pass
+
+    def _on_hb_fornecedor_change(self, _event=None):
+        """Muda o perfil ativo quando o usuário escolhe um fornecedor na aba Destaques e Marcas."""
+        name = self._hb_fornecedor_var.get().strip()
+        if name:
+            try:
+                set_active_profile(name)
+                self._refresh_profile_combo()
+                self._active_fornecedor_var.set(name)
+                # Recarrega as categorias do novo perfil ativo
+                self._refresh_hb_pai_combo()
+                if hasattr(self, "_hb_adv_rules_text"):
+                    self._refresh_hb_adv_rules_list()
+            except Exception as e:
+                messagebox.showerror("Erro", f"Erro ao alterar perfil: {e}", parent=self)
+
     def _hb_add_advanced_keyword_rule(self):
         """Adiciona uma regra de mapeamento avançado por palavra-chave (Destaques e Marcas)."""
         kw = self._hb_adv_kw_var.get().strip()
@@ -1928,6 +1966,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.46 (2026-11-10)
+        - UI / aba Destaques e Marcas: refeita para ser idêntica ao separador Categorias (seletor de fornecedor na linha de instrução, 10 campos de categoria pai, dropdown de categorias configuradas e lista de categorias do ficheiro), para criar lista de destaques e marcas com mapeamento avançado abaixo
+
         v0.3.45 (2026-11-10)
         - UI / aba Destaques e Marcas: adicionada seção de Mapeamento Avançado com regras por palavra-chave, para escolher a categoria pai de destaques ou marcas e agrupar as respetivas categorias
 
