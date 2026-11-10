@@ -975,6 +975,7 @@ class App(Tk):
         self.state("zoomed")  # abre maximizado
         self.last_output = None
         self._status_widget = None   # widget onde _set_drop_text escreve
+        self._apply_window_icon()
         self._build_ui()
 
     def _build_ui(self):
@@ -1058,7 +1059,7 @@ class App(Tk):
         self.tabs.add(self.tab_update, text="  Atualizar Loja  ")
         self.tabs.add(self.tab_lucro, text="  Lucro e Taxas  ")
         self.tabs.add(self.tab_sku_prefix, text="  Prefixo SKU  ")
-        self.tabs.add(self.tab_categorias, text="  Categorias Pai  ")
+        self.tabs.add(self.tab_categorias, text="  Categorias  ")
         self.tabs.add(self.tab_highlights_brands, text="  Destaques e Marcas  ")
         self.tabs.add(self.tab_sobre, text="  Sobre  ")
 
@@ -1071,6 +1072,20 @@ class App(Tk):
         self._build_tab_sobre()
         self._build_footer()
 
+    # -- ícone da janela --------------------------------------------------
+
+    def _apply_window_icon(self):
+        """Define o ícone da aplicação (barra de título e taskbar)."""
+        try:
+            p = ASSETS / "icon.png"
+            if p.is_file():
+                from PIL import Image, ImageTk
+                img = ImageTk.PhotoImage(file=str(p))
+                self.iconphoto(True, img)
+                self._window_icon = img  # manter referência para não ser coletado pelo GC
+        except Exception:
+            pass
+
     # -- logo -----------------------------------------------------------
 
     def _load_logo(self):
@@ -1081,7 +1096,7 @@ class App(Tk):
                     from PIL import Image, ImageTk
                     im = Image.open(p)
                     # Limitar largura e altura para caber no header (logo pequeno, não empurra as tabs)
-                    max_w, max_h = 100, 35
+                    max_w, max_h = 60, 20
                     ratio = min(max_w / im.width, max_h / im.height, 1.0)
                     im2 = im.resize((int(im.width * ratio), int(im.height * ratio)), Image.LANCZOS)
                     img = ImageTk.PhotoImage(im2)
@@ -1934,6 +1949,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.51 (2026-11-10)
+        - Visual / cabeçalho: logo reduzida no header e ícone da janela aplicado (assets/icon.png)
+
         v0.3.50 (2026-11-10)
         - Reordenação das abas: 1 Novo Ficheiro, 2 Atualizar Loja, 3 Lucro e Taxas, 4 Prefixo SKU, 5 Categorias Pai, 6 Destaques e Marcas, 7 Sobre; removida aba Como Usar; renomeada aba Categorias para Categorias Pai
 
