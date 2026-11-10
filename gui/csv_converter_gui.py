@@ -1679,6 +1679,7 @@ class App(Tk):
                     continue
             self._all_categories = sorted(list(cats_set)) if cats_set else []
             self._filter_categories()
+            self._hb_filter_categories()
         except Exception:
             pass
 
@@ -1700,6 +1701,18 @@ class App(Tk):
                 self._cat_list_text.delete("1.0", "end")
                 self._cat_list_text.insert("1.0", "\n".join(filtered) if filtered else "(nenhuma categoria encontrada)")
                 self._cat_list_text.config(state="disabled")
+        except Exception:
+            pass
+
+    def _hb_filter_categories(self):
+        try:
+            query = getattr(self, "_hb_search_var", None)
+            q = query.get().strip().lower() if query else ""
+            all_cats = getattr(self, "_all_categories", [])
+            filtered = [c for c in all_cats if not q or q in c.lower()]
+            count = len(filtered)
+            total = len(all_cats)
+            title = f"Categorias encontradas no ficheiro selecionado ({count} de {total})" if q else f"Categorias encontradas no ficheiro selecionado ({total})"
 
             # Atualizar aba Destaques e Marcas
             if hasattr(self, '_hb_found_title_var'):
@@ -2099,7 +2112,16 @@ class App(Tk):
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
         self._hb_found_title_var = tk.StringVar(value="Categorias encontradas no ficheiro selecionado (0)")
-        ttk.Label(frm, textvariable=self._hb_found_title_var, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(frm, textvariable=self._hb_found_title_var, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 2))
+
+        hb_search_row = ttk.Frame(frm)
+        hb_search_row.pack(fill="x", pady=(0, 4))
+        ttk.Label(hb_search_row, text="🔍 Pesquisar:").pack(side="left", padx=(0, 4))
+        self._hb_search_var = tk.StringVar()
+        self._hb_search_var.trace_add("write", lambda *args: self._hb_filter_categories())
+        ttk.Entry(hb_search_row, textvariable=self._hb_search_var, width=28).pack(side="left", padx=(0, 8))
+        ttk.Button(hb_search_row, text="🔄 Recarregar", command=self._reload_categories, width=14).pack(side="left")
+
         cat_frame = ttk.Frame(frm)
         cat_frame.pack(fill="both", expand=True)
         self._hb_list_text = tk.Text(cat_frame, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
