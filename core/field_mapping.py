@@ -447,27 +447,36 @@ def get_highlights_brands_settings() -> dict:
 
 
 def set_highlights_brands_settings(
-    highlights_parent: str = None,
-    highlights_keywords: list = None,
-    brands_parent: str = None,
-    brands_keywords: list = None,
+    new_categories: list = None,
+    apply_to_all: bool = None,
+    selected_prefix: str = None,
+    use_parent: bool = None,
 ) -> bool:
-    """Define as configurações de categorias pai para Destaques e Marcas."""
+    """Define as configurações de categorias pai para Destaques e Marcas (igual à aba Categorias)."""
     try:
         data = _read_config()
         settings = data.setdefault("settings", {})
         hb = settings.setdefault("highlights_brands", {})
-        if highlights_parent is not None:
-            hb["highlights_parent"] = str(highlights_parent).strip()
-        if highlights_keywords is not None:
-            hb["highlights_keywords"] = list(highlights_keywords)[:10]
-        if brands_parent is not None:
-            hb["brands_parent"] = str(brands_parent).strip()
-        if brands_keywords is not None:
-            hb["brands_keywords"] = list(brands_keywords)[:10]
+        if new_categories is not None:
+            hb["new_categories"] = list(new_categories)[:10]
+        if apply_to_all is not None:
+            hb["apply_to_all"] = bool(apply_to_all)
+        if selected_prefix is not None:
+            hb["selected_prefix"] = str(selected_prefix)
+        if use_parent is not None:
+            hb["use_parent"] = bool(use_parent)
         return _write_config(data)
     except Exception:
         return False
+
+
+def get_highlights_brands_settings() -> dict:
+    """Retorna as configurações de categorias pai para Destaques e Marcas."""
+    try:
+        data = _read_config()
+        return data.get("settings", {}).get("highlights_brands", {})
+    except Exception:
+        return {}
 
 
 def set_category_settings(new_categories=None, cat_keywords=None, apply_to_all=None, selected_prefix=None, use_parent=None):

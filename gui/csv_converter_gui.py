@@ -1734,84 +1734,81 @@ class App(Tk):
             messagebox.showerror("Erro", "Não foi possível guardar o prefixo SKU.", parent=self)
 
     def _build_tab_highlights_brands(self):
-        """Constrói a aba 'Destaques e Marcas' — categorias pai para destaques e marcas."""
-        frm = ttk.Frame(self.tab_highlights_brands, padding=12)
+        """Constrói a aba 'Destaques e Marcas' — idêntica à aba Categorias."""
+        frm = ttk.Frame(self.tab_highlights_brands, padding=6)
         frm.pack(fill="both", expand=True)
 
-        ttk.Label(frm, text="Destaques e Marcas", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
-        ttk.Label(
-            frm,
-            text=(
-                "Cria categorias pai para Destaques de produtos e Marcas, associando categorias e subcategorias "
-                "do ficheiro CSV. Usa os 2 campos de mapeamento avançado abaixo."
-            ),
-            font=("Segoe UI", 9),
-            foreground=GRAY_600,
-            justify="left",
-            wraplength=700,
-        ).pack(anchor="w", pady=(0, 12))
+        ttk.Label(frm, text="Mapeamento", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+        ttk.Label(frm, text="Crie até 10 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(0, 8))
 
-        hb = get_highlights_brands_settings()
+        hb_settings = get_highlights_brands_settings()
+        self._hb_new_vars = []
+        for i in range(10):
+            val = hb_settings.get("new_categories", [""] * 10)[i] if i < len(hb_settings.get("new_categories", [])) else ""
+            v = tk.StringVar(value=val)
+            self._hb_new_vars.append(v)
+            row = ttk.Frame(frm)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
+            ttk.Entry(row, textvariable=v, width=34).pack(side="left", padx=(4, 6))
+            ttk.Button(row, text="Guardar", command=self._save_highlights_brands_settings, width=8).pack(side="left", padx=(4, 0))
 
-        # Destaques
-        ttk.Label(frm, text="Destaques", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
-        row_d = ttk.Frame(frm)
-        row_d.pack(fill="x", pady=2)
-        self._hl_parent_var = tk.StringVar(value=hb.get("highlights_parent", ""))
-        ttk.Label(row_d, text="Categoria pai:").pack(side="left")
-        ttk.Entry(row_d, textvariable=self._hl_parent_var, width=24).pack(side="left", padx=(4, 8))
-        self._hl_kw_var = tk.StringVar(value=", ".join(hb.get("highlights_keywords", [])))
-        ttk.Label(row_d, text="Palavras-chave:").pack(side="left")
-        ttk.Entry(row_d, textvariable=self._hl_kw_var, width=24).pack(side="left", padx=(4, 0))
-        ttk.Button(row_d, text="Guardar Destaques", command=self._save_highlights, width=14).pack(side="left", padx=(8, 0))
+        self._hb_apply_all_var = tk.BooleanVar(value=hb_settings.get("apply_to_all", True))
+        self._hb_use_parent_var = tk.BooleanVar(value=hb_settings.get("use_parent", True))
+        self._hb_prefix_var = tk.StringVar(value=hb_settings.get("selected_prefix", ""))
 
-        ttk.Label(
-            frm,
-            text="Como funciona: escreva palavras-chave (ex: 'promoção, oferta') e a categoria pai de destino. Quando o nome do produto casar com alguma palavra, ele é associado à categoria pai de Destaques.",
-            font=("Segoe UI", 8),
-            foreground=GRAY_600,
-            justify="left",
-            wraplength=700,
-        ).pack(anchor="w", pady=(6, 12))
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
+        ttk.Checkbutton(frm, text="Aplicar a TODAS as categorias do ficheiro", variable=self._hb_apply_all_var).pack(anchor="w", pady=1)
+        ttk.Checkbutton(frm, text="Manter hierarquia original (NovaCategoria/CategoriaOriginal/Subcategoria)", variable=self._hb_use_parent_var).pack(anchor="w", pady=1)
 
-        # Marcas
-        ttk.Label(frm, text="Marcas", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
-        row_b = ttk.Frame(frm)
-        row_b.pack(fill="x", pady=2)
-        self._br_parent_var = tk.StringVar(value=hb.get("brands_parent", ""))
-        ttk.Label(row_b, text="Categoria pai:").pack(side="left")
-        ttk.Entry(row_b, textvariable=self._br_parent_var, width=24).pack(side="left", padx=(4, 8))
-        self._br_kw_var = tk.StringVar(value=", ".join(hb.get("brands_keywords", [])))
-        ttk.Label(row_b, text="Palavras-chave:").pack(side="left")
-        ttk.Entry(row_b, textvariable=self._br_kw_var, width=24).pack(side="left", padx=(4, 0))
-        ttk.Button(row_b, text="Guardar Marcas", command=self._save_brands, width=14).pack(side="left", padx=(8, 0))
+        prefix_row = ttk.Frame(frm)
+        prefix_row.pack(fill="x", pady=(6, 4))
+        ttk.Label(prefix_row, text="Aplicar apenas se a categoria contiver:").pack(side="left")
+        ttk.Entry(prefix_row, textvariable=self._hb_prefix_var, width=25).pack(side="left", padx=(6, 0))
+        ttk.Button(prefix_row, text="Guardar", command=self._save_highlights_brands_settings, width=8).pack(side="left", padx=(4, 0))
 
-        ttk.Label(
-            frm,
-            text="Como funciona: escreva palavras-chave de marca (ex: 'nike, adidas') e a categoria pai de destino. Quando o nome do produto casar com alguma palavra, ele é associado à categoria pai de Marcas.",
-            font=("Segoe UI", 8),
-            foreground=GRAY_600,
-            justify="left",
-            wraplength=700,
-        ).pack(anchor="w", pady=(6, 0))
+        ttk.Button(frm, text="Guardar todas as configurações de Destaques e Marcas", command=self._save_highlights_brands_settings, width=45).pack(anchor="w", pady=(4, 0))
 
-    def _save_highlights(self):
-        """Guarda as configurações de Destaques."""
-        parent = self._hl_parent_var.get().strip()
-        kws = [k.strip() for k in self._hl_kw_var.get().split(",") if k.strip()]
-        if set_highlights_brands_settings(highlights_parent=parent, highlights_keywords=kws):
-            messagebox.showinfo("Guardado", "Configurações de Destaques guardadas com sucesso.", parent=self)
-        else:
-            messagebox.showerror("Erro", "Não foi possível guardar as configurações de Destaques.", parent=self)
+        # Dropdown com as categorias pai já configuradas (visibilidade do que foi guardado)
+        ttk.Label(frm, text="Categorias pai configuradas:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
+        self._hb_pai_combo = ttk.Combobox(frm, state="readonly", width=45)
+        self._hb_pai_combo.pack(anchor="w", pady=(0, 6))
+        self._refresh_hb_pai_combo()
 
-    def _save_brands(self):
-        """Guarda as configurações de Marcas."""
-        parent = self._br_parent_var.get().strip()
-        kws = [k.strip() for k in self._br_kw_var.get().split(",") if k.strip()]
-        if set_highlights_brands_settings(brands_parent=parent, brands_keywords=kws):
-            messagebox.showinfo("Guardado", "Configurações de Marcas guardadas com sucesso.", parent=self)
-        else:
-            messagebox.showerror("Erro", "Não foi possível guardar as configurações de Marcas.", parent=self)
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
+        ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        cat_frame = ttk.Frame(frm)
+        cat_frame.pack(fill="both", expand=True)
+        self._hb_list_text = tk.Text(cat_frame, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        cat_scroll = ttk.Scrollbar(cat_frame, orient="vertical", command=self._hb_list_text.yview)
+        self._hb_list_text.configure(yscrollcommand=cat_scroll.set)
+        self._hb_list_text.pack(side="left", fill="both", expand=True)
+        cat_scroll.pack(side="right", fill="y")
+        self._hb_list_text.config(state="disabled")
+
+    def _save_highlights_brands_settings(self):
+        try:
+            new_cats = [v.get().strip() for v in self._hb_new_vars]
+            set_highlights_brands_settings(
+                new_categories=new_cats,
+                apply_to_all=self._hb_apply_all_var.get(),
+                selected_prefix=self._hb_prefix_var.get().strip(),
+                use_parent=self._hb_use_parent_var.get(),
+            )
+        except Exception:
+            # Guardar silencioso no mapeamento (sem alertas)
+            pass
+        self._refresh_hb_pai_combo()
+
+    def _refresh_hb_pai_combo(self):
+        """Preenche o dropdown com as categorias pai já configuradas."""
+        try:
+            hb_settings = get_highlights_brands_settings()
+            new_cats = [c.strip() for c in hb_settings.get("new_categories", []) if c.strip()]
+            if hasattr(self, "_hb_pai_combo"):
+                self._hb_pai_combo["values"] = new_cats
+        except Exception:
+            pass
 
     def _build_tab_sobre(self):
         """Constrói a aba 'Sobre' com informações da aplicação."""
@@ -1836,6 +1833,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.43 (2026-11-10)
+        - UI / aba Destaques e Marcas: refeita para ser idêntica à aba Categorias (10 campos de categoria pai, checkboxes, dropdown de categorias configuradas e lista de categorias do ficheiro)
+
         v0.3.42 (2026-11-10)
         - UI / cabeçalho: o fornecedor (perfil ativo) fica visível no topo da janela, para orientar quem está a trabalhar
 
