@@ -1051,6 +1051,7 @@ class App(Tk):
         self.tab_novo = ttk.Frame(self.tabs, padding=8)
         self.tab_update = ttk.Frame(self.tabs, padding=8)
         self.tab_lucro = ttk.Frame(self.tabs, padding=8)
+        self.tab_fornecedores = ttk.Frame(self.tabs, padding=8)
         self.tab_sku_prefix = ttk.Frame(self.tabs, padding=8)
         self.tab_categorias = ttk.Frame(self.tabs, padding=8)
         self.tab_highlights_brands = ttk.Frame(self.tabs, padding=8)
@@ -1058,14 +1059,16 @@ class App(Tk):
         self.tabs.add(self.tab_novo, text="  Novo Ficheiro  ")
         self.tabs.add(self.tab_update, text="  Atualizar Loja  ")
         self.tabs.add(self.tab_lucro, text="  Lucro e Taxas  ")
+        self.tabs.add(self.tab_fornecedores, text="  Fornecedores  ")
         self.tabs.add(self.tab_sku_prefix, text="  Prefixo SKU  ")
-        self.tabs.add(self.tab_categorias, text="  Categorias  ")
+        self.tabs.add(self.tab_categorias, text="  Categorias Pai  ")
         self.tabs.add(self.tab_highlights_brands, text="  Destaques e Marcas  ")
         self.tabs.add(self.tab_sobre, text="  Sobre  ")
 
         self._build_tab_novo()
         self._build_tab_update()
         self._build_tab_lucro()
+        self._build_tab_fornecedores()
         self._build_tab_sku_prefix()
         self._build_tab_categorias()
         self._build_tab_highlights_brands()
@@ -1369,6 +1372,176 @@ class App(Tk):
 
         ttk.Label(frm, text="As configurações são guardadas por perfil e aplicadas apenas quando definidas.\nValores vazios ou zero não são aplicados.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
 
+    def _build_tab_fornecedores(self):
+        """Constrói a aba 'Fornecedores' para gerir e listar perfis."""
+        frm = ttk.Frame(self.tab_fornecedores, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, text="Gestão de Fornecedores (Perfis)", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
+        ttk.Label(
+            frm,
+            text=(
+                "Aqui pode criar novos fornecedores, remover fornecedores antigos ou selecionar qual o fornecedor "
+                "ativo no momento. O fornecedor ativo é propagado automaticamente para todas as abas do programa "
+                "(Novo Ficheiro, Atualizar Loja, Lucro e Taxas, Prefixo SKU, Categorias Pai e Destaques e Marcas)."
+            ),
+            font=("Segoe UI", 9),
+            foreground=GRAY_600,
+            justify="left",
+            wraplength=700,
+        ).pack(anchor="w", pady=(0, 12))
+
+        # Adicionar novo fornecedor
+        add_row = ttk.Frame(frm)
+        add_row.pack(fill="x", pady=(0, 12))
+        ttk.Label(add_row, text="Novo Fornecedor:").pack(side="left", padx=(0, 6))
+        self._new_forn_var = tk.StringVar()
+        ttk.Entry(add_row, textvariable=self._new_forn_var, width=28).pack(side="left", padx=(0, 8))
+        ttk.Button(add_row, text="Adicionar Fornecedor", command=self._tab_add_profile, width=18).pack(side="left")
+
+        ttk.Label(frm, text="Fornecedores existentes (duplo clique ou botão para definir como ativo):", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 4))
+
+        list_frame = ttk.Frame(frm)
+        list_frame.pack(fill="both", expand=True, pady=(0, 10))
+
+        self._forn_listbox = tk.Listbox(list_frame, height=10, relief="sunken", bg=GRAY_100, font=("Segoe UI", 10), selectmode="single")
+        forn_scroll = ttk.Scrollbar(list_frame, orient="vertical", command=self._forn_listbox.yview)
+        self._forn_listbox.configure(yscrollcommand=forn_scroll.set)
+        self._forn_listbox.pack(side="left", fill="both", expand=True)
+        forn_scroll.pack(side="right", fill="y")
+        self._forn_listbox.bind("<Double-Button-1>", lambda e: self._tab_set_active_selected_profile())
+        self._refresh_forn_list()
+
+        btn_row = ttk.Frame(frm)
+        btn_row.pack(fill="x")
+        ttk.Button(btn_row, text="Definir como Ativo", command=self._tab_set_active_selected_profile, width=18).pack(side="left", padx=(0, 8))
+        ttk.Button(btn_row, text="Eliminar Fornecedor", command=self._tab_delete_selected_profile, width=18).pack(side="left")
+
+    def _set_active_profile_global(self, name: str):
+        """Propaga a alteração do fornecedor ativo para todos os componentes do programa."""
+        name = name.strip()
+        if not name:
+            return
+        try:
+            set_active_profile(name)
+            self._active_fornecedor_var.set(name)
+
+            # Atualizar seletor na aba Novo Ficheiro
+            if hasattr(self, "profile_var"):
+                self.profile_var.set(name)
+
+            # Atualizar seletor na aba Categorias
+            if hasattr(self, "_cat_fornecedor_var"):
+                self._cat_fornecedor_var.set(name)
+                self._refresh_cat_pai_combo()
+                if hasattr(self, "_refresh_adv_rules_list"):
+                    self._refresh_adv_rules_list()
+
+            # Atualizar seletor na aba Destaques e Marcas
+            if hasattr(self, "_hb_fornecedor_var"):
+                self._hb_fornecedor_var.set(name)
+                self._refresh_hb_pai_combo()
+                if hasattr(self, "_refresh_hb_adv_rules_list"):
+                    self._refresh_hb_adv_rules_list()
+
+            # Atualizar seletor na aba Prefixo SKU e carregar o respetivo prefixo
+            if hasattr(self, "_sku_fornecedor_var"):
+                self._sku_fornecedor_var.set(name)
+                if hasattr(self, "_sku_prefix_var"):
+                    self._sku_prefix_var.set(get_sku_prefix(name))
+
+            # Atualizar lista na aba Fornecedores
+            if hasattr(self, "_forn_listbox"):
+                self._refresh_forn_list()
+
+            # Atualizar configurações de preço para o novo perfil
+            try:
+                price_settings = get_price_settings(name)
+                if hasattr(self, '_price_profit_var'):
+                    self._price_profit_var.set(str(price_settings.get("profit_percentage", 40.0)))
+                if hasattr(self, '_price_iva_var'):
+                    self._price_iva_var.set(str(price_settings.get("iva_percentage", 0.0)))
+                if hasattr(self, '_price_shipping_var'):
+                    self._price_shipping_var.set(str(price_settings.get("shipping_cost", 0.0)))
+                if hasattr(self, '_price_formula_var'):
+                    self._price_formula_var.set(price_settings.get("price_formula", "margin"))
+            except Exception:
+                pass
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao propagar fornecedor: {e}", parent=self)
+
+    def _refresh_forn_list(self):
+        """Atualiza a lista de fornecedores na aba Fornecedores."""
+        try:
+            if hasattr(self, "_forn_listbox"):
+                self._forn_listbox.delete(0, tk.END)
+                profiles = list_profiles()
+                active = get_active_profile()
+                for p in profiles:
+                    display_text = f"{p} (Ativo)" if p == active else p
+                    self._forn_listbox.insert(tk.END, display_text)
+        except Exception:
+            pass
+
+    def _tab_add_profile(self):
+        name = self._new_forn_var.get().strip()
+        if not name:
+            messagebox.showwarning("Atenção", "Insira o nome do novo fornecedor.", parent=self)
+            return
+        try:
+            if save_profile(name, {}):
+                self._new_forn_var.set("")
+                self._set_active_profile_global(name)
+                self._refresh_profile_combo()
+                self._refresh_cat_fornecedor_combo()
+                self._refresh_hb_fornecedor_combo()
+                self._refresh_sku_fornecedor_combo()
+                messagebox.showinfo("Sucesso", f"Fornecedor '{name}' criado e selecionado com sucesso.", parent=self)
+            else:
+                messagebox.showerror("Erro", "Não foi possível criar o fornecedor.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao criar fornecedor: {e}", parent=self)
+
+    def _tab_set_active_selected_profile(self):
+        sel = self._forn_listbox.curselection()
+        if not sel:
+            messagebox.showwarning("Atenção", "Selecione um fornecedor na lista.", parent=self)
+            return
+        profiles = list_profiles()
+        idx = sel[0]
+        if idx < len(profiles):
+            name = profiles[idx]
+            self._set_active_profile_global(name)
+            self._refresh_profile_combo()
+            self._refresh_cat_fornecedor_combo()
+            self._refresh_hb_fornecedor_combo()
+            self._refresh_sku_fornecedor_combo()
+            messagebox.showinfo("Ativo", f"Fornecedor '{name}' definido como ativo.", parent=self)
+
+    def _tab_delete_selected_profile(self):
+        sel = self._forn_listbox.curselection()
+        if not sel:
+            messagebox.showwarning("Atenção", "Selecione um fornecedor na lista para eliminar.", parent=self)
+            return
+        profiles = list_profiles()
+        idx = sel[0]
+        if idx < len(profiles):
+            name = profiles[idx]
+            if len(profiles) <= 1:
+                messagebox.showwarning("Atenção", "Não pode eliminar o último fornecedor restante.", parent=self)
+                return
+            if messagebox.askyesno("Eliminar", f"Tem certeza que deseja eliminar o fornecedor '{name}'?", parent=self):
+                if delete_profile(name):
+                    new_active = get_active_profile()
+                    self._set_active_profile_global(new_active)
+                    self._refresh_profile_combo()
+                    self._refresh_cat_fornecedor_combo()
+                    self._refresh_hb_fornecedor_combo()
+                    self._refresh_sku_fornecedor_combo()
+                    messagebox.showinfo("Eliminado", f"Fornecedor '{name}' eliminado com sucesso.", parent=self)
+                else:
+                    messagebox.showerror("Erro", "Não foi possível eliminar o fornecedor.", parent=self)
+
     def _build_tab_categorias(self):
         """Constrói a aba 'Categorias' com mapeamento de categorias."""
         frm = ttk.Frame(self.tab_categorias, padding=6)
@@ -1654,12 +1827,7 @@ class App(Tk):
         """Muda o perfil ativo quando o usuário escolhe um fornecedor na aba Categorias."""
         name = self._cat_fornecedor_var.get().strip()
         if name:
-            try:
-                set_active_profile(name)
-                self._refresh_profile_combo()
-                self._active_fornecedor_var.set(name)
-            except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao alterar perfil: {e}", parent=self)
+            self._set_active_profile_global(name)
 
     def _add_advanced_keyword_rule(self):
         """Adiciona uma regra de mapeamento avançado por palavra-chave."""
@@ -1777,12 +1945,7 @@ class App(Tk):
         """Quando muda o fornecedor na aba Prefixo SKU, recarrega o prefixo desse fornecedor."""
         name = self._sku_fornecedor_var.get().strip()
         if name:
-            try:
-                prefix = get_sku_prefix(name)
-                self._sku_prefix_var.set(prefix)
-                self._active_fornecedor_var.set(name)
-            except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao carregar prefixo: {e}", parent=self)
+            self._set_active_profile_global(name)
 
     def _save_sku_prefix(self):
         """Guarda o prefixo SKU para o fornecedor selecionado."""
@@ -1921,16 +2084,7 @@ class App(Tk):
         """Muda o perfil ativo quando o usuário escolhe um fornecedor na aba Destaques e Marcas."""
         name = self._hb_fornecedor_var.get().strip()
         if name:
-            try:
-                set_active_profile(name)
-                self._refresh_profile_combo()
-                self._active_fornecedor_var.set(name)
-                # Recarrega as categorias do novo perfil ativo
-                self._refresh_hb_pai_combo()
-                if hasattr(self, "_hb_adv_rules_listbox"):
-                    self._refresh_hb_adv_rules_list()
-            except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao alterar perfil: {e}", parent=self)
+            self._set_active_profile_global(name)
 
     def _hb_add_advanced_keyword_rule(self):
         """Adiciona uma regra de mapeamento avançado por palavra-chave (Destaques e Marcas)."""
@@ -2007,6 +2161,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.53 (2026-11-10)
+        - Novo separador Fornecedores: gestão completa de fornecedores (perfis): listar, adicionar e remover fornecedores, com propagação instantânea da seleção para todo o programa
+
         v0.3.52 (2026-11-10)
         - Mapeamento Avançado: botão "Remover Regra" e seleção por lista adicionados nas abas Categorias Pai e Destaques e Marcas
         - Contagem de categorias: exibição da quantidade de categorias encontradas no ficheiro
@@ -2561,24 +2718,7 @@ class App(Tk):
         """Chamado quando o utilizador troca o fornecedor na dropdown."""
         name = self.profile_var.get().strip()
         if name:
-            try:
-                set_active_profile(name)
-                self._active_fornecedor_var.set(name)
-                # Reload price settings for the new profile
-                try:
-                    price_settings = get_price_settings(name)
-                    if hasattr(self, '_price_profit_var'):
-                        self._price_profit_var.set(str(price_settings.get("profit_percentage", 40.0)))
-                    if hasattr(self, '_price_iva_var'):
-                        self._price_iva_var.set(str(price_settings.get("iva_percentage", 0.0)))
-                    if hasattr(self, '_price_shipping_var'):
-                        self._price_shipping_var.set(str(price_settings.get("shipping_cost", 0.0)))
-                    if hasattr(self, '_price_formula_var'):
-                        self._price_formula_var.set(price_settings.get("price_formula", "margin"))
-                except Exception:
-                    pass
-            except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao alterar perfil:\n{e}", parent=self)
+            self._set_active_profile_global(name)
 
     def _new_profile(self):
         """Cria um novo perfil de fornecedor."""
