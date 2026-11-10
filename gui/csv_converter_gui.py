@@ -1387,27 +1387,10 @@ class App(Tk):
             ttk.Entry(row, textvariable=v, width=34).pack(side="left", padx=(4, 6))
             ttk.Button(row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
-        self._cat_apply_all_var = tk.BooleanVar(value=cat_settings.get("apply_to_all", True))
-        self._cat_use_parent_var = tk.BooleanVar(value=cat_settings.get("use_parent", True))
-        self._cat_prefix_var = tk.StringVar(value=cat_settings.get("selected_prefix", ""))
-
-        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
-        ttk.Checkbutton(frm, text="Aplicar a TODAS as categorias do ficheiro", variable=self._cat_apply_all_var).pack(anchor="w", pady=1)
-        ttk.Checkbutton(frm, text="Manter hierarquia original (NovaCategoria/CategoriaOriginal/Subcategoria)", variable=self._cat_use_parent_var).pack(anchor="w", pady=1)
-
-        prefix_row = ttk.Frame(frm)
-        prefix_row.pack(fill="x", pady=(6, 4))
-        ttk.Label(prefix_row, text="Aplicar apenas se a categoria contiver:").pack(side="left")
-        ttk.Entry(prefix_row, textvariable=self._cat_prefix_var, width=25).pack(side="left", padx=(6, 0))
-        ttk.Button(prefix_row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
+        # Manter hierarquia original está sempre activo (não é configurável pelo utilizador)
+        self._cat_use_parent_var = tk.BooleanVar(value=True)
 
         ttk.Button(frm, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(4, 0))
-
-        # Dropdown com as categorias pai já configuradas (visibilidade do que foi guardado)
-        ttk.Label(frm, text="Categorias pai configuradas:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
-        self._cat_pai_combo = ttk.Combobox(frm, state="readonly", width=45)
-        self._cat_pai_combo.pack(anchor="w", pady=(0, 6))
-        self._refresh_cat_pai_combo()
 
         # ---- Mapeamento Avançado (regras por palavra-chave) ----
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
@@ -1445,6 +1428,12 @@ class App(Tk):
         adv_scroll.pack(side="right", fill="y")
         self._adv_rules_text.config(state="disabled")
         self._refresh_adv_rules_list()
+
+        # Regra — categoria selecionada/adicionada nos campos anteriores do mapeamento
+        ttk.Label(frm, text="Regra:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
+        self._cat_pai_combo = ttk.Combobox(frm, state="readonly", width=45)
+        self._cat_pai_combo.pack(anchor="w", pady=(0, 6))
+        self._refresh_cat_pai_combo()
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
         ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
@@ -1607,9 +1596,9 @@ class App(Tk):
             set_category_settings(
                 new_categories=new_cats,
                 cat_keywords=[""] * len(new_cats),
-                apply_to_all=self._cat_apply_all_var.get(),
-                selected_prefix=self._cat_prefix_var.get().strip(),
-                use_parent=self._cat_use_parent_var.get(),
+                apply_to_all=False,
+                selected_prefix="",
+                use_parent=True,
             )
         except Exception:
             # Guardar silencioso no mapeamento (sem alertas)
@@ -1804,27 +1793,10 @@ class App(Tk):
             ttk.Entry(row, textvariable=v, width=34).pack(side="left", padx=(4, 6))
             ttk.Button(row, text="Guardar", command=self._save_highlights_brands_settings, width=8).pack(side="left", padx=(4, 0))
 
-        self._hb_apply_all_var = tk.BooleanVar(value=hb_settings.get("apply_to_all", True))
-        self._hb_use_parent_var = tk.BooleanVar(value=hb_settings.get("use_parent", True))
-        self._hb_prefix_var = tk.StringVar(value=hb_settings.get("selected_prefix", ""))
-
-        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
-        ttk.Checkbutton(frm, text="Aplicar a TODAS as categorias do ficheiro", variable=self._hb_apply_all_var).pack(anchor="w", pady=1)
-        ttk.Checkbutton(frm, text="Manter hierarquia original (NovaCategoria/CategoriaOriginal/Subcategoria)", variable=self._hb_use_parent_var).pack(anchor="w", pady=1)
-
-        prefix_row = ttk.Frame(frm)
-        prefix_row.pack(fill="x", pady=(6, 4))
-        ttk.Label(prefix_row, text="Aplicar apenas se a categoria contiver:").pack(side="left")
-        ttk.Entry(prefix_row, textvariable=self._hb_prefix_var, width=25).pack(side="left", padx=(6, 0))
-        ttk.Button(prefix_row, text="Guardar", command=self._save_highlights_brands_settings, width=8).pack(side="left", padx=(4, 0))
+        # Manter hierarquia original está sempre activo (não é configurável pelo utilizador)
+        self._hb_use_parent_var = tk.BooleanVar(value=True)
 
         ttk.Button(frm, text="Guardar todas as configurações de Destaques e Marcas", command=self._save_highlights_brands_settings, width=45).pack(anchor="w", pady=(4, 0))
-
-        # Dropdown com as categorias pai já configuradas (visibilidade do que foi guardado)
-        ttk.Label(frm, text="Categorias pai configuradas:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
-        self._hb_pai_combo = ttk.Combobox(frm, state="readonly", width=45)
-        self._hb_pai_combo.pack(anchor="w", pady=(0, 6))
-        self._refresh_hb_pai_combo()
 
         # ---- Mapeamento Avançado (regras por palavra-chave) ----
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
@@ -1849,6 +1821,12 @@ class App(Tk):
         self._hb_adv_rules_text.config(state="disabled")
         self._refresh_hb_adv_rules_list()
 
+        # Regra — categoria selecionada/adicionada nos campos anteriores do mapeamento
+        ttk.Label(frm, text="Regra:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
+        self._hb_pai_combo = ttk.Combobox(frm, state="readonly", width=45)
+        self._hb_pai_combo.pack(anchor="w", pady=(0, 6))
+        self._refresh_hb_pai_combo()
+
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
         ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
         cat_frame = ttk.Frame(frm)
@@ -1865,9 +1843,9 @@ class App(Tk):
             new_cats = [v.get().strip() for v in self._hb_new_vars]
             set_highlights_brands_settings(
                 new_categories=new_cats,
-                apply_to_all=self._hb_apply_all_var.get(),
-                selected_prefix=self._hb_prefix_var.get().strip(),
-                use_parent=self._hb_use_parent_var.get(),
+                apply_to_all=False,
+                selected_prefix="",
+                use_parent=True,
             )
         except Exception:
             # Guardar silencioso no mapeamento (sem alertas)
@@ -1998,10 +1976,8 @@ PASSO 4 — Atualize a loja (aba "Atualizar Loja")
 PASSO 5 — Categorias pai (aba "Categorias")
     Crie até 10 categorias pai para agrupar as categorias do fornecedor.
     Escolha o fornecedor no seletor ao lado.
-    Use "Aplicar a TODAS as categorias do ficheiro" se quiser aplicar a
-    regra a todo o ficheiro, ou "Manter hierarquia original" para preservar
-    a estrutura NovaCategoria/CategoriaOriginal/Subcategoria.
-    O dropdown "Categorias pai configuradas" mostra o que já foi guardado.
+    A hierarquia original é sempre mantida (NovaCategoria/CategoriaOriginal/Subcategoria).
+    O dropdown "Regra" no Mapeamento Avançado mostra as categorias pai já configuradas.
 
 PASSO 6 — Mapeamento Avançado por palavra-chave (aba "Categorias")
     Associe automaticamente produtos a uma categoria pai quando o nome ou
@@ -2056,6 +2032,9 @@ PASSO 9 — Sobre (aba "Sobre")
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.48 (2026-11-10)
+        - UI / aba Categorias e Destaques e Marcas: removido checkbox "Aplicar a TODAS as categorias do ficheiro" (padrão desmarcado), "Manter hierarquia original" sempre activo, removida seção "Aplicar apenas se a categoria contiver"; dropdown "Categorias pai configuradas" movido para dentro do Mapeamento Avançado como "Regra"
+
         v0.3.47 (2026-11-10)
         - Nova aba "Como Usar" com passo-a-passo instrutivo (licença, fornecedor/perfil, conversão, atualizar loja, categorias, mapeamento avançado, prefixo SKU, destaques e marcas, sobre)
 
