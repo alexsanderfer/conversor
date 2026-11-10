@@ -257,7 +257,7 @@ def build_description(row: dict, mapping: dict = None) -> str:
     return ". ".join(parts)
 
 
-def build_categories(row: dict, mapping: dict = None) -> str:
+def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> str:
     """
     Build category hierarchy using field mapping.
 
@@ -271,12 +271,9 @@ def build_categories(row: dict, mapping: dict = None) -> str:
     if mapping is None:
         mapping = load_field_mapping()
 
-    def normalize(val):
-        return re.sub(r'\s*/\s*', ' e ', val)
-
-    familia = normalize(get_mapped_value(row, "familia_principal", mapping))
-    sub_familia = normalize(get_mapped_value(row, "sub_familia", mapping))
-    sub_sub_familia = normalize(get_mapped_value(row, "sub_sub_familia", mapping))
+    familia = get_mapped_value(row, "familia_principal", mapping)
+    sub_familia = get_mapped_value(row, "sub_familia", mapping)
+    sub_sub_familia = get_mapped_value(row, "sub_sub_familia", mapping)
 
     # Classificação automática se categoria estiver vazia
     if not familia:
@@ -403,11 +400,14 @@ def build_categories(row: dict, mapping: dict = None) -> str:
     except Exception:
         pass
 
-    # Mapeamento avançado por Categoria e Subcategoria (prioridade)
+    # Mapeamento avançado por Categoria e Subcategoria (prioridade com cache O(1))
     try:
         familia = get_mapped_value(row, "familia_principal", mapping)
         sub_familia = get_mapped_value(row, "sub_familia", mapping)
-        kw_parent = apply_keyword_rules(familia, sub_familia)
+        if compiled_rules is not None:
+            kw_parent = apply_compiled_keyword_rules(familia, sub_familia, compiled_rules)
+        else:
+            kw_parent = apply_keyword_rules(familia, sub_familia)
         if kw_parent:
             if cat_settings.get("use_parent", True):
                 result = [kw_parent]
@@ -427,29 +427,29 @@ def build_categories(row: dict, mapping: dict = None) -> str:
     return ",".join(categories)
 
 
-def convert_row(row: dict, mapping: dict = None) -> dict:
+def convert_row(row: dict, mapping: dict = None, compiled_rules=None) -> dict:
     """
     Convert a CSV row to Jumpseller format using field mapping.
-    
+
     Args:
         row: Dictionary with CSV column names as keys
         mapping: Optional field mapping dictionary (uses default if None)
-    
+
     Returns:
         dict: Row in Jumpseller format
     """
     if mapping is None:
         mapping = load_field_mapping()
-    
+
     dest_row = OrderedDict()
     for dest_col in DEST_COLUMNS:
         dest_row[dest_col] = ""
-    
+
     # Get values using field mapping
     name = get_mapped_value(row, "design", mapping)
     if name.startswith("=") and len(name) > 1:
         name = name[1:].strip()
-    
+
     dest_row["Permalink"] = ""
     dest_row["Name"] = name
     dest_row["Description"] = build_description(row, mapping)
@@ -461,7 +461,7 @@ def convert_row(row: dict, mapping: dict = None) -> dict:
     dest_row["Height"] = height
     dest_row["Brand"] = get_mapped_value(row, "marca", mapping)
     dest_row["Barcode"] = get_mapped_value(row, "codigo", mapping)
-    dest_row["Categories"] = build_categories(row, mapping)
+    dest_row["Categories"] = build_categories(row, mapping, compiled_rules=compiled_rules)
     dest_row["Images"] = get_mapped_value(row, "imagem", mapping)
     dest_row["Digital"] = "NO"
     dest_row["Featured"] = "NO"
@@ -507,6 +507,7 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
         raise FileNotFoundError(f"Arquivo nao encontrado: '{input_path}'")
     output_path = get_output_path(input_path, output_dir)
     mapping = load_field_mapping()
+    compiled_rules = get_compiled_keyword_rules()
     removed_unavailable = 0
     with open(input_path, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f, delimiter=";")
@@ -519,7 +520,7 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
             }
             if not any(v.strip() for v in row.values()):
                 continue
-            converted = convert_row(row, mapping)
+            converted = convert_row(row, mapping, compiled_rules=compiled_rules)
             if exclude_unavailable:
                 stock_raw = (converted.get("Stock") or "0").strip()
                 try:
@@ -710,6 +711,7 @@ def save_price_state(output_dir: str, state: dict):
 def _read_fornecedor_rows(fornecedor_path: str):
     out = []
     mapping = load_field_mapping()
+    compiled_rules = get_compiled_keyword_rules()
     with open(fornecedor_path, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f, delimiter=";")
         for raw_row in reader:
@@ -720,7 +722,7 @@ def _read_fornecedor_rows(fornecedor_path: str):
             }
             if not any(v.strip() for v in row.values()):
                 continue
-            out.append((convert_row(row, mapping), _parse_pt_number(row.get("preco", ""))))
+            out.append((convert_row(row, mapping, compiled_rules=compiled_rules), _parse_pt_number(row.get("preco", ""))))
     return out
 
 
@@ -2583,27 +2585,38 @@ class App(Tk):
             return
 
         self.merge_btn.config(state="disabled")
+        self._set_drop_text("A atualizar loja em background (otimizado com cache e threads)...", "#FFF9C4", "#F57F17", widget=self.drop_text_update)
         self.update_idletasks()
-        try:
-            exclude_unavailable = bool(getattr(self, "exclude_unavailable_var", None) and self.exclude_unavailable_var.get())
-            out, n_atual, n_novos, n_intactos, removed = merge_update(export_raw, forn_raw, out_dir, exclude_unavailable=exclude_unavailable)
-            self.last_output = Path(out)
-            resumo = (
-                f"Atualizados: {n_atual}\nNovos: {n_novos}\n"
-                f"Intactos (so na loja): {n_intactos}\n"
-            )
-            if exclude_unavailable and removed:
-                resumo += f"Removidos indisponíveis: {removed}\n"
-            resumo += f"\nFicheiro: {out}"
-            self._set_drop_text(resumo, GREEN_100, GREEN_700, widget=self.drop_text_update)
-            self.open_folder_btn.config(state="normal")
-            self.open_folder_btn2.config(state="normal")
-            messagebox.showinfo("Concluido", resumo, parent=self)
-        except Exception as exc:
-            self._set_drop_text(f"Erro inesperado: {exc}", "#FFEBEE", "#C62828", widget=self.drop_text_update)
-            messagebox.showerror("Erro", f"Erro inesperado:\n{exc}", parent=self)
-        finally:
-            self.merge_btn.config(state="normal")
+
+        def worker():
+            try:
+                exclude_unavailable = bool(getattr(self, "exclude_unavailable_var", None) and self.exclude_unavailable_var.get())
+                out, n_atual, n_novos, n_intactos, removed = merge_update(export_raw, forn_raw, out_dir, exclude_unavailable=exclude_unavailable)
+                self.last_output = Path(out)
+                resumo = (
+                    f"Atualizados: {n_atual}\nNovos: {n_novos}\n"
+                    f"Intactos (so na loja): {n_intactos}\n"
+                )
+                if exclude_unavailable and removed:
+                    resumo += f"Removidos indisponíveis: {removed}\n"
+                resumo += f"\nFicheiro: {out}"
+
+                def on_success():
+                    self._set_drop_text(resumo, GREEN_100, GREEN_700, widget=self.drop_text_update)
+                    self.open_folder_btn.config(state="normal")
+                    self.open_folder_btn2.config(state="normal")
+                    messagebox.showinfo("Concluido", resumo, parent=self)
+                    self.merge_btn.config(state="normal")
+                self.after(0, on_success)
+            except Exception as exc:
+                err_msg = f"Erro inesperado: {exc}"
+                def on_err():
+                    self._set_drop_text(err_msg, "#FFEBEE", "#C62828", widget=self.drop_text_update)
+                    messagebox.showerror("Erro", err_msg, parent=self)
+                    self.merge_btn.config(state="normal")
+                self.after(0, on_err)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _browse_output(self):
         d = filedialog.askdirectory(
@@ -2902,33 +2915,48 @@ class App(Tk):
             messagebox.showwarning("Campo vazio", "Selecione ou digite um arquivo CSV primeiro.", parent=self)
             return
         self.convert_btn.config(state="disabled")
+        self._set_drop_text("A processar conversão em background (otimizado com cache e threads)...", "#FFF9C4", "#F57F17", widget=self._status_widget)
         self.update_idletasks()
-        try:
-            out_dir = self.out_dir_var.get()
-            exclude_unavailable = bool(getattr(self, "exclude_unavailable_var", None) and self.exclude_unavailable_var.get())
-            n, out, removed = process_csv(raw, out_dir, exclude_unavailable=exclude_unavailable)
-            self.last_output = Path(out)
-            status_msg = f"Concluido: {n} linha(s) -> {self.last_output.name}"
-            if exclude_unavailable and removed:
-                status_msg += f" | Removidos indisponíveis: {removed}"
-            self._set_drop_text(
-                status_msg,
-                GREEN_100, GREEN_700, widget=self._status_widget,
-            )
-            self.open_folder_btn.config(state="normal")
-            info_msg = f"{n} linha(s) escrita(s) em:\n{out}"
-            if exclude_unavailable:
-                info_msg += f"\n\nProdutos indisponíveis removidos (stock 0 / not-available): {removed}"
-            info_msg += "\n\nAbrir pasta do resultado abaixo."
-            messagebox.showinfo("Concluido", info_msg, parent=self)
-        except FileNotFoundError as exc:
-            self._set_drop_text(str(exc), ERROR_BG, ERROR_FG, widget=self._status_widget)
-            messagebox.showerror("Erro", str(exc), parent=self)
-        except Exception as exc:
-            self._set_drop_text(f"Erro inesperado: {exc}", ERROR_BG, ERROR_FG, widget=self._status_widget)
-            messagebox.showerror("Erro", f"Erro inesperado:\n{exc}", parent=self)
-        finally:
-            self.convert_btn.config(state="normal")
+
+        def worker():
+            try:
+                out_dir = self.out_dir_var.get()
+                exclude_unavailable = bool(getattr(self, "exclude_unavailable_var", None) and self.exclude_unavailable_var.get())
+                n, out, removed = process_csv(raw, out_dir, exclude_unavailable=exclude_unavailable)
+                self.last_output = Path(out)
+                status_msg = f"Concluido: {n} linha(s) -> {self.last_output.name}"
+                if exclude_unavailable and removed:
+                    status_msg += f" | Removidos indisponíveis: {removed}"
+
+                def on_success():
+                    self._set_drop_text(
+                        status_msg,
+                        GREEN_100, GREEN_700, widget=self._status_widget,
+                    )
+                    self.open_folder_btn.config(state="normal")
+                    info_msg = f"{n} linha(s) escrita(s) em:\n{out}"
+                    if exclude_unavailable:
+                        info_msg += f"\n\nProdutos indisponíveis removidos (stock 0 / not-available): {removed}"
+                    info_msg += "\n\nAbrir pasta do resultado abaixo."
+                    messagebox.showinfo("Concluido", info_msg, parent=self)
+                    self.convert_btn.config(state="normal")
+                self.after(0, on_success)
+            except FileNotFoundError as exc:
+                err_msg = str(exc)
+                def on_err1():
+                    self._set_drop_text(err_msg, ERROR_BG, ERROR_FG, widget=self._status_widget)
+                    messagebox.showerror("Erro", err_msg, parent=self)
+                    self.convert_btn.config(state="normal")
+                self.after(0, on_err1)
+            except Exception as exc:
+                err_msg = f"Erro inesperado: {exc}"
+                def on_err2():
+                    self._set_drop_text(err_msg, ERROR_BG, ERROR_FG, widget=self._status_widget)
+                    messagebox.showerror("Erro", err_msg, parent=self)
+                    self.convert_btn.config(state="normal")
+                self.after(0, on_err2)
+
+        threading.Thread(target=worker, daemon=True).start()
 
 
 if __name__ == "__main__":

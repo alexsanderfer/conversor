@@ -682,6 +682,56 @@ def apply_keyword_rules(familia: str, sub_familia: str = "") -> str:
     return ""
 
 
+def get_compiled_keyword_rules():
+    """Pré-compila as regras de categorias para busca O(1) ultrarrápida em memória."""
+    rules = get_keyword_rules()
+    exact_map = {}
+    general_map = {}
+    keyword_list = []
+    for rule in rules:
+        parent = str(rule.get("parent_category", "")).strip()
+        if not parent:
+            continue
+        if "keywords" in rule:
+            for kw in rule.get("keywords", []):
+                k_str = str(kw).strip().lower()
+                if k_str:
+                    keyword_list.append((k_str, parent))
+        else:
+            rule_cat = str(rule.get("category", "")).strip().lower()
+            rule_sub = str(rule.get("subcategory", "")).strip().lower()
+            if rule_cat:
+                if rule_sub:
+                    exact_map.setdefault((rule_cat, rule_sub), parent)
+                else:
+                    general_map.setdefault(rule_cat, parent)
+    return exact_map, general_map, keyword_list
+
+
+def apply_compiled_keyword_rules(familia: str, sub_familia: str, compiled_rules) -> str:
+    """Aplica regras pré-compiladas de forma ultrarrápida O(1)."""
+    exact_map, general_map, keyword_list = compiled_rules
+    fam_norm = str(familia).strip().lower()
+    sub_norm = str(sub_familia).strip().lower()
+
+    if (fam_norm, sub_norm) in exact_map:
+        return exact_map[(fam_norm, sub_norm)]
+
+    for (cat_c, sub_c), parent in exact_map.items():
+        if cat_c == fam_norm and sub_c and (sub_c in sub_norm or sub_norm in sub_c):
+            return parent
+
+    if fam_norm in general_map:
+        return general_map[fam_norm]
+
+    if keyword_list:
+        text = f"{fam_norm} {sub_norm}"
+        for kw, parent in keyword_list:
+            if kw in text:
+                return parent
+    return ""
+
+
 def apply_highlights_brands_keyword_rules(familia: str, sub_familia: str = "") -> str:
     """
     Aplica as regras de Destaques e Marcas baseadas em Categoria e Subcategoria.
@@ -703,6 +753,56 @@ def apply_highlights_brands_keyword_rules(familia: str, sub_familia: str = "") -
             if rule_cat and rule_cat == fam_norm:
                 if not rule_sub or rule_sub == sub_norm or rule_sub in sub_norm:
                     return parent
+    return ""
+
+
+def get_compiled_highlights_brands_rules():
+    """Pré-compila as regras de Destaques e Marcas para busca O(1) ultrarrápida em memória."""
+    rules = get_highlights_brands_keyword_rules()
+    exact_map = {}
+    general_map = {}
+    keyword_list = []
+    for rule in rules:
+        parent = str(rule.get("parent_category", "")).strip()
+        if not parent:
+            continue
+        if "keywords" in rule:
+            for kw in rule.get("keywords", []):
+                k_str = str(kw).strip().lower()
+                if k_str:
+                    keyword_list.append((k_str, parent))
+        else:
+            rule_cat = str(rule.get("category", "")).strip().lower()
+            rule_sub = str(rule.get("subcategory", "")).strip().lower()
+            if rule_cat:
+                if rule_sub:
+                    exact_map.setdefault((rule_cat, rule_sub), parent)
+                else:
+                    general_map.setdefault(rule_cat, parent)
+    return exact_map, general_map, keyword_list
+
+
+def apply_compiled_highlights_brands_rules(familia: str, sub_familia: str, compiled_rules) -> str:
+    """Aplica regras pré-compiladas de Destaques e Marcas de forma ultrarrápida O(1)."""
+    exact_map, general_map, keyword_list = compiled_rules
+    fam_norm = str(familia).strip().lower()
+    sub_norm = str(sub_familia).strip().lower()
+
+    if (fam_norm, sub_norm) in exact_map:
+        return exact_map[(fam_norm, sub_norm)]
+
+    for (cat_c, sub_c), parent in exact_map.items():
+        if cat_c == fam_norm and sub_c and (sub_c in sub_norm or sub_norm in sub_c):
+            return parent
+
+    if fam_norm in general_map:
+        return general_map[fam_norm]
+
+    if keyword_list:
+        text = f"{fam_norm} {sub_norm}"
+        for kw, parent in keyword_list:
+            if kw in text:
+                return parent
     return ""
 
 
