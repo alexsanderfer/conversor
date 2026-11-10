@@ -1386,7 +1386,20 @@ class App(Tk):
         # ---- Mapeamento Avançado (regras por palavra-chave) ----
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
         ttk.Label(frm, text="Mapeamento Avançado — regras por palavra-chave", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
-        ttk.Label(frm, text="Associe automaticamente produtos a uma categoria pai quando o nome ou categoria casar com uma palavra-chave.", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 6))
+        ttk.Label(frm, text="Associe automaticamente produtos a uma categoria pai quando o nome ou categoria casar com uma palavra-chave.", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 2))
+        ttk.Label(
+            frm,
+            text=(
+                "Como funciona: escreva uma palavra-chave (ex: 'iphone') e a categoria pai destino (ex: 'Eletronica/Telefonia'). "
+                "Quando o nome do produto ou a categoria do fornecedor contiver essa palavra, o produto é associado à categoria pai indicada. "
+                "Regras mais recentes têm maior prioridade (vencem as anteriores). "
+                "Aplica tanto na 'Conversão' (novo ficheiro) como no 'Atualizar Loja' (merge)."
+            ),
+            font=("Segoe UI", 8),
+            foreground=GRAY_600,
+            justify="left",
+            wraplength=700,
+        ).pack(anchor="w", pady=(0, 6))
 
         adv_row = ttk.Frame(frm)
         adv_row.pack(fill="x", pady=2)

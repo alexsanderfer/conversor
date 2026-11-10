@@ -8,6 +8,7 @@ apenas informativa.
 """
 
 import re
+import sys
 import urllib.request
 from pathlib import Path
 from tkinter import messagebox
@@ -49,9 +50,21 @@ def get_latest_version() -> str | None:
 
 def get_current_version() -> str:
     """Obtém a versão actual do programa (de VERSION.txt ou fallback)."""
-    version_file = Path(__file__).parent / "VERSION.txt"
-    if version_file.is_file():
-        return version_file.read_text(encoding="utf-8").strip()
+    # Procurar VERSION.txt na raiz do projeto (sibling do pacote core/)
+    for candidate in (
+        Path(__file__).resolve().parent.parent / "VERSION.txt",
+        Path(__file__).resolve().parent / "VERSION.txt",
+    ):
+        if candidate.is_file():
+            return candidate.read_text(encoding="utf-8").strip()
+    # No modo congelado, o VERSION.txt é empacotado ao lado do exe / sys._MEIPASS
+    if getattr(sys, "frozen", False):
+        for candidate in (
+            Path(sys.executable).parent / "VERSION.txt",
+            Path(sys._MEIPASS) / "VERSION.txt",
+        ):
+            if candidate.is_file():
+                return candidate.read_text(encoding="utf-8").strip()
     return "0.1.0"
 
 
