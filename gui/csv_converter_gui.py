@@ -973,7 +973,6 @@ class App(Tk):
         self.geometry("1200x800")
         self.minsize(900, 650)
         self.resizable(True, True)
-        self.state("zoomed")  # abre maximizado
         self.last_output = None
         self._status_widget = None   # widget onde _set_drop_text escreve
         self._apply_window_icon()
