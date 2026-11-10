@@ -1376,7 +1376,9 @@ class App(Tk):
         self._price_profit_var = tk.StringVar(value=str(price_settings.get("profit_percentage", 40.0)))
         self._price_iva_var = tk.StringVar(value=str(price_settings.get("iva_percentage", 0.0)))
         self._price_shipping_var = tk.StringVar(value=str(price_settings.get("shipping_cost", 0.0)))
-        self._price_formula_var = tk.StringVar(value=price_settings.get("price_formula", "margin"))
+        formula_val = price_settings.get("price_formula", "margin")
+        formula_display = "Detalhado" if formula_val == "detailed" else "Margem"
+        self._price_formula_var = tk.StringVar(value=formula_display)
 
         ttk.Label(frm_preco, text="Lucro %:").grid(row=0, column=0, sticky="w")
         ttk.Entry(frm_preco, textvariable=self._price_profit_var, width=10).grid(row=0, column=1, sticky="w", padx=(4, 12))
@@ -1386,7 +1388,7 @@ class App(Tk):
         ttk.Entry(frm_preco, textvariable=self._price_shipping_var, width=10).grid(row=0, column=5, sticky="w", padx=(4, 12))
 
         ttk.Label(frm_preco, text="Fórmula:").grid(row=1, column=0, sticky="w", pady=(4, 0))
-        formula_combo = ttk.Combobox(frm_preco, textvariable=self._price_formula_var, values=["margin", "detailed"], state="readonly", width=12)
+        formula_combo = ttk.Combobox(frm_preco, textvariable=self._price_formula_var, values=["Margem", "Detalhado"], state="readonly", width=12)
         formula_combo.grid(row=1, column=1, sticky="w", padx=(4, 12), pady=(4, 0))
         ttk.Button(frm_preco, text="Guardar", command=self._save_price_settings, width=10).grid(row=1, column=2, sticky="w", pady=(4, 0))
 
@@ -2803,7 +2805,8 @@ class App(Tk):
                 except ValueError:
                     pass
 
-            formula = self._price_formula_var.get().strip()
+            formula_ui = self._price_formula_var.get().strip() if hasattr(self, "_price_formula_var") else "Margem"
+            formula = "detailed" if formula_ui in ("Detalhado", "detailed") else "margin"
             from core.field_mapping import get_active_profile
             if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula=formula, profile_name=get_active_profile()):
                 messagebox.showinfo("Guardado", "Configurações de preços guardadas para este perfil.", parent=self)
@@ -2847,7 +2850,8 @@ class App(Tk):
                 except ValueError:
                     pass
 
-            formula = self._price_formula_var.get().strip() if hasattr(self, "_price_formula_var") else "margin"
+            formula_ui = self._price_formula_var.get().strip() if hasattr(self, "_price_formula_var") else "Margem"
+            formula = "detailed" if formula_ui in ("Detalhado", "detailed") else "margin"
             from core.field_mapping import get_active_profile, set_price_settings
             set_price_settings(
                 profit_percentage=profit_pct,
