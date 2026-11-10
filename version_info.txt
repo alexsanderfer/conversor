@@ -1,8 +1,8 @@
 # UTF-8
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(0, 3, 56, 0),
-    prodvers=(0, 3, 56, 0),
+    filevers=(0, 3, 57, 0),
+    prodvers=(0, 3, 57, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -17,13 +17,13 @@ VSVersionInfo(
           '040904B0',
           [
             StringStruct('CompanyName', 'Alexsander Fernandes'),
-            StringStruct('FileDescription', 'Conversor CSV para Jumpseller'),
-            StringStruct('FileVersion', '0.3.56.0'),
-            StringStruct('InternalName', 'ConversorJumpseller'),
+            StringStruct('FileDescription', 'CsvFast FileConverter'),
+            StringStruct('FileVersion', '0.3.57.0'),
+            StringStruct('InternalName', 'CsvFast-FileConverter'),
             StringStruct('LegalCopyright', '© Alexsander Fernandes. Todos os direitos reservados.'),
-            StringStruct('OriginalFilename', 'ConversorJumpseller.exe'),
-            StringStruct('ProductName', 'Conversor Jumpseller'),
-            StringStruct('ProductVersion', '0.3.56')
+            StringStruct('OriginalFilename', 'CsvFast-FileConverter.exe'),
+            StringStruct('ProductName', 'CsvFast-FileConverter'),
+            StringStruct('ProductVersion', '0.3.57')
           ]
         )
       ]

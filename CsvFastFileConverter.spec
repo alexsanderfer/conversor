@@ -3,13 +3,13 @@
 import os
 import platform
 
-# Nome do executavel: ConversorJumpseller-vX.Y.Z-Arquitetura.exe
-# Ex.: ConversorJumpseller-v0.3.10-x64.exe
+# Nome do executavel: CsvFast-FileConverter-vX.Y.Z-Arquitetura.exe
+# Ex.: CsvFast-FileConverter-v0.3.57-x64.exe
 # __file__ nao esta definido em todos os contextos do PyInstaller, por isso
 # usamos o diretorio de trabalho (onde o spec e executado).
 _VER = open('VERSION.txt').read().strip()
 _ARCH = 'x64' if platform.architecture()[0] == '64bit' else 'x86'
-EXE_NAME = f'ConversorJumpseller-{_VER}-{_ARCH}'
+EXE_NAME = f'CsvFast-FileConverter-{_VER}-{_ARCH}'
 
 
 datas = [('VERSION.txt', '.')]
