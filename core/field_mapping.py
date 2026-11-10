@@ -413,21 +413,28 @@ def get_category_settings() -> dict:
 # Prefixo SKU (identifica o fornecedor do produto numa encomenda)
 # ---------------------------------------------------------------------------
 
-def get_sku_prefix() -> str:
-    """Retorna o prefixo SKU configurado (ex: 'VIP-')."""
+def get_sku_prefix(profile_name: str = None) -> str:
+    """Retorna o prefixo SKU configurado para o perfil (ex: 'VIP-')."""
     try:
+        if profile_name is None:
+            profile_name = get_active_profile()
         data = _read_config()
-        return str(data.get("settings", {}).get("sku_prefix", ""))
+        profiles = data.get("profiles", {})
+        profile = profiles.get(profile_name, {})
+        return str(profile.get("sku_prefix", ""))
     except Exception:
         return ""
 
 
-def set_sku_prefix(prefix: str) -> bool:
-    """Define o prefixo SKU (3 letras + traço, ex: 'VIP-')."""
+def set_sku_prefix(prefix: str, profile_name: str = None) -> bool:
+    """Define o prefixo SKU (3 letras + traço, ex: 'VIP-') para o perfil."""
     try:
+        if profile_name is None:
+            profile_name = get_active_profile()
         data = _read_config()
-        settings = data.setdefault("settings", {})
-        settings["sku_prefix"] = str(prefix).strip()
+        profiles = data.setdefault("profiles", {})
+        profile = profiles.setdefault(profile_name, {})
+        profile["sku_prefix"] = str(prefix).strip()
         return _write_config(data)
     except Exception:
         return False

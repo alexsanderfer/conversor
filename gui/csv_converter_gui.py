@@ -455,7 +455,7 @@ def convert_row(row: dict, mapping: dict = None) -> dict:
     stock_val = parse_stock(get_mapped_value(row, "stock", mapping))
     dest_row["Status"] = "available" if stock_val > 0 else "not-available"
     sku = get_mapped_value(row, "ref", mapping)
-    sku_prefix = get_sku_prefix()
+    sku_prefix = get_sku_prefix(get_active_profile())
     if sku_prefix and sku and not sku.startswith(sku_prefix):
         sku = sku_prefix + sku
     dest_row["SKU"] = sku
@@ -1681,7 +1681,7 @@ class App(Tk):
             pass
 
     def _build_tab_sku_prefix(self):
-        """Constrói a aba 'Prefixo SKU' — prefixo de 3 letras + traço para identificar o fornecedor."""
+        """Constrói a aba 'Prefixo SKU' — prefixo de 3 letras + traço por fornecedor."""
         frm = ttk.Frame(self.tab_sku_prefix, padding=12)
         frm.pack(fill="both", expand=True)
 
@@ -1691,7 +1691,8 @@ class App(Tk):
             text=(
                 "O prefixo SKU é usado para certificar quem é o fornecedor dos produtos numa venda, "
                 "quando há mais de 1 fornecedor e a encomenda pode ter produtos de vários fornecedores.\n\n"
-                "Formato: 3 letras e um traço (ex: VIP-). O prefixo será colocado antes do SKU dos produtos."
+                "Formato: 3 letras e um traço (ex: VIP-). O prefixo será colocado antes do SKU dos produtos.\n"
+                "Cada fornecedor pode ter o seu próprio prefixo."
             ),
             font=("Segoe UI", 9),
             foreground=GRAY_600,
@@ -1699,13 +1700,22 @@ class App(Tk):
             wraplength=700,
         ).pack(anchor="w", pady=(0, 12))
 
-        self._sku_prefix_var = tk.StringVar(value=get_sku_prefix())
+        # Linha: Prefixo SKU | Seletor de Fornecedor | Salvar
         row = ttk.Frame(frm)
         row.pack(fill="x", pady=4)
+        self._sku_prefix_var = tk.StringVar()
         ttk.Label(row, text="Prefixo SKU:").pack(side="left")
         self._sku_prefix_entry = ttk.Entry(row, textvariable=self._sku_prefix_var, width=12)
-        self._sku_prefix_entry.pack(side="left", padx=(6, 0))
-        ttk.Button(row, text="Guardar", command=self._save_sku_prefix, width=10).pack(side="left", padx=(8, 0))
+        self._sku_prefix_entry.pack(side="left", padx=(6, 12))
+
+        ttk.Label(row, text="Fornecedor:").pack(side="left")
+        self._sku_fornecedor_var = tk.StringVar(value=get_active_profile())
+        self._sku_fornecedor_combo = ttk.Combobox(row, textvariable=self._sku_fornecedor_var, state="readonly", width=24)
+        self._sku_fornecedor_combo.pack(side="left", padx=(6, 12))
+        self._sku_fornecedor_combo.bind("<<ComboboxSelected>>", self._on_sku_fornecedor_change)
+        self._refresh_sku_fornecedor_combo()
+
+        ttk.Button(row, text="Salvar", command=self._save_sku_prefix, width=10).pack(side="left", padx=(4, 0))
 
         ttk.Label(
             frm,
@@ -1714,12 +1724,40 @@ class App(Tk):
             foreground=GRAY_600,
         ).pack(anchor="w", pady=(8, 0))
 
+    def _refresh_sku_fornecedor_combo(self):
+        """Preenche o dropdown de fornecedor da aba Prefixo SKU."""
+        try:
+            profiles = list_profiles()
+            if hasattr(self, "_sku_fornecedor_combo"):
+                self._sku_fornecedor_combo["values"] = profiles
+                active = get_active_profile()
+                if active not in profiles:
+                    active = profiles[0] if profiles else ""
+                self._sku_fornecedor_var.set(active)
+        except Exception:
+            pass
+
+    def _on_sku_fornecedor_change(self, _event=None):
+        """Quando muda o fornecedor na aba Prefixo SKU, recarrega o prefixo desse fornecedor."""
+        name = self._sku_fornecedor_var.get().strip()
+        if name:
+            try:
+                prefix = get_sku_prefix(name)
+                self._sku_prefix_var.set(prefix)
+                self._active_fornecedor_var.set(name)
+            except Exception as e:
+                messagebox.showerror("Erro", f"Erro ao carregar prefixo: {e}", parent=self)
+
     def _save_sku_prefix(self):
-        """Guarda o prefixo SKU digitado."""
+        """Guarda o prefixo SKU para o fornecedor selecionado."""
         prefix = self._sku_prefix_var.get().strip()
+        name = self._sku_fornecedor_var.get().strip()
+        if not name:
+            messagebox.showwarning("Atenção", "Selecione um fornecedor.", parent=self)
+            return
         if not prefix:
-            set_sku_prefix("")
-            messagebox.showinfo("Guardado", "Prefixo SKU removido.", parent=self)
+            set_sku_prefix("", name)
+            messagebox.showinfo("Guardado", f"Prefixo SKU removido para '{name}'.", parent=self)
             return
         # Valida: 3 letras + traço (ex: VIP-)
         import re
@@ -1728,8 +1766,8 @@ class App(Tk):
             return
         prefix = prefix.upper()
         self._sku_prefix_var.set(prefix)
-        if set_sku_prefix(prefix):
-            messagebox.showinfo("Guardado", f"Prefixo SKU '{prefix}' guardado com sucesso.", parent=self)
+        if set_sku_prefix(prefix, name):
+            messagebox.showinfo("Guardado", f"Prefixo SKU '{prefix}' guardado para '{name}'.", parent=self)
         else:
             messagebox.showerror("Erro", "Não foi possível guardar o prefixo SKU.", parent=self)
 
@@ -1833,6 +1871,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.44 (2026-11-10)
+        - UI / aba Prefixo SKU: prefixo agora é por fornecedor, com seletor de fornecedor ao lado do campo e botão Salvar
+
         v0.3.43 (2026-11-10)
         - UI / aba Destaques e Marcas: refeita para ser idêntica à aba Categorias (10 campos de categoria pai, checkboxes, dropdown de categorias configuradas e lista de categorias do ficheiro)
 
