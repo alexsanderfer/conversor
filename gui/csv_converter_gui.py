@@ -1077,12 +1077,21 @@ class App(Tk):
     def _apply_window_icon(self):
         """Define o ícone da aplicação (barra de título e taskbar)."""
         try:
-            p = ASSETS / "icon.png"
-            if p.is_file():
+            # Primeiro tenta usar o ícone personalizado
+            custom_icon_path = Path(r"C:/Users/Alexsander/AppData/Local/JetBrains/IntelliJIdea2026.3/air/prompt-attachments/AIR_Screenshot_2026-11-10_17-26-06.png")
+            if custom_icon_path.is_file():
                 from PIL import Image, ImageTk
-                img = ImageTk.PhotoImage(file=str(p))
+                img = ImageTk.PhotoImage(file=str(custom_icon_path))
                 self.iconphoto(True, img)
                 self._window_icon = img  # manter referência para não ser coletado pelo GC
+            else:
+                # Se não existir, usa o ícone padrão
+                p = ASSETS / "icon.png"
+                if p.is_file():
+                    from PIL import Image, ImageTk
+                    img = ImageTk.PhotoImage(file=str(p))
+                    self.iconphoto(True, img)
+                    self._window_icon = img  # manter referência para não ser coletado pelo GC
         except Exception:
             pass
 
@@ -1096,7 +1105,7 @@ class App(Tk):
                     from PIL import Image, ImageTk
                     im = Image.open(p)
                     # Limitar largura e altura para caber no header (logo pequeno, não empurra as tabs)
-                    max_w, max_h = 60, 20
+                    max_w, max_h = 80, 25
                     ratio = min(max_w / im.width, max_h / im.height, 1.0)
                     im2 = im.resize((int(im.width * ratio), int(im.height * ratio)), Image.LANCZOS)
                     img = ImageTk.PhotoImage(im2)
