@@ -1813,6 +1813,29 @@ class App(Tk):
         self._hb_pai_combo.pack(anchor="w", pady=(0, 6))
         self._refresh_hb_pai_combo()
 
+        # ---- Mapeamento Avançado (regras por palavra-chave) ----
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
+        ttk.Label(frm, text="Mapeamento Avançado — regras por palavra-chave", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(frm, text="Associe automaticamente produtos a uma categoria pai de destaques/marcas quando o nome ou categoria casar com uma palavra-chave.", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 2))
+        hb_adv_row = ttk.Frame(frm)
+        hb_adv_row.pack(fill="x", pady=2)
+        self._hb_adv_kw_var = tk.StringVar()
+        ttk.Entry(hb_adv_row, textvariable=self._hb_adv_kw_var, width=22).pack(side="left", padx=(0, 4))
+        self._hb_adv_cat_var = tk.StringVar()
+        ttk.Entry(hb_adv_row, textvariable=self._hb_adv_cat_var, width=22).pack(side="left", padx=(0, 4))
+        ttk.Button(hb_adv_row, text="Adicionar Regra", command=self._hb_add_advanced_keyword_rule, width=14).pack(side="left")
+
+        ttk.Label(frm, text="Regras configuradas (mais recente = maior prioridade):", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(6, 2))
+        hb_adv_frame = ttk.Frame(frm)
+        hb_adv_frame.pack(fill="both", expand=True)
+        self._hb_adv_rules_text = tk.Text(hb_adv_frame, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        hb_adv_scroll = ttk.Scrollbar(hb_adv_frame, orient="vertical", command=self._hb_adv_rules_text.yview)
+        self._hb_adv_rules_text.configure(yscrollcommand=hb_adv_scroll.set)
+        self._hb_adv_rules_text.pack(side="left", fill="both", expand=True)
+        hb_adv_scroll.pack(side="right", fill="y")
+        self._hb_adv_rules_text.config(state="disabled")
+        self._refresh_hb_adv_rules_list()
+
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
         ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
         cat_frame = ttk.Frame(frm)
@@ -1848,6 +1871,40 @@ class App(Tk):
         except Exception:
             pass
 
+    def _hb_add_advanced_keyword_rule(self):
+        """Adiciona uma regra de mapeamento avançado por palavra-chave (Destaques e Marcas)."""
+        kw = self._hb_adv_kw_var.get().strip()
+        cat = self._hb_adv_cat_var.get().strip()
+        if not kw or not cat:
+            messagebox.showwarning("Atenção", "Preencha a palavra-chave e a categoria pai.", parent=self)
+            return
+        try:
+            if add_keyword_rule([kw], cat, priority=10):
+                self._hb_adv_kw_var.set("")
+                self._hb_adv_cat_var.set("")
+                self._refresh_hb_adv_rules_list()
+                messagebox.showinfo("Guardado", "Regra avançada adicionada com sucesso.", parent=self)
+            else:
+                messagebox.showerror("Erro", "Não foi possível guardar a regra.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao guardar regra: {e}", parent=self)
+
+    def _refresh_hb_adv_rules_list(self):
+        """Preenche a lista de regras avançadas de Destaques e Marcas (maior prioridade primeiro)."""
+        try:
+            rules = get_keyword_rules()
+            lines = []
+            for r in rules:
+                kws = ", ".join(r.get("keywords", []))
+                lines.append(f"[P{r.get('priority', 0)}] {kws} -> {r.get('parent_category', '')}")
+            if hasattr(self, "_hb_adv_rules_text"):
+                self._hb_adv_rules_text.config(state="normal")
+                self._hb_adv_rules_text.delete("1.0", "end")
+                self._hb_adv_rules_text.insert("1.0", "\n".join(lines) if lines else "Nenhuma regra avançada configurada")
+                self._hb_adv_rules_text.config(state="disabled")
+        except Exception:
+            pass
+
     def _build_tab_sobre(self):
         """Constrói a aba 'Sobre' com informações da aplicação."""
         frm = ttk.Frame(self.tab_sobre, padding=12)
@@ -1871,6 +1928,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.45 (2026-11-10)
+        - UI / aba Destaques e Marcas: adicionada seção de Mapeamento Avançado com regras por palavra-chave, para escolher a categoria pai de destaques ou marcas e agrupar as respetivas categorias
+
         v0.3.44 (2026-11-10)
         - UI / aba Prefixo SKU: prefixo agora é por fornecedor, com seletor de fornecedor ao lado do campo e botão Salvar
 
