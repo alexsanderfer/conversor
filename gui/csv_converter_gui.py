@@ -157,21 +157,17 @@ def _calc_price(raw_preco: str) -> str:
     try:
         from core.field_mapping import get_active_profile
         settings = get_price_settings(get_active_profile())
-        formula = settings.get("price_formula", "margin")
+        profit_pct = float(settings.get("profit_percentage", 40.0))
         iva_pct = float(settings.get("iva_percentage", 0.0))
         shipping = float(settings.get("shipping_cost", 0.0))
-        profit_margin = float(settings.get("profit_margin", 1.40))
-        profit_pct = float(settings.get("profit_percentage", 40.0))
 
-        if formula == "detailed" or iva_pct > 0 or shipping > 0:
-            # Preço final = (Preço custo * (1 + lucro%)) + portes + IVA
-            price = preco * (1.0 + profit_pct / 100.0) + shipping
-            if iva_pct and iva_pct > 0:
-                price = price * (1.0 + iva_pct / 100.0)
-            return str(round(price, 2))
-        else:
-            price = preco * profit_margin
-            return str(round(price, 2))
+        # Fórmula detalhada: (Custo * (1 + lucro%)) + portes, aplicando IVA se > 0
+        price = preco * (1.0 + profit_pct / 100.0)
+        if shipping and shipping > 0:
+            price += shipping
+        if iva_pct and iva_pct > 0:
+            price = price * (1.0 + iva_pct / 100.0)
+        return str(round(price, 2))
     except Exception:
         try:
             settings = get_price_settings(get_active_profile())
@@ -1376,23 +1372,16 @@ class App(Tk):
         self._price_profit_var = tk.StringVar(value=str(price_settings.get("profit_percentage", 40.0)))
         self._price_iva_var = tk.StringVar(value=str(price_settings.get("iva_percentage", 0.0)))
         self._price_shipping_var = tk.StringVar(value=str(price_settings.get("shipping_cost", 0.0)))
-        formula_val = price_settings.get("price_formula", "margin")
-        formula_display = "Detalhado" if formula_val == "detailed" else "Margem"
-        self._price_formula_var = tk.StringVar(value=formula_display)
 
         ttk.Label(frm_preco, text="Lucro %:").grid(row=0, column=0, sticky="w")
-        ttk.Entry(frm_preco, textvariable=self._price_profit_var, width=10).grid(row=0, column=1, sticky="w", padx=(4, 12))
+        ttk.Entry(frm_preco, textvariable=self._price_profit_var, width=8).grid(row=0, column=1, sticky="w", padx=(4, 10))
         ttk.Label(frm_preco, text="IVA %:").grid(row=0, column=2, sticky="w")
-        ttk.Entry(frm_preco, textvariable=self._price_iva_var, width=10).grid(row=0, column=3, sticky="w", padx=(4, 12))
+        ttk.Entry(frm_preco, textvariable=self._price_iva_var, width=8).grid(row=0, column=3, sticky="w", padx=(4, 10))
         ttk.Label(frm_preco, text="Portes (€):").grid(row=0, column=4, sticky="w")
-        ttk.Entry(frm_preco, textvariable=self._price_shipping_var, width=10).grid(row=0, column=5, sticky="w", padx=(4, 12))
+        ttk.Entry(frm_preco, textvariable=self._price_shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(4, 10))
+        ttk.Button(frm_preco, text="Guardar", command=self._save_price_settings, width=10).grid(row=0, column=6, sticky="w", padx=(4, 0))
 
-        ttk.Label(frm_preco, text="Fórmula:").grid(row=1, column=0, sticky="w", pady=(4, 0))
-        formula_combo = ttk.Combobox(frm_preco, textvariable=self._price_formula_var, values=["Margem", "Detalhado"], state="readonly", width=12)
-        formula_combo.grid(row=1, column=1, sticky="w", padx=(4, 12), pady=(4, 0))
-        ttk.Button(frm_preco, text="Guardar", command=self._save_price_settings, width=10).grid(row=1, column=2, sticky="w", pady=(4, 0))
-
-        ttk.Label(frm, text="As configurações são guardadas por perfil e aplicadas apenas quando definidas.\nValores vazios ou zero não são aplicados.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
+        ttk.Label(frm, text="As configurações são guardadas por perfil e aplicadas apenas quando definidas.\nValores vazios ou zero (IVA/Portes) não são aplicados.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
 
     def _build_tab_fornecedores(self):
         """Constrói a aba 'Fornecedores' para gerir e listar perfis."""
@@ -2805,10 +2794,8 @@ class App(Tk):
                 except ValueError:
                     pass
 
-            formula_ui = self._price_formula_var.get().strip() if hasattr(self, "_price_formula_var") else "Margem"
-            formula = "detailed" if formula_ui in ("Detalhado", "detailed") else "margin"
             from core.field_mapping import get_active_profile
-            if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula=formula, profile_name=get_active_profile()):
+            if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula="detailed", profile_name=get_active_profile()):
                 messagebox.showinfo("Guardado", "Configurações de preços guardadas para este perfil.", parent=self)
             else:
                 messagebox.showerror("Erro", "Não foi possível guardar as configurações de preços.", parent=self)
@@ -2850,14 +2837,12 @@ class App(Tk):
                 except ValueError:
                     pass
 
-            formula_ui = self._price_formula_var.get().strip() if hasattr(self, "_price_formula_var") else "Margem"
-            formula = "detailed" if formula_ui in ("Detalhado", "detailed") else "margin"
             from core.field_mapping import get_active_profile, set_price_settings
             set_price_settings(
                 profit_percentage=profit_pct,
                 iva_percentage=iva_pct,
                 shipping_cost=shipping,
-                price_formula=formula,
+                price_formula="detailed",
                 profile_name=get_active_profile()
             )
         except Exception:
