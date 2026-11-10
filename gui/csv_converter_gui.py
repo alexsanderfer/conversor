@@ -51,9 +51,11 @@ from core.field_mapping import (
     get_profit_margin, get_price_settings, set_price_settings,
     get_category_settings, set_category_settings,
     add_keyword_rule, remove_keyword_rule, apply_keyword_rules, get_keyword_rules,
+    get_compiled_keyword_rules, apply_compiled_keyword_rules,
     get_sku_prefix, set_sku_prefix,
     get_highlights_brands_settings, set_highlights_brands_settings,
     get_highlights_brands_keyword_rules, add_highlights_brands_keyword_rule, remove_highlights_brands_keyword_rule,
+    get_compiled_highlights_brands_rules, apply_compiled_highlights_brands_rules,
 )
 from core.category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
 
