@@ -1414,9 +1414,11 @@ class App(Tk):
         adv_row.pack(fill="x", pady=2)
         self._adv_kw_var = tk.StringVar()
         ttk.Entry(adv_row, textvariable=self._adv_kw_var, width=22).pack(side="left", padx=(0, 4))
-        self._adv_cat_var = tk.StringVar()
-        ttk.Entry(adv_row, textvariable=self._adv_cat_var, width=22).pack(side="left", padx=(0, 4))
+        ttk.Label(adv_row, text="Regra:").pack(side="left", padx=(4, 2))
+        self._cat_pai_combo = ttk.Combobox(adv_row, state="readonly", width=30)
+        self._cat_pai_combo.pack(side="left", padx=(0, 4))
         ttk.Button(adv_row, text="Adicionar Regra", command=self._add_advanced_keyword_rule, width=14).pack(side="left")
+        self._refresh_cat_pai_combo()
 
         ttk.Label(frm, text="Regras configuradas (mais recente = maior prioridade):", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(6, 2))
         adv_frame = ttk.Frame(frm)
@@ -1428,12 +1430,6 @@ class App(Tk):
         adv_scroll.pack(side="right", fill="y")
         self._adv_rules_text.config(state="disabled")
         self._refresh_adv_rules_list()
-
-        # Regra — categoria selecionada/adicionada nos campos anteriores do mapeamento
-        ttk.Label(frm, text="Regra:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
-        self._cat_pai_combo = ttk.Combobox(frm, state="readonly", width=45)
-        self._cat_pai_combo.pack(anchor="w", pady=(0, 6))
-        self._refresh_cat_pai_combo()
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
         ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
@@ -1641,14 +1637,13 @@ class App(Tk):
     def _add_advanced_keyword_rule(self):
         """Adiciona uma regra de mapeamento avançado por palavra-chave."""
         kw = self._adv_kw_var.get().strip()
-        cat = self._adv_cat_var.get().strip()
+        cat = self._cat_pai_combo.get().strip()
         if not kw or not cat:
-            messagebox.showwarning("Atenção", "Preencha a palavra-chave e a categoria pai.", parent=self)
+            messagebox.showwarning("Atenção", "Preencha a palavra-chave e selecione a categoria pai.", parent=self)
             return
         try:
             if add_keyword_rule([kw], cat, priority=10):
                 self._adv_kw_var.set("")
-                self._adv_cat_var.set("")
                 self._refresh_adv_rules_list()
                 messagebox.showinfo("Guardado", "Regra avançada adicionada com sucesso.", parent=self)
             else:
@@ -1806,9 +1801,11 @@ class App(Tk):
         hb_adv_row.pack(fill="x", pady=2)
         self._hb_adv_kw_var = tk.StringVar()
         ttk.Entry(hb_adv_row, textvariable=self._hb_adv_kw_var, width=22).pack(side="left", padx=(0, 4))
-        self._hb_adv_cat_var = tk.StringVar()
-        ttk.Entry(hb_adv_row, textvariable=self._hb_adv_cat_var, width=22).pack(side="left", padx=(0, 4))
+        ttk.Label(hb_adv_row, text="Regra:").pack(side="left", padx=(4, 2))
+        self._hb_pai_combo = ttk.Combobox(hb_adv_row, state="readonly", width=30)
+        self._hb_pai_combo.pack(side="left", padx=(0, 4))
         ttk.Button(hb_adv_row, text="Adicionar Regra", command=self._hb_add_advanced_keyword_rule, width=14).pack(side="left")
+        self._refresh_hb_pai_combo()
 
         ttk.Label(frm, text="Regras configuradas (mais recente = maior prioridade):", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(6, 2))
         hb_adv_frame = ttk.Frame(frm)
@@ -1820,12 +1817,6 @@ class App(Tk):
         hb_adv_scroll.pack(side="right", fill="y")
         self._hb_adv_rules_text.config(state="disabled")
         self._refresh_hb_adv_rules_list()
-
-        # Regra — categoria selecionada/adicionada nos campos anteriores do mapeamento
-        ttk.Label(frm, text="Regra:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
-        self._hb_pai_combo = ttk.Combobox(frm, state="readonly", width=45)
-        self._hb_pai_combo.pack(anchor="w", pady=(0, 6))
-        self._refresh_hb_pai_combo()
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
         ttk.Label(frm, text="Categorias encontradas no ficheiro selecionado", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
@@ -1893,14 +1884,13 @@ class App(Tk):
     def _hb_add_advanced_keyword_rule(self):
         """Adiciona uma regra de mapeamento avançado por palavra-chave (Destaques e Marcas)."""
         kw = self._hb_adv_kw_var.get().strip()
-        cat = self._hb_adv_cat_var.get().strip()
+        cat = self._hb_pai_combo.get().strip()
         if not kw or not cat:
-            messagebox.showwarning("Atenção", "Preencha a palavra-chave e a categoria pai.", parent=self)
+            messagebox.showwarning("Atenção", "Preencha a palavra-chave e selecione a categoria pai.", parent=self)
             return
         try:
             if add_keyword_rule([kw], cat, priority=10):
                 self._hb_adv_kw_var.set("")
-                self._hb_adv_cat_var.set("")
                 self._refresh_hb_adv_rules_list()
                 messagebox.showinfo("Guardado", "Regra avançada adicionada com sucesso.", parent=self)
             else:
@@ -2032,6 +2022,9 @@ PASSO 9 — Sobre (aba "Sobre")
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.49 (2026-11-10)
+        - UI / aba Categorias e Destaques e Marcas: dropdown "Regra" integrado na linha do Mapeamento Avançado (substitui o segundo campo categoria pai), removido dropdown separado abaixo da lista de regras
+
         v0.3.48 (2026-11-10)
         - UI / aba Categorias e Destaques e Marcas: removido checkbox "Aplicar a TODAS as categorias do ficheiro" (padrão desmarcado), "Manter hierarquia original" sempre activo, removida seção "Aplicar apenas se a categoria contiver"; dropdown "Categorias pai configuradas" movido para dentro do Mapeamento Avançado como "Regra"
 
