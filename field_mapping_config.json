@@ -44,6 +44,13 @@
       "apply_to_all": true,
       "use_parent": true
     },
-    "keyword_rules": []
+    "keyword_rules": [
+      {
+        "category": "Smart Home e Iluminação",
+        "subcategory": "Câmaras de Segurança",
+        "parent_category": "Inovação Tech / Super Exclusivo 2026",
+        "priority": 100
+      }
+    ]
   }
 }

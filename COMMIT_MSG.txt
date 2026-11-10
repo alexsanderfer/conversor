@@ -1,0 +1,7 @@
+feat: release v0.3.60 — mapeamento avançado baseado em Categoria e Subcategoria
+
+- Reformulado o Mapeamento Avançado (nas abas Categorias e Destaques e Marcas) para utilizar campos dedicados de **Categoria** e **Subcategoria** do fornecedor em vez de palavras-chave no nome do produto, eliminando falsos positivos (ex: "teclado" dentro do nome de um portátil).
+- Version bump para v0.3.60 (VERSION.txt, docs/version.txt, version_info.txt, docs/index.html e aba Sobre).
+- Build: PyInstaller gerou CsvFast-FileConverter-v0.3.60-x64.exe.
+
+Co-Authored-By: Claude Code <noreply@anthropic.com>
