@@ -98,6 +98,14 @@ def main() -> int:
     garantir_segredo(novo=args.novo_segredo)
     if args.so_segredo:
         return 0
+
+    # Limpar releases antigos do GitHub (mantendo apenas a versão atual e até 3 anteriores)
+    try:
+        from clean_old_releases import limpar_releases_antigos
+        limpar_releases_antigos(3)
+    except Exception as e:
+        print(f" Aviso ao limpar releases antigos: {e}")
+
     return build()
 
 
