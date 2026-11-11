@@ -222,20 +222,83 @@
 <div class="wrap">
 
     <div class="card">
-        <div class="actions">
-            <a class="btn"
+        <div class="actions" id="download-actions">
+            <a class="btn" id="main-download-btn"
                href="https://github.com/alexsanderfer/conversor/releases/latest/download/CsvFast-FileConverter-v0.3.80-x64.exe"
-               download>Descarregar CsvFast-FileConverter-v0.3.80-x64.exe</a>
+               download>Descarregar para Windows (v0.3.80)</a>
             <a class="btn"
                href="https://buy.stripe.com/test_your-checkout-link-here"
                target="_blank" rel="noopener"
                style="pointer-events:none; opacity:0.55; cursor:default;"
                title="Em breve — integrando Stripe">Comprar Licença</a>
         </div>
-        <p class="note" style="margin-bottom:0">
-            Descarregue, faça duplo clique e siga os passos abaixo.
-            Não precisa de instalar nada.
+        <p class="note" style="margin-top: 12px; margin-bottom:0" id="download-note">
+            Detetado Windows. Descarregue, faça duplo clique e execute. Não precisa de instalar nada.
         </p>
+        <div style="margin-top: 16px; font-size: 0.9rem; border-top: 1px solid #cfe6d2; padding-top: 12px;">
+            <strong>Outras plataformas:</strong>
+            <a href="https://github.com/alexsanderfer/conversor/releases/latest" target="_blank" rel="noopener">Ver releases para macOS e Linux</a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const ua = navigator.userAgent.toLowerCase();
+            const btn = document.getElementById("main-download-btn");
+            const note = document.getElementById("download-note");
+            const baseTag = "https://github.com/alexsanderfer/conversor/releases/latest/download/";
+
+            if (ua.includes("mac")) {
+                btn.href = baseTag + "CsvFast-FileConverter-v0.3.80-mac.zip";
+                btn.textContent = "Descarregar para macOS (v0.3.80)";
+                note.textContent = "Detetado macOS. Descarregue o arquivo .zip e descompacte a aplicação.";
+            } else if (ua.includes("linux")) {
+                btn.href = baseTag + "CsvFast-FileConverter-v0.3.80-linux";
+                btn.textContent = "Descarregar para Linux (v0.3.80)";
+                note.textContent = "Detetado Linux. Veja as instruções de execução abaixo.";
+            } else {
+                btn.href = baseTag + "CsvFast-FileConverter-v0.3.80-x64.exe";
+                btn.textContent = "Descarregar para Windows (v0.3.80)";
+                note.textContent = "Detetado Windows. Descarregue, faça duplo clique e execute.";
+            }
+        });
+    </script>
+
+    <h2>Instruções por Sistema Operativo</h2>
+    <div class="accordion" open style="margin-bottom: 12px;">
+        <summary>🐧 Instruções para Linux</summary>
+        <div class="acc-body">
+            <p>Para executar o <strong>CsvFast-FileConverter</strong> em distribuições Linux (Ubuntu, Debian, Fedora, Arch, etc.):</p>
+            <ol>
+                <li>Certifique-se de que o Python 3 e o Tkinter estão instalados no seu sistema:
+                    <ul>
+                        <li>Ubuntu/Debian: <code>sudo apt install python3 python3-tk python3-pip</code></li>
+                        <li>Fedora: <code>sudo dnf install python3 python3-tkinter</code></li>
+                    </ul>
+                </li>
+                <li>Descarregue o binário ou clone o repositório e instale as dependências:
+                    <code>pip install -r requirements.txt</code>
+                </li>
+                <li>Dê permissão de execução ao binário descarregado:
+                    <code>chmod +x CsvFast-FileConverter-v0.3.80-linux</code>
+                </li>
+                <li>Execute o programa a partir do terminal ou gestor de ficheiros:
+                    <code>./CsvFast-FileConverter-v0.3.80-linux</code> ou <code>python3 main.py</code>
+                </li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="accordion" open style="margin-bottom: 12px;">
+        <summary>🍏 Instruções para macOS</summary>
+        <div class="acc-body">
+            <p>Para executar no macOS:</p>
+            <ol>
+                <li>Descarregue o pacote macOS.</li>
+                <li>Abra o arquivo compactado para extrair a aplicação.</li>
+                <li>Se necessário (por restrição do Gatekeeper), clique com o botão direito na aplicação e selecione <strong>Abrir</strong>.</li>
+            </ol>
+        </div>
     </div>
 
     <h2>Como funciona</h2>
