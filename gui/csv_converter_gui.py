@@ -1726,98 +1726,102 @@ class App(Tk):
         ttk.Button(search_row, text="🔄 Recarregar", command=self._reload_categories, width=14).pack(side="left")
 
     def _extract_categories_from_file(self, filepath):
-        try:
-            if not filepath or not os.path.isfile(filepath):
-                return
-            self._last_loaded_filepath = filepath
-            headers, rows = _read_csv_any_delimiter(filepath)
-            if not headers:
-                return
-            mapping = load_field_mapping()
-            compiled_rules = get_compiled_keyword_rules()
+        def worker():
+            try:
+                if not filepath or not os.path.isfile(filepath):
+                    return
+                self._last_loaded_filepath = filepath
+                headers, rows = _read_csv_any_delimiter(filepath)
+                if not headers:
+                    return
+                mapping = load_field_mapping()
+                compiled_rules = get_compiled_keyword_rules()
 
-            # Preencher Treeview de Preview Lado a Lado (primeiras 15 linhas)
-            if hasattr(self, "_preview_orig_tree") and hasattr(self, "_preview_conv_tree"):
-                # Configurar colunas originais
-                orig_cols = headers[:6]  # Primeiras 6 colunas do CSV original
-                self._preview_orig_tree["columns"] = orig_cols
-                self._preview_orig_tree["show"] = "headings"
-                for col in orig_cols:
-                    self._preview_orig_tree.heading(col, text=col)
-                    self._preview_orig_tree.column(col, width=120, anchor="w")
+                # Preencher Treeview de Preview Lado a Lado na main thread
+                def update_trees():
+                    if hasattr(self, "_preview_orig_tree") and hasattr(self, "_preview_conv_tree"):
+                        orig_cols = headers[:6]
+                        self._preview_orig_tree["columns"] = orig_cols
+                        self._preview_orig_tree["show"] = "headings"
+                        for col in orig_cols:
+                            self._preview_orig_tree.heading(col, text=col)
+                            self._preview_orig_tree.column(col, width=120, anchor="w")
 
-                # Limpar itens anteriores
-                for item in self._preview_orig_tree.get_children():
-                    self._preview_orig_tree.delete(item)
-                for item in self._preview_conv_tree.get_children():
-                    self._preview_conv_tree.delete(item)
+                        for item in self._preview_orig_tree.get_children():
+                            self._preview_orig_tree.delete(item)
+                        for item in self._preview_conv_tree.get_children():
+                            self._preview_conv_tree.delete(item)
 
-                # Configurar colunas convertidas (Jumpseller principais)
-                conv_cols = ["Name", "Categories", "Brand", "Price", "Stock", "SKU"]
-                self._preview_conv_tree["columns"] = conv_cols
-                self._preview_conv_tree["show"] = "headings"
-                for col in conv_cols:
-                    self._preview_conv_tree.heading(col, text=col)
-                    self._preview_conv_tree.column(col, width=120, anchor="w")
+                        conv_cols = ["Name", "Categories", "Brand", "Price", "Stock", "SKU"]
+                        self._preview_conv_tree["columns"] = conv_cols
+                        self._preview_conv_tree["show"] = "headings"
+                        for col in conv_cols:
+                            self._preview_conv_tree.heading(col, text=col)
+                            self._preview_conv_tree.column(col, width=120, anchor="w")
 
-                for row in rows[:50]:
-                    # Inserir original
-                    orig_values = [str(row.get(c, "")) for c in orig_cols]
-                    self._preview_orig_tree.insert("", "end", values=orig_values)
+                        for row in rows[:50]:
+                            orig_values = [str(row.get(c, "")) for c in orig_cols]
+                            self._preview_orig_tree.insert("", "end", values=orig_values)
+                            try:
+                                conv = convert_row(row, mapping, compiled_rules=compiled_rules)
+                                conv_values = [str(conv.get(c, "")) for c in conv_cols]
+                                self._preview_conv_tree.insert("", "end", values=conv_values)
+                            except Exception:
+                                pass
 
-                    # Converter e inserir preview
+                self.after(0, update_trees)
+
+                unique_cats_set = set()
+                subcat_cats_set = set()
+                unique_brands_set = set()
+                brand_subcat_set = set()
+                for row in rows:
                     try:
-                        conv = convert_row(row, mapping, compiled_rules=compiled_rules)
-                        conv_values = [str(conv.get(c, "")) for c in conv_cols]
-                        self._preview_conv_tree.insert("", "end", values=conv_values)
-                    except Exception:
-                        pass
+                        familia = str(get_mapped_value(row, "familia_principal", mapping)).strip()
+                        sub_familia = str(get_mapped_value(row, "sub_familia", mapping)).strip()
+                        sub_sub_familia = str(get_mapped_value(row, "sub_sub_familia", mapping)).strip()
 
-            unique_cats_set = set()
-            subcat_cats_set = set()
-            unique_brands_set = set()
-            brand_subcat_set = set()
-            for row in rows:  # Analisar todas as linhas do ficheiro sem limite artificial
-                try:
-                    familia = str(get_mapped_value(row, "familia_principal", mapping)).strip()
-                    sub_familia = str(get_mapped_value(row, "sub_familia", mapping)).strip()
-                    sub_sub_familia = str(get_mapped_value(row, "sub_sub_familia", mapping)).strip()
-
-                    if familia:
-                        unique_cats_set.add(familia)
-                        subcat_cats_set.add(familia)
-                    if sub_familia and familia:
-                        subcat_cats_set.add(f"{familia} > {sub_familia}")
-                    if sub_sub_familia and familia and sub_familia:
-                        subcat_cats_set.add(f"{familia} > {sub_familia} > {sub_sub_familia}")
-
-                    marca = str(get_mapped_value(row, "marca", mapping)).strip()
-                    if not marca:
-                        for k in ["marca", "Brand", "Marca", "fabricante", "Fabricante"]:
-                            if k in row and str(row[k]).strip():
-                                marca = str(row[k]).strip()
-                                break
-                    if marca:
-                        unique_brands_set.add(marca)
                         if familia:
-                            brand_subcat_set.add(f"{marca} > {familia}")
-                            if sub_familia:
-                                brand_subcat_set.add(f"{marca} > {familia} > {sub_familia}")
-                except Exception:
-                    continue
-            self._unique_categories = sorted(list(unique_cats_set)) if unique_cats_set else []
-            self._subcat_categories = sorted(list(subcat_cats_set)) if subcat_cats_set else []
-            self._all_categories = self._subcat_categories
-            self._unique_brands = sorted(list(unique_brands_set)) if unique_brands_set else []
-            self._brand_subcat_categories = sorted(list(brand_subcat_set)) if brand_subcat_set else []
-            self._filter_categories()
-            self._hb_filter_categories()
-            self._brand_filter_categories()
-            self._refresh_hb_adv_combos()
-            self._refresh_brand_adv_combos()
-            self._refresh_cat_adv_combos()
-        except Exception:
-            pass
+                            unique_cats_set.add(familia)
+                            subcat_cats_set.add(familia)
+                        if sub_familia and familia:
+                            subcat_cats_set.add(f"{familia} > {sub_familia}")
+                        if sub_sub_familia and familia and sub_familia:
+                            subcat_cats_set.add(f"{familia} > {sub_familia} > {sub_sub_familia}")
+
+                        marca = str(get_mapped_value(row, "marca", mapping)).strip()
+                        if not marca:
+                            for k in ["marca", "Brand", "Marca", "fabricante", "Fabricante"]:
+                                if k in row and str(row[k]).strip():
+                                    marca = str(row[k]).strip()
+                                    break
+                        if marca:
+                            unique_brands_set.add(marca)
+                            if familia:
+                                brand_subcat_set.add(f"{marca} > {familia}")
+                                if sub_familia:
+                                    brand_subcat_set.add(f"{marca} > {familia} > {sub_familia}")
+                    except Exception:
+                        continue
+
+                def update_categories():
+                    self._unique_categories = sorted(list(unique_cats_set)) if unique_cats_set else []
+                    self._subcat_categories = sorted(list(subcat_cats_set)) if subcat_cats_set else []
+                    self._all_categories = self._subcat_categories
+                    self._unique_brands = sorted(list(unique_brands_set)) if unique_brands_set else []
+                    self._brand_subcat_categories = sorted(list(brand_subcat_set)) if brand_subcat_set else []
+                    self._filter_categories()
+                    self._hb_filter_categories()
+                    self._brand_filter_categories()
+                    self._refresh_hb_adv_combos()
+                    self._refresh_brand_adv_combos()
+                    self._refresh_cat_adv_combos()
+
+                self.after(0, update_categories)
+            except Exception:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _filter_categories(self):
         try:
@@ -2922,6 +2926,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.76 (2026-11-11)
+        - Otimização de desempenho no arranque e carregamento de ficheiros: leitura de CSV e extração de categorias movidas para thread em background (não bloqueia a interface / sem efeito de loading demorado).
+
         v0.3.75 (2026-11-11)
         - Correção do ícone da aplicação no Windows (uso explícito de iconbitmap com o ficheiro icon.ico para substituir o ícone padrão de pena do Tkinter).
 
