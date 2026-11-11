@@ -688,12 +688,27 @@ def _read_csv_any_delimiter(input_path: str):
     return headers, rows
 
 
-def load_price_state(output_dir: str) -> dict:
-    return {}
+_PRICE_STATE_FILE = Path(os.environ.get("LOCALAPPDATA", "")) / "ConversorJumpseller" / "price_state.json"
 
 
-def save_price_state(output_dir: str, state: dict):
-    pass
+def load_price_state() -> dict:
+    if not _PRICE_STATE_FILE.is_file():
+        return {}
+    try:
+        with open(_PRICE_STATE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_price_state(state: dict):
+    try:
+        _PRICE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_PRICE_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2, sort_keys=True)
+    except OSError as exc:
+        raise OSError(f"Não foi possível guardar o estado dos preços: {exc}")
 
 
 def _read_fornecedor_rows(fornecedor_path: str):
@@ -723,7 +738,7 @@ def merge_update(export_path: str, fornecedor_path: str, output_dir: str, exclud
             by_sku.setdefault(sku, []).append(row)
 
     fornecedor_rows = _read_fornecedor_rows(fornecedor_path)
-    prev_state = load_price_state(output_dir)
+    prev_state = load_price_state()
     new_state = {}
     merged = []
     matched_skus = set()
@@ -791,7 +806,7 @@ def merge_update(export_path: str, fornecedor_path: str, output_dir: str, exclud
         writer.writeheader()
         writer.writerows(merged)
 
-    save_price_state(output_dir, new_state)
+    save_price_state(new_state)
 
     n_atualizados = len(matched_skus)
     n_novos = (len(fornecedor_rows) - removed_unavailable) - n_atualizados
