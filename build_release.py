@@ -24,7 +24,7 @@ from pathlib import Path
 RAIZ = Path(__file__).parent
 SEGREDO_FILE = RAIZ / "_segredo.txt"
 SEGREDO_MOD = RAIZ / "_segredo_gerado.py"
-SPEC = RAIZ / "ConversorJumpseller.spec"
+SPEC = RAIZ / "CsvFastFileConverter.spec"
 
 
 def gerar_segredo() -> str:

@@ -806,6 +806,126 @@ def apply_compiled_highlights_brands_rules(familia: str, sub_familia: str, compi
     return ""
 
 
+def get_brands_keyword_rules() -> list:
+    """Retorna a lista de regras de Marcas."""
+    try:
+        data = _read_config()
+        rules = data.get("settings", {}).get("brands_keyword_rules", [])
+        if not isinstance(rules, list):
+            rules = []
+        return sorted(rules, key=lambda r: int(r.get("priority", 0)), reverse=True)
+    except Exception:
+        return []
+
+
+def set_brands_keyword_rules(rules: list) -> bool:
+    """Guarda a lista completa de regras para Marcas."""
+    try:
+        data = _read_config()
+        settings = data.setdefault("settings", {})
+        settings["brands_keyword_rules"] = list(rules)
+        return _write_config(data)
+    except Exception:
+        return False
+
+
+def add_brands_keyword_rule(marca: str, category: str, subcategory: str, parent_category: str, priority: int = 10) -> bool:
+    """Adiciona uma regra de mapeamento avançado baseada em Marca, Categoria e Subcategoria."""
+    try:
+        marca_str = str(marca).strip()
+        cat_str = str(category).strip()
+        subcat_str = str(subcategory).strip()
+        parent_str = str(parent_category).strip()
+        if not parent_str:
+            return False
+        rules = get_brands_keyword_rules()
+        rules.append({
+            "marca": marca_str,
+            "category": cat_str,
+            "subcategory": subcat_str,
+            "parent_category": parent_str,
+            "priority": int(priority),
+        })
+        return set_brands_keyword_rules(rules)
+    except Exception:
+        return False
+
+
+def remove_brands_keyword_rule(index: int) -> bool:
+    """Remove a regra de Marcas na posição dada."""
+    try:
+        rules = get_brands_keyword_rules()
+        if 0 <= index < len(rules):
+            del rules[index]
+            return set_brands_keyword_rules(rules)
+        return False
+    except Exception:
+        return False
+
+
+def apply_brands_keyword_rules(marca: str, familia: str, sub_familia: str = "") -> str:
+    """Aplica as regras de Marcas baseadas em Marca, Categoria e Subcategoria."""
+    marca_norm = str(marca).strip().lower()
+    fam_norm = str(familia).strip().lower()
+    sub_norm = str(sub_familia).strip().lower()
+
+    for rule in get_brands_keyword_rules():
+        parent = str(rule.get("parent_category", "")).strip()
+        if not parent:
+            continue
+        rule_marca = str(rule.get("marca", "")).strip().lower()
+        rule_cat = str(rule.get("category", "")).strip().lower()
+        rule_sub = str(rule.get("subcategory", "")).strip().lower()
+
+        if rule_marca and rule_marca != marca_norm:
+            continue
+        if rule_cat and rule_cat != fam_norm:
+            continue
+        if rule_sub and (not sub_norm or (rule_sub != sub_norm and rule_sub not in sub_norm)):
+            continue
+        return parent
+    return ""
+
+
+def get_compiled_brands_rules():
+    """Pré-compila as regras de Marcas para busca O(1)."""
+    rules = get_brands_keyword_rules()
+    compiled_list = []
+    for rule in rules:
+        parent = str(rule.get("parent_category", "")).strip()
+        if not parent:
+            continue
+        compiled_list.append({
+            "marca": str(rule.get("marca", "")).strip().lower(),
+            "category": str(rule.get("category", "")).strip().lower(),
+            "subcategory": str(rule.get("subcategory", "")).strip().lower(),
+            "parent_category": parent
+        })
+    return compiled_list
+
+
+def apply_compiled_brands_rules(marca: str, familia: str, sub_familia: str, compiled_rules) -> str:
+    """Aplica regras pré-compiladas de Marcas de forma ultrarrápida O(1)."""
+    marca_norm = str(marca).strip().lower()
+    fam_norm = str(familia).strip().lower()
+    sub_norm = str(sub_familia).strip().lower()
+
+    for rule in compiled_rules:
+        r_marca = rule["marca"]
+        r_cat = rule["category"]
+        r_sub = rule["subcategory"]
+        parent = rule["parent_category"]
+
+        if r_marca and r_marca != marca_norm:
+            continue
+        if r_cat and r_cat != fam_norm:
+            continue
+        if r_sub and (not sub_norm or (r_sub != sub_norm and r_sub not in sub_norm)):
+            continue
+        return parent
+    return ""
+
+
 def get_mapped_value(row: dict, expected_field: str, mapping: dict = None) -> str:
     """
     Get a value from a CSV row using field mapping.
@@ -841,3 +961,22 @@ def save_field_mapping(mapping: dict):
         mapping: Mapping dictionary to save
     """
     save_profile(get_active_profile(), mapping)
+
+
+def get_last_input_file() -> str:
+    """Retorna o caminho do último arquivo CSV usado."""
+    try:
+        data = _read_config()
+        return str(data.get("last_input_file", "")).strip()
+    except Exception:
+        return ""
+
+
+def set_last_input_file(filepath: str) -> None:
+    """Guarda o caminho do último arquivo CSV usado."""
+    try:
+        data = _read_config()
+        data["last_input_file"] = str(filepath).strip()
+        _write_config(data)
+    except Exception:
+        pass

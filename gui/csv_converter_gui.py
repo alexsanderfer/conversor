@@ -56,6 +56,9 @@ from core.field_mapping import (
     get_highlights_brands_settings, set_highlights_brands_settings,
     get_highlights_brands_keyword_rules, add_highlights_brands_keyword_rule, remove_highlights_brands_keyword_rule,
     get_compiled_highlights_brands_rules, apply_compiled_highlights_brands_rules,
+    get_brands_keyword_rules, add_brands_keyword_rule, remove_brands_keyword_rule,
+    get_compiled_brands_rules, apply_compiled_brands_rules,
+    get_last_input_file, set_last_input_file,
 )
 from core.category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
 
@@ -1051,7 +1054,8 @@ class App(Tk):
         self.tab_lucro = ttk.Frame(self.tabs, padding=8)
         self.tab_sku_prefix = ttk.Frame(self.tabs, padding=8)
         self.tab_categorias = ttk.Frame(self.tabs, padding=8)
-        self.tab_highlights_brands = ttk.Frame(self.tabs, padding=8)
+        self.tab_destaques = ttk.Frame(self.tabs, padding=8)
+        self.tab_marcas = ttk.Frame(self.tabs, padding=8)
         self.tab_sobre = ttk.Frame(self.tabs, padding=8)
         self.tabs.add(self.tab_fornecedores, text="  Fornecedores  ")
         self.tabs.add(self.tab_novo, text="  Novo Ficheiro  ")
@@ -1059,7 +1063,8 @@ class App(Tk):
         self.tabs.add(self.tab_lucro, text="  Lucro e Taxas  ")
         self.tabs.add(self.tab_sku_prefix, text="  Prefixo SKU  ")
         self.tabs.add(self.tab_categorias, text="  Categorias  ")
-        self.tabs.add(self.tab_highlights_brands, text="  Destaques e Marcas  ")
+        self.tabs.add(self.tab_destaques, text="  Destaques  ")
+        self.tabs.add(self.tab_marcas, text="  Marcas  ")
         self.tabs.add(self.tab_sobre, text="  Sobre  ")
 
         self._build_tab_fornecedores()
@@ -1068,7 +1073,8 @@ class App(Tk):
         self._build_tab_lucro()
         self._build_tab_sku_prefix()
         self._build_tab_categorias()
-        self._build_tab_highlights_brands()
+        self._build_tab_destaques()
+        self._build_tab_marcas()
         self._build_tab_sobre()
         self._build_footer()
 
@@ -1198,6 +1204,15 @@ class App(Tk):
             widget=self.drop_text,
         )
         self._status_widget = self.drop_text
+
+        try:
+            last_file = get_last_input_file()
+            if last_file and os.path.isfile(last_file):
+                self.path_var.set(last_file)
+                self._update_drop_text(last_file)
+                self._extract_categories_from_file(last_file)
+        except Exception:
+            pass
 
         frm_opts = ttk.Frame(self.tab_novo)
         frm_opts.pack(fill="x", pady=(0, 4))
@@ -1561,7 +1576,7 @@ class App(Tk):
             row = ttk.Frame(frm)
             row.pack(fill="x", pady=2)
             ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
-            ttk.Entry(row, textvariable=v, width=34).pack(side="left", padx=(4, 6))
+            ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True, padx=(4, 6))
             ttk.Button(row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
 
         # Manter hierarquia original está sempre activo (não é configurável pelo utilizador)
@@ -1670,6 +1685,8 @@ class App(Tk):
             mapping = load_field_mapping()
             unique_cats_set = set()
             subcat_cats_set = set()
+            unique_brands_set = set()
+            brand_subcat_set = set()
             for row in rows:  # Analisar todas as linhas do ficheiro sem limite artificial
                 try:
                     familia = str(get_mapped_value(row, "familia_principal", mapping)).strip()
@@ -1683,13 +1700,31 @@ class App(Tk):
                         subcat_cats_set.add(f"{familia} > {sub_familia}")
                     if sub_sub_familia and familia and sub_familia:
                         subcat_cats_set.add(f"{familia} > {sub_familia} > {sub_sub_familia}")
+
+                    marca = str(get_mapped_value(row, "marca", mapping)).strip()
+                    if not marca:
+                        for k in ["marca", "Brand", "Marca", "fabricante", "Fabricante"]:
+                            if k in row and str(row[k]).strip():
+                                marca = str(row[k]).strip()
+                                break
+                    if marca:
+                        unique_brands_set.add(marca)
+                        if familia:
+                            brand_subcat_set.add(f"{marca} > {familia}")
+                            if sub_familia:
+                                brand_subcat_set.add(f"{marca} > {familia} > {sub_familia}")
                 except Exception:
                     continue
             self._unique_categories = sorted(list(unique_cats_set)) if unique_cats_set else []
             self._subcat_categories = sorted(list(subcat_cats_set)) if subcat_cats_set else []
             self._all_categories = self._subcat_categories
+            self._unique_brands = sorted(list(unique_brands_set)) if unique_brands_set else []
+            self._brand_subcat_categories = sorted(list(brand_subcat_set)) if brand_subcat_set else []
             self._filter_categories()
             self._hb_filter_categories()
+            self._brand_filter_categories()
+            self._refresh_hb_adv_combos()
+            self._refresh_brand_adv_combos()
         except Exception:
             pass
 
@@ -1750,6 +1785,36 @@ class App(Tk):
                 self._hb_subcat_text.delete("1.0", "end")
                 self._hb_subcat_text.insert("1.0", "\n".join(filtered_subcat) if filtered_subcat else "(nenhuma categoria)")
                 self._hb_subcat_text.config(state="disabled")
+        except Exception:
+            pass
+
+    def _brand_filter_categories(self):
+        try:
+            query = getattr(self, "_brand_search_var", None)
+            q = query.get().strip().lower() if query else ""
+
+            brands_all = getattr(self, "_unique_brands", [])
+            brand_subcat_all = getattr(self, "_brand_subcat_categories", [])
+
+            filtered_brands = [c for c in brands_all if not q or q in c.lower()]
+            filtered_brand_subcat = [c for c in brand_subcat_all if not q or q in c.lower()]
+
+            if hasattr(self, '_brand_unique_title_var'):
+                self._brand_unique_title_var.set(f"MARCAS ÚNICAS ({len(filtered_brands)} de {len(brands_all)})" if q else f"MARCAS ÚNICAS ({len(brands_all)})")
+            if hasattr(self, '_brand_subcat_title_var'):
+                self._brand_subcat_title_var.set(f"MARCAS CATEGORIAS E SUBCATEGORIAS ({len(filtered_brand_subcat)} de {len(brand_subcat_all)})" if q else f"MARCAS CATEGORIAS E SUBCATEGORIAS ({len(brand_subcat_all)})")
+
+            if hasattr(self, '_brand_unique_text'):
+                self._brand_unique_text.config(state="normal")
+                self._brand_unique_text.delete("1.0", "end")
+                self._brand_unique_text.insert("1.0", "\n".join(filtered_brands) if filtered_brands else "(nenhuma marca)")
+                self._brand_unique_text.config(state="disabled")
+
+            if hasattr(self, '_brand_subcat_text'):
+                self._brand_subcat_text.config(state="normal")
+                self._brand_subcat_text.delete("1.0", "end")
+                self._brand_subcat_text.insert("1.0", "\n".join(filtered_brand_subcat) if filtered_brand_subcat else "(nenhuma marca/categoria)")
+                self._brand_subcat_text.config(state="disabled")
         except Exception:
             pass
 
@@ -1981,6 +2046,449 @@ class App(Tk):
                 if messagebox.askyesno("Remover Regra", f"Remover a regra:\n'{desc} → {cat}'?", parent=self):
                     remove_keyword_rule(index)
                     self._refresh_adv_rules_list()
+            return
+        messagebox.showwarning("Atenção", "Selecione uma regra na lista para remover.", parent=self)
+
+    def _build_tab_destaques(self):
+        """Constrói a aba 'Destaques'."""
+        frm = ttk.Frame(self.tab_destaques, padding=6)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, text="Mapeamento", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+
+        hb_header_row = ttk.Frame(frm)
+        hb_header_row.pack(fill="x", pady=(0, 8))
+        ttk.Label(hb_header_row, text="Crie até 10 categorias pai para Destaques", font=("Segoe UI", 9), foreground=GRAY_600).pack(side="left")
+        ttk.Label(hb_header_row, text="  Fornecedor:", font=("Segoe UI", 9)).pack(side="left", padx=(10, 4))
+        self._hb_fornecedor_var = tk.StringVar(value=get_active_profile())
+        self._hb_fornecedor_combo = ttk.Combobox(hb_header_row, textvariable=self._hb_fornecedor_var, state="readonly", width=24)
+        self._hb_fornecedor_combo.pack(side="left")
+        self._hb_fornecedor_combo.bind("<<ComboboxSelected>>", self._on_hb_fornecedor_change)
+        self._refresh_hb_fornecedor_combo()
+
+        hb_settings = get_highlights_brands_settings()
+        self._hb_new_vars = []
+        for i in range(10):
+            val = hb_settings.get("new_categories", [""] * 10)[i] if i < len(hb_settings.get("new_categories", [])) else ""
+            v = tk.StringVar(value=val)
+            self._hb_new_vars.append(v)
+            row = ttk.Frame(frm)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
+            ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True, padx=(4, 6))
+            ttk.Button(row, text="Guardar", command=self._save_highlights_brands_settings, width=8).pack(side="left", padx=(4, 0))
+
+        self._hb_use_parent_var = tk.BooleanVar(value=True)
+
+        ttk.Button(frm, text="Guardar todas as configurações de Destaques", command=self._save_highlights_brands_settings, width=45).pack(anchor="w", pady=(4, 0))
+
+        # ---- Mapeamento Avançado (regras por Categoria e Subcategoria) ----
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
+        ttk.Label(frm, text="Mapeamento Avançado — regras por Categoria e Subcategoria", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(frm, text="Associe automaticamente produtos a uma categoria pai de destaques com base na Categoria e Subcategoria do fornecedor.", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 2))
+        hb_adv_row = ttk.Frame(frm)
+        hb_adv_row.pack(fill="x", pady=2)
+        ttk.Label(hb_adv_row, text="Cat.:").pack(side="left", padx=(0, 2))
+        self._hb_adv_cat_var = tk.StringVar()
+        self._hb_adv_cat_combo = ttk.Combobox(hb_adv_row, textvariable=self._hb_adv_cat_var, width=18)
+        self._hb_adv_cat_combo.pack(side="left", padx=(0, 4))
+        ttk.Label(hb_adv_row, text="Subcat.:").pack(side="left", padx=(4, 2))
+        self._hb_adv_subcat_var = tk.StringVar()
+        self._hb_adv_subcat_combo = ttk.Combobox(hb_adv_row, textvariable=self._hb_adv_subcat_var, width=18)
+        self._hb_adv_subcat_combo.pack(side="left", padx=(0, 4))
+        ttk.Label(hb_adv_row, text="Pai:").pack(side="left", padx=(4, 2))
+        self._hb_pai_combo = ttk.Combobox(hb_adv_row, state="readonly", width=22)
+        self._hb_pai_combo.pack(side="left", padx=(0, 4))
+        ttk.Button(hb_adv_row, text="Adicionar Regra", command=self._hb_add_advanced_keyword_rule, width=14).pack(side="left", padx=(0, 4))
+        ttk.Button(hb_adv_row, text="Remover Regra", command=self._hb_remove_advanced_keyword_rule, width=14).pack(side="left")
+        self._refresh_hb_pai_combo()
+
+        ttk.Label(frm, text="Regras configuradas (mais recente = maior prioridade) — selecione para remover:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(6, 2))
+        hb_adv_frame = ttk.Frame(frm)
+        hb_adv_frame.pack(fill="both", expand=True)
+        self._hb_adv_rules_listbox = tk.Listbox(hb_adv_frame, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), selectmode="single")
+        hb_adv_scroll = ttk.Scrollbar(hb_adv_frame, orient="vertical", command=self._hb_adv_rules_listbox.yview)
+        self._hb_adv_rules_listbox.configure(yscrollcommand=hb_adv_scroll.set)
+        self._hb_adv_rules_listbox.pack(side="left", fill="both", expand=True)
+        hb_adv_scroll.pack(side="right", fill="y")
+        self._hb_adv_rules_listbox.bind("<Double-Button-1>", lambda e: self._hb_remove_advanced_keyword_rule())
+        self._refresh_hb_adv_rules_list()
+
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
+
+        # Listagem em duas colunas: Categorias Únicas e Categorias e Subcategorias
+        hb_lists_container = ttk.Frame(frm)
+        hb_lists_container.pack(fill="both", expand=True, pady=(2, 0))
+        hb_lists_container.columnconfigure(0, weight=1)
+        hb_lists_container.columnconfigure(1, weight=1)
+        hb_lists_container.rowconfigure(0, weight=1)
+
+        # Coluna 1: Categorias Únicas
+        hb_col1_frame = ttk.Frame(hb_lists_container)
+        hb_col1_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        self._hb_unique_title_var = tk.StringVar(value="CATEGORIAS ÚNICAS (0)")
+        ttk.Label(hb_col1_frame, textvariable=self._hb_unique_title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+
+        hb_c1_box = ttk.Frame(hb_col1_frame)
+        hb_c1_box.pack(fill="both", expand=True)
+        self._hb_unique_text = tk.Text(hb_c1_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        hb_c1_scroll = ttk.Scrollbar(hb_c1_box, orient="vertical", command=self._hb_unique_text.yview)
+        self._hb_unique_text.configure(yscrollcommand=hb_c1_scroll.set)
+        self._hb_unique_text.pack(side="left", fill="both", expand=True)
+        hb_c1_scroll.pack(side="right", fill="y")
+        self._hb_unique_text.config(state="disabled")
+
+        # Coluna 2: Categorias e Subcategorias
+        hb_col2_frame = ttk.Frame(hb_lists_container)
+        hb_col2_frame.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+        self._hb_subcat_title_var = tk.StringVar(value="CATEGORIAS E SUBCATEGORIAS (0)")
+        ttk.Label(hb_col2_frame, textvariable=self._hb_subcat_title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+
+        hb_c2_box = ttk.Frame(hb_col2_frame)
+        hb_c2_box.pack(fill="both", expand=True)
+        self._hb_subcat_text = tk.Text(hb_c2_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        hb_c2_scroll = ttk.Scrollbar(hb_c2_box, orient="vertical", command=self._hb_subcat_text.yview)
+        self._hb_subcat_text.configure(yscrollcommand=hb_c2_scroll.set)
+        self._hb_subcat_text.pack(side="left", fill="both", expand=True)
+        hb_c2_scroll.pack(side="right", fill="y")
+        self._hb_subcat_text.config(state="disabled")
+
+        hb_search_row = ttk.Frame(frm)
+        hb_search_row.pack(fill="x", pady=(6, 4))
+        ttk.Label(hb_search_row, text="🔍 Pesquisar:").pack(side="left", padx=(0, 4))
+        self._hb_search_var = tk.StringVar()
+        self._hb_search_var.trace_add("write", lambda *args: self._hb_filter_categories())
+        ttk.Entry(hb_search_row, textvariable=self._hb_search_var, width=28).pack(side="left", padx=(0, 8))
+        ttk.Button(hb_search_row, text="🔄 Recarregar", command=self._reload_categories, width=14).pack(side="left")
+
+    def _build_tab_marcas(self):
+        """Constrói a aba 'Marcas' com mapeamento avançado por Marca, Categoria e Subcategoria."""
+        frm = ttk.Frame(self.tab_marcas, padding=6)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, text="Mapeamento", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+
+        brand_header_row = ttk.Frame(frm)
+        brand_header_row.pack(fill="x", pady=(0, 8))
+        ttk.Label(brand_header_row, text="Crie até 10 categorias pai para agrupar as marcas e produtos", font=("Segoe UI", 9), foreground=GRAY_600).pack(side="left")
+        ttk.Label(brand_header_row, text="  Fornecedor:", font=("Segoe UI", 9)).pack(side="left", padx=(10, 4))
+        self._brand_fornecedor_var = tk.StringVar(value=get_active_profile())
+        self._brand_fornecedor_combo = ttk.Combobox(brand_header_row, textvariable=self._brand_fornecedor_var, state="readonly", width=24)
+        self._brand_fornecedor_combo.pack(side="left")
+        self._brand_fornecedor_combo.bind("<<ComboboxSelected>>", self._on_brand_fornecedor_change)
+        self._refresh_brand_fornecedor_combo()
+
+        brand_settings = get_highlights_brands_settings()
+        self._brand_new_vars = []
+        for i in range(10):
+            val = brand_settings.get("new_categories", [""] * 10)[i] if i < len(brand_settings.get("new_categories", [])) else ""
+            v = tk.StringVar(value=val)
+            self._brand_new_vars.append(v)
+            row = ttk.Frame(frm)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
+            ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True, padx=(4, 6))
+            ttk.Button(row, text="Guardar", command=self._save_brand_settings, width=8).pack(side="left", padx=(4, 0))
+
+        ttk.Button(frm, text="Guardar todas as configurações de Marcas", command=self._save_brand_settings, width=45).pack(anchor="w", pady=(4, 0))
+
+        # ---- Mapeamento Avançado (regras por Marca, Categoria e Subcategoria) ----
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
+        ttk.Label(frm, text="Mapeamento Avançado — Regras por Marca de produto.", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(frm, text="Associe automaticamente produtos a uma categoria pai com base na Marca, Categoria e Subcategoria originais do fornecedor.", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 2))
+
+        brand_adv_row = ttk.Frame(frm)
+        brand_adv_row.pack(fill="x", pady=2)
+        ttk.Label(brand_adv_row, text="Marca:").pack(side="left", padx=(0, 2))
+        self._brand_adv_marca_var = tk.StringVar()
+        self._brand_adv_marca_combo = ttk.Combobox(brand_adv_row, textvariable=self._brand_adv_marca_var, width=14)
+        self._brand_adv_marca_combo.pack(side="left", padx=(0, 4))
+        ttk.Label(brand_adv_row, text="Cat.:").pack(side="left", padx=(4, 2))
+        self._brand_adv_cat_var = tk.StringVar()
+        self._brand_adv_cat_combo = ttk.Combobox(brand_adv_row, textvariable=self._brand_adv_cat_var, width=14)
+        self._brand_adv_cat_combo.pack(side="left", padx=(0, 4))
+        ttk.Label(brand_adv_row, text="Subcat.:").pack(side="left", padx=(4, 2))
+        self._brand_adv_subcat_var = tk.StringVar()
+        self._brand_adv_subcat_combo = ttk.Combobox(brand_adv_row, textvariable=self._brand_adv_subcat_var, width=14)
+        self._brand_adv_subcat_combo.pack(side="left", padx=(0, 4))
+        ttk.Label(brand_adv_row, text="Pai:").pack(side="left", padx=(4, 2))
+        self._brand_pai_combo = ttk.Combobox(brand_adv_row, state="readonly", width=18)
+        self._brand_pai_combo.pack(side="left", padx=(0, 4))
+        ttk.Button(brand_adv_row, text="Adicionar Regra", command=self._brand_add_advanced_rule, width=14).pack(side="left", padx=(0, 4))
+        ttk.Button(brand_adv_row, text="Remover Regra", command=self._brand_remove_advanced_rule, width=14).pack(side="left")
+        self._refresh_brand_pai_combo()
+
+        ttk.Label(frm, text="Regras configuradas (mais recente = maior prioridade) — selecione para remover:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(6, 2))
+        brand_adv_frame = ttk.Frame(frm)
+        brand_adv_frame.pack(fill="both", expand=True)
+        self._brand_adv_rules_listbox = tk.Listbox(brand_adv_frame, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), selectmode="single")
+        brand_adv_scroll = ttk.Scrollbar(brand_adv_frame, orient="vertical", command=self._brand_adv_rules_listbox.yview)
+        self._brand_adv_rules_listbox.configure(yscrollcommand=brand_adv_scroll.set)
+        self._brand_adv_rules_listbox.pack(side="left", fill="both", expand=True)
+        brand_adv_scroll.pack(side="right", fill="y")
+        self._brand_adv_rules_listbox.bind("<Double-Button-1>", lambda e: self._brand_remove_advanced_rule())
+        self._refresh_brand_adv_rules_list()
+
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
+
+        # Listagem em duas colunas: Marcas únicas e Marcas Categorias/subcategorias
+        brand_lists_container = ttk.Frame(frm)
+        brand_lists_container.pack(fill="both", expand=True, pady=(2, 0))
+        brand_lists_container.columnconfigure(0, weight=1)
+        brand_lists_container.columnconfigure(1, weight=1)
+        brand_lists_container.rowconfigure(0, weight=1)
+
+        # Coluna 1: Marcas únicas
+        brand_col1_frame = ttk.Frame(brand_lists_container)
+        brand_col1_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        self._brand_unique_title_var = tk.StringVar(value="MARCAS ÚNICAS (0)")
+        ttk.Label(brand_col1_frame, textvariable=self._brand_unique_title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+
+        bc1_box = ttk.Frame(brand_col1_frame)
+        bc1_box.pack(fill="both", expand=True)
+        self._brand_unique_text = tk.Text(bc1_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        bc1_scroll = ttk.Scrollbar(bc1_box, orient="vertical", command=self._brand_unique_text.yview)
+        self._brand_unique_text.configure(yscrollcommand=bc1_scroll.set)
+        self._brand_unique_text.pack(side="left", fill="both", expand=True)
+        bc1_scroll.pack(side="right", fill="y")
+        self._brand_unique_text.config(state="disabled")
+
+        # Coluna 2: Marcas Categorias/subcategorias
+        brand_col2_frame = ttk.Frame(brand_lists_container)
+        brand_col2_frame.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+        self._brand_subcat_title_var = tk.StringVar(value="MARCAS CATEGORIAS E SUBCATEGORIAS (0)")
+        ttk.Label(brand_col2_frame, textvariable=self._brand_subcat_title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+
+        bc2_box = ttk.Frame(brand_col2_frame)
+        bc2_box.pack(fill="both", expand=True)
+        self._brand_subcat_text = tk.Text(bc2_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        bc2_scroll = ttk.Scrollbar(bc2_box, orient="vertical", command=self._brand_subcat_text.yview)
+        self._brand_subcat_text.configure(yscrollcommand=bc2_scroll.set)
+        self._brand_subcat_text.pack(side="left", fill="both", expand=True)
+        bc2_scroll.pack(side="right", fill="y")
+        self._brand_subcat_text.config(state="disabled")
+
+        brand_search_row = ttk.Frame(frm)
+        brand_search_row.pack(fill="x", pady=(6, 4))
+        ttk.Label(brand_search_row, text="🔍 Pesquisar:").pack(side="left", padx=(0, 4))
+        self._brand_search_var = tk.StringVar()
+        self._brand_search_var.trace_add("write", lambda *args: self._brand_filter_categories())
+        ttk.Entry(brand_search_row, textvariable=self._brand_search_var, width=28).pack(side="left", padx=(0, 8))
+        ttk.Button(brand_search_row, text="🔄 Recarregar", command=self._reload_categories, width=12).pack(side="left")
+
+    def _save_highlights_brands_settings(self):
+        try:
+            new_cats = [v.get().strip() for v in self._hb_new_vars]
+            set_highlights_brands_settings(
+                new_categories=new_cats,
+                apply_to_all=False,
+                selected_prefix="",
+                use_parent=True,
+            )
+        except Exception:
+            pass
+        self._refresh_hb_pai_combo()
+
+    def _refresh_hb_pai_combo(self):
+        try:
+            hb_settings = get_highlights_brands_settings()
+            new_cats = [c.strip() for c in hb_settings.get("new_categories", []) if c.strip()]
+            if hasattr(self, "_hb_pai_combo"):
+                self._hb_pai_combo["values"] = new_cats
+        except Exception:
+            pass
+
+    def _refresh_hb_adv_combos(self):
+        try:
+            if hasattr(self, "_hb_adv_cat_combo"):
+                self._hb_adv_cat_combo["values"] = getattr(self, "_unique_categories", [])
+            if hasattr(self, "_hb_adv_subcat_combo"):
+                self._hb_adv_subcat_combo["values"] = getattr(self, "_subcat_categories", [])
+        except Exception:
+            pass
+
+    def _refresh_hb_fornecedor_combo(self):
+        try:
+            profiles = list_profiles()
+            if hasattr(self, "_hb_fornecedor_combo"):
+                self._hb_fornecedor_combo["values"] = profiles
+                active = get_active_profile()
+                if active not in profiles:
+                    active = profiles[0] if profiles else ""
+                self._hb_fornecedor_var.set(active)
+        except Exception:
+            pass
+
+    def _on_hb_fornecedor_change(self, _event=None):
+        name = self._hb_fornecedor_var.get().strip()
+        if name:
+            self._set_active_profile_global(name)
+
+    def _hb_add_advanced_keyword_rule(self):
+        cat_in = self._hb_adv_cat_var.get().strip()
+        subcat_in = self._hb_adv_subcat_var.get().strip()
+        parent_cat = self._hb_pai_combo.get().strip()
+        if not cat_in or not parent_cat:
+            messagebox.showwarning("Atenção", "Preencha a Categoria e selecione a Categoria Pai de destino.", parent=self)
+            return
+        try:
+            if add_highlights_brands_keyword_rule(cat_in, subcat_in, parent_cat, priority=10):
+                self._hb_adv_cat_var.set("")
+                self._hb_adv_subcat_var.set("")
+                self._refresh_hb_adv_rules_list()
+                messagebox.showinfo("Guardado", "Regra avançada adicionada com sucesso.", parent=self)
+            else:
+                messagebox.showerror("Erro", "Não foi possível guardar a regra.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao guardar regra: {e}", parent=self)
+
+    def _refresh_hb_adv_rules_list(self):
+        try:
+            rules = get_highlights_brands_keyword_rules()
+            if hasattr(self, "_hb_adv_rules_listbox"):
+                self._hb_adv_rules_listbox.delete(0, tk.END)
+                if rules:
+                    for r in rules:
+                        if "keywords" in r:
+                            kws = ", ".join(r.get("keywords", []))
+                            self._hb_adv_rules_listbox.insert(tk.END, f"[P{r.get('priority', 0)}] [Legado] {kws} -> {r.get('parent_category', '')}")
+                        else:
+                            c = r.get("category", "")
+                            s = r.get("subcategory", "")
+                            p = r.get("parent_category", "")
+                            sub_txt = f" > {s}" if s else " (Todas subcats)"
+                            self._hb_adv_rules_listbox.insert(tk.END, f"[P{r.get('priority', 0)}] Cat: {c}{sub_txt} -> {p}")
+                else:
+                    self._hb_adv_rules_listbox.insert(tk.END, "(Nenhuma regra avançada configurada)")
+        except Exception:
+            pass
+
+    def _hb_remove_advanced_keyword_rule(self):
+        rules = get_highlights_brands_keyword_rules()
+        if not rules:
+            messagebox.showinfo("Informação", "Não há regras para remover.", parent=self)
+            return
+        sel = self._hb_adv_rules_listbox.curselection()
+        if sel:
+            index = sel[0]
+            if index < len(rules):
+                r = rules[index]
+                if "keywords" in r:
+                    desc = ", ".join(r.get("keywords", []))
+                else:
+                    desc = f"Cat: {r.get('category','')}" + (f" > {r.get('subcategory','')}" if r.get('subcategory','') else "")
+                cat = r.get("parent_category", "")
+                if messagebox.askyesno("Remover Regra", f"Remover a regra:\n'{desc} → {cat}'?", parent=self):
+                    remove_highlights_brands_keyword_rule(index)
+                    self._refresh_hb_adv_rules_list()
+            return
+        messagebox.showwarning("Atenção", "Selecione uma regra na lista para remover.", parent=self)
+
+    def _refresh_brand_pai_combo(self):
+        try:
+            hb_settings = get_highlights_brands_settings()
+            new_cats = [c.strip() for c in hb_settings.get("new_categories", []) if c.strip()]
+            if hasattr(self, "_brand_pai_combo"):
+                self._brand_pai_combo["values"] = new_cats
+        except Exception:
+            pass
+
+    def _refresh_brand_adv_combos(self):
+        try:
+            if hasattr(self, "_brand_adv_marca_combo"):
+                self._brand_adv_marca_combo["values"] = getattr(self, "_unique_brands", [])
+            if hasattr(self, "_brand_adv_cat_combo"):
+                self._brand_adv_cat_combo["values"] = getattr(self, "_unique_categories", [])
+            if hasattr(self, "_brand_adv_subcat_combo"):
+                self._brand_adv_subcat_combo["values"] = getattr(self, "_subcat_categories", [])
+        except Exception:
+            pass
+
+    def _refresh_brand_fornecedor_combo(self):
+        try:
+            profiles = list_profiles()
+            if hasattr(self, "_brand_fornecedor_combo"):
+                self._brand_fornecedor_combo["values"] = profiles
+                active = get_active_profile()
+                if active not in profiles:
+                    active = profiles[0] if profiles else ""
+                self._brand_fornecedor_var.set(active)
+        except Exception:
+            pass
+
+    def _on_brand_fornecedor_change(self, _event=None):
+        name = self._brand_fornecedor_var.get().strip()
+        if name:
+            self._set_active_profile_global(name)
+
+    def _save_brand_settings(self):
+        try:
+            new_cats = [v.get().strip() for v in self._brand_new_vars]
+            set_highlights_brands_settings(
+                new_categories=new_cats,
+                apply_to_all=False,
+                selected_prefix="",
+                use_parent=True,
+            )
+        except Exception:
+            pass
+        self._refresh_brand_pai_combo()
+
+    def _brand_add_advanced_rule(self):
+        marca = self._brand_adv_marca_var.get().strip()
+        cat = self._brand_adv_cat_var.get().strip()
+        subcat = self._brand_adv_subcat_var.get().strip()
+        parent_cat = self._brand_pai_combo.get().strip()
+        if not marca or not parent_cat:
+            messagebox.showwarning("Atenção", "Preencha a Marca e selecione a Categoria Pai de destino.", parent=self)
+            return
+        try:
+            if add_brands_keyword_rule(marca, cat, subcat, parent_cat, priority=10):
+                self._brand_adv_marca_var.set("")
+                self._brand_adv_cat_var.set("")
+                self._brand_adv_subcat_var.set("")
+                self._refresh_brand_adv_rules_list()
+                messagebox.showinfo("Guardado", "Regra de marca avançada adicionada com sucesso.", parent=self)
+            else:
+                messagebox.showerror("Erro", "Não foi possível guardar a regra de marca.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao guardar regra: {e}", parent=self)
+
+    def _refresh_brand_adv_rules_list(self):
+        try:
+            rules = get_brands_keyword_rules()
+            if hasattr(self, "_brand_adv_rules_listbox"):
+                self._brand_adv_rules_listbox.delete(0, tk.END)
+                if rules:
+                    for r in rules:
+                        m = r.get("marca", "")
+                        c = r.get("category", "")
+                        s = r.get("subcategory", "")
+                        p = r.get("parent_category", "")
+                        m_str = f"Marca: {m}" if m else "Marca: (Qualquer)"
+                        c_str = f"Cat: {c}" if c else "Cat: (Todas)"
+                        s_str = f"Subcat: {s}" if s else "Subcat: (Todas)"
+                        self._brand_adv_rules_listbox.insert(tk.END, f"[P{r.get('priority', 0)}] {m_str} | {c_str} | {s_str} -> {p}")
+                else:
+                    self._brand_adv_rules_listbox.insert(tk.END, "(Nenhuma regra de marca avançada configurada)")
+        except Exception:
+            pass
+
+    def _brand_remove_advanced_rule(self):
+        rules = get_brands_keyword_rules()
+        if not rules:
+            messagebox.showinfo("Informação", "Não há regras de marca para remover.", parent=self)
+            return
+        sel = self._brand_adv_rules_listbox.curselection()
+        if sel:
+            index = sel[0]
+            if index < len(rules):
+                r = rules[index]
+                desc = f"Marca: {r.get('marca','')}" + (f", Cat: {r.get('category','')}" if r.get('category','') else "") + (f" > {r.get('subcategory','')}" if r.get('subcategory','') else "")
+                cat = r.get("parent_category", "")
+                if messagebox.askyesno("Remover Regra", f"Remover a regra de marca:\n'{desc} → {cat}'?", parent=self):
+                    remove_brands_keyword_rule(index)
+                    self._refresh_brand_adv_rules_list()
             return
         messagebox.showwarning("Atenção", "Selecione uma regra na lista para remover.", parent=self)
 
@@ -2314,6 +2822,12 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.72 (2026-11-11)
+        - Separação dos separadores Destaques e Marcas em abas independentes com mapeamento avançado específico por marca e listagens duplas de marcas.
+
+        v0.3.71 (2026-11-11)
+        - Refinamento das listas de categorias em duas colunas (Categorias Únicas e Categorias e Subcategorias) sem uso de barra como separador.
+
         v0.3.53 (2026-11-10)
         - Novo separador Fornecedores: gestão completa de fornecedores (perfis): listar, adicionar e remover fornecedores, com propagação instantânea da seleção para todo o programa
 
@@ -2597,6 +3111,7 @@ class App(Tk):
         )
         if path:
             self.path_var.set(path)
+            set_last_input_file(path)
             self._update_drop_text(path)
             self._extract_categories_from_file(path)
 
@@ -2683,6 +3198,7 @@ class App(Tk):
         csv_found = next((f for f in candidates if f.lower().endswith(".csv")), None)
         if csv_found:
             self.path_var.set(csv_found)
+            set_last_input_file(csv_found)
             self._update_drop_text(csv_found)
             self._extract_categories_from_file(csv_found)
         else:
