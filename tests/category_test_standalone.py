@@ -473,7 +473,7 @@ class CategoryOrganizerApp:
                     bg = WHITE
                     prefix = "📁 "
                 elif level == 1:
-                    bg = GREEN_100
+                    bg = BLUE_100
                     prefix = "  └─ "
                 else:
                     bg = "#E8EEF5"
@@ -534,7 +534,7 @@ class CategoryOrganizerApp:
         if level == 0:
             return WHITE
         if level == 1:
-            return GREEN_100
+            return BLUE_100
         return "#E8EEF5"
 
     def _reset_widget_style(self, widget):

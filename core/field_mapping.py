@@ -222,7 +222,10 @@ def get_profile_mapping(name: str = None) -> dict:
     mapping = profiles.get(name)
     if mapping is None:
         return DEFAULT_FIELD_MAPPING.copy()
-    return dict(mapping)
+    return {
+        k: v for k, v in mapping.items()
+        if k not in ("price_settings", "sku_prefix") and isinstance(v, str)
+    }
 
 
 def save_profile(name: str, mapping: dict) -> bool:
@@ -941,16 +944,36 @@ def get_mapped_value(row: dict, expected_field: str, mapping: dict = None) -> st
     if mapping is None:
         mapping = load_field_mapping()
 
-    # Get the actual source field name from mapping.
-    # If the field is not in the mapping, use the expected field name directly.
+    # 1. Tentar mapeamento explícito
     source_field = mapping.get(expected_field, expected_field)
+    if source_field and source_field in row:
+        return row.get(source_field, "").strip()
 
-    # If mapping explicitly sets the field to empty string, skip it (optional/not used)
-    if source_field == "":
-        return ""
+    # 2. Tentar o próprio expected_field diretamente na linha
+    if expected_field in row:
+        return row.get(expected_field, "").strip()
 
-    # Get value from row, default to empty string
-    return row.get(source_field, "").strip()
+    # 3. Auto-deteção inteligente baseada nos headers da linha (row.keys())
+    try:
+        from gui.csv_converter_gui import _detect_field_mapping_from_headers
+        detected = _detect_field_mapping_from_headers(list(row.keys()))
+        detected_field = detected.get(expected_field)
+        if detected_field and detected_field in row:
+            return row.get(detected_field, "").strip()
+    except Exception:
+        pass
+
+    # 4. Procura flexível por correspondência parcial ou case-insensitive nas chaves da linha
+    exp_lower = expected_field.lower()
+    for k, v in row.items():
+        if k and k.lower() == exp_lower:
+            return str(v).strip()
+
+    for k, v in row.items():
+        if k and (exp_lower in k.lower() or k.lower() in exp_lower):
+            return str(v).strip()
+
+    return ""
 
 
 def save_field_mapping(mapping: dict):

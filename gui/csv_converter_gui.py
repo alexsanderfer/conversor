@@ -2913,6 +2913,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.74 (2026-11-11)
+        - Correção no carregamento e visualização de CSVs após rebranding (filtragem de metadados de preço/SKU no mapeamento e auto-deteção inteligente robusta de colunas de fornecedor).
+
         v0.3.72 (2026-11-11)
         - Separação dos separadores Destaques e Marcas em abas independentes com mapeamento avançado específico por marca e listagens duplas de marcas.
 
@@ -3260,7 +3263,7 @@ class App(Tk):
                 resumo += f"\nFicheiro: {out}"
 
                 def on_success():
-                    self._set_drop_text(resumo, GREEN_100, GREEN_700, widget=self.drop_text_update)
+                    self._set_drop_text(resumo, BLUE_100, BLUE_700, widget=self.drop_text_update)
                     self.open_folder_btn.config(state="normal")
                     self.open_folder_btn2.config(state="normal")
                     messagebox.showinfo("Concluido", resumo, parent=self)
@@ -3306,7 +3309,7 @@ class App(Tk):
 
     def _update_drop_text(self, path):
         self._set_drop_text(
-            f"Arquivo: {Path(path).name}", GREEN_100, GREEN_700,
+            f"Arquivo: {Path(path).name}", BLUE_100, BLUE_700,
             widget=self._status_widget,
         )
 
@@ -3651,7 +3654,7 @@ class App(Tk):
                 def on_success():
                     self._set_drop_text(
                         status_msg,
-                        GREEN_100, GREEN_700, widget=self._status_widget,
+                        BLUE_100, BLUE_700, widget=self._status_widget,
                     )
                     self.open_folder_btn.config(state="normal")
                     info_msg = f"{n} linha(s) convertidas com sucesso em {time_str}!\nFicheiro guardado em:\n{out}"
