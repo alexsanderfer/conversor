@@ -929,6 +929,28 @@ def apply_compiled_brands_rules(marca: str, familia: str, sub_familia: str, comp
     return ""
 
 
+def get_auto_check_updates() -> bool:
+    """Devolve True se a verificação automática de atualizações estiver ativada."""
+    try:
+        data = _read_config()
+        settings = data.get("settings", {})
+        return bool(settings.get("auto_check_updates", True))
+    except Exception:
+        return True
+
+
+def set_auto_check_updates(enabled: bool) -> bool:
+    """Define se a verificação automática de atualizações está ativada."""
+    try:
+        data = _read_config()
+        settings = data.setdefault("settings", {})
+        settings["auto_check_updates"] = bool(enabled)
+        return _write_config(data)
+    except Exception:
+        return False
+
+
+
 def get_mapped_value(row: dict, expected_field: str, mapping: dict = None) -> str:
     """
     Get a value from a CSV row using field mapping.

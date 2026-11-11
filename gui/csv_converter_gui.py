@@ -26,7 +26,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 from tkinterdnd2 import DND_FILES, Tk
 
 from core.license_dialog import LicenseDialog
-from core.license_manager import check_license, load_license_state
+from core.license_manager import check_license, load_license_state, check_license_expiry_warning
 from core.stripe_integration import open_stripe_checkout
 from core.updater import check_for_updates, get_current_version
 from gui.theme import (
@@ -59,6 +59,7 @@ from core.field_mapping import (
     get_brands_keyword_rules, add_brands_keyword_rule, remove_brands_keyword_rule,
     get_compiled_brands_rules, apply_compiled_brands_rules,
     get_last_input_file, set_last_input_file,
+    get_auto_check_updates, set_auto_check_updates,
 )
 from core.category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
 
@@ -979,6 +980,7 @@ class App(Tk):
         self._status_widget = None   # widget onde _set_drop_text escreve
         self._apply_window_icon()
         self._build_ui()
+        self._check_updates_startup()
 
     def _build_ui(self):
         apply_theme(self)
@@ -1012,40 +1014,32 @@ class App(Tk):
         )
         self._active_fornecedor_lbl.pack(in_=top_container, side="left", padx=(16, 0), pady=2)
 
-        # botão comprar licença (desativado até integrar Stripe)
-        self._buy_license_btn = tk.Button(
-            top_container,
-            text="Comprar Licença",
-            command=self._open_stripe_checkout,
-            bg=BLUE_700,
-            fg=WHITE,
-            activebackground=BLUE_500,
-            activeforeground=WHITE,
-            relief="flat",
-            font=("Segoe UI", 9, "bold"),
-            padx=12,
-            pady=2,
-            cursor="hand2",
-            state="disabled",
-        )
-        self._buy_license_btn.pack(in_=top_container, side="right", padx=(0, 8), pady=2)
+        # botão comprar licença (ocultado se houver licença válida)
+        has_valid_license = False
+        try:
+            lic_path = self._stored_license_path()
+            ok, _ = check_license(lic_path)
+            if ok:
+                has_valid_license = True
+        except Exception:
+            pass
 
-        # botão verificar atualizações
-        self._check_updates_btn = tk.Button(
-            top_container,
-            text="Verificar Atualizações",
-            command=self._check_for_updates,
-            bg=GRAY_100,
-            fg=GRAY_800,
-            activebackground="#E0E0E0",
-            activeforeground=GRAY_800,
-            relief="flat",
-            font=("Segoe UI", 9),
-            padx=12,
-            pady=2,
-            cursor="hand2",
-        )
-        self._check_updates_btn.pack(in_=top_container, side="right", pady=2)
+        if not has_valid_license:
+            self._buy_license_btn = tk.Button(
+                top_container,
+                text="Comprar Licença",
+                command=self._open_stripe_checkout,
+                bg=BLUE_700,
+                fg=WHITE,
+                activebackground=BLUE_500,
+                activeforeground=WHITE,
+                relief="flat",
+                font=("Segoe UI", 9, "bold"),
+                padx=12,
+                pady=2,
+                cursor="hand2",
+            )
+            self._buy_license_btn.pack(in_=top_container, side="right", padx=(0, 8), pady=2)
 
         # barra de separadores
         self.tabs = ttk.Notebook(self)
@@ -1213,7 +1207,8 @@ class App(Tk):
         # Coluna Esquerda: Original
         orig_frame = ttk.Frame(preview_container)
         orig_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
-        ttk.Label(orig_frame, text="📄 CSV ORIGINAL (Primeiras Linhas)", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+        self._orig_preview_title_var = tk.StringVar(value="📄 CSV ORIGINAL (Nenhum ficheiro carregado)")
+        ttk.Label(orig_frame, textvariable=self._orig_preview_title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
         orig_box = ttk.Frame(orig_frame)
         orig_box.pack(fill="both", expand=True)
         self._preview_orig_tree = ttk.Treeview(orig_box, show="headings", height=22)
@@ -1227,7 +1222,8 @@ class App(Tk):
         # Coluna Direita: Convertido Jumpseller Preview
         conv_frame = ttk.Frame(preview_container)
         conv_frame.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
-        ttk.Label(conv_frame, text="✨ PREVIEW CONVERTIDO (Jumpseller)", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+        self._conv_preview_title_var = tk.StringVar(value="✨ PREVIEW CONVERTIDO (Nenhum ficheiro carregado)")
+        ttk.Label(conv_frame, textvariable=self._conv_preview_title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
         conv_box = ttk.Frame(conv_frame)
         conv_box.pack(fill="both", expand=True)
         self._preview_conv_tree = ttk.Treeview(conv_box, show="headings", height=22)
@@ -1770,6 +1766,13 @@ class App(Tk):
                                 self._preview_conv_tree.insert("", "end", values=conv_values)
                             except Exception:
                                 pass
+
+                        total_rows = len(rows)
+                        preview_count = min(total_rows, 50)
+                        if hasattr(self, "_orig_preview_title_var"):
+                            self._orig_preview_title_var.set(f"📄 CSV ORIGINAL — Total lidos: {total_rows} | No preview: {preview_count}")
+                        if hasattr(self, "_conv_preview_title_var"):
+                            self._conv_preview_title_var.set(f"✨ PREVIEW CONVERTIDO — Total lidos: {total_rows} | No preview: {preview_count}")
 
                 self.after(0, update_trees)
 
@@ -2911,7 +2914,34 @@ class App(Tk):
         frm.pack(fill="both", expand=True)
 
         ttk.Label(frm, text="Conversor Jumpseller", font=("Segoe UI", 14, "bold")).pack(anchor="w")
-        ttk.Label(frm, text=f"Versão {get_current_version()}", font=("Segoe UI", 10)).pack(anchor="w", pady=(0, 16))
+        ttk.Label(frm, text=f"Versão {get_current_version()}", font=("Segoe UI", 10)).pack(anchor="w", pady=(0, 8))
+
+        # Botão Verificar Atualizações
+        check_up_btn = tk.Button(
+            frm,
+            text="🔄 Verificar Atualizações",
+            command=self._check_for_updates,
+            bg=BLUE_700,
+            fg=WHITE,
+            activebackground=BLUE_500,
+            activeforeground=WHITE,
+            relief="flat",
+            font=("Segoe UI", 9, "bold"),
+            padx=14,
+            pady=6,
+            cursor="hand2",
+        )
+        check_up_btn.pack(anchor="w", pady=(0, 6))
+
+        # Checkbox de atualizações automáticas
+        self.auto_update_var = tk.BooleanVar(value=get_auto_check_updates())
+        auto_chk = ttk.Checkbutton(
+            frm,
+            text="Verificar atualizações automaticamente ao iniciar",
+            variable=self.auto_update_var,
+            command=self._on_auto_update_toggle,
+        )
+        auto_chk.pack(anchor="w", pady=(0, 12))
 
         ttk.Label(frm, text="Notas de versão", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 4))
         notas = tk.Text(
@@ -2928,6 +2958,16 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.80 (2026-11-11)
+        - Atualizações automáticas: adicionada caixa de marcação na aba "Sobre" para ativar/desativar a verificação automática de atualizações no arranque com notificação inteligente.
+
+        v0.3.79 (2026-11-11)
+        - Licenciamento: adição de alerta automático exibido 7 dias antes da licença expirar.
+        - Interface: exibição da contagem de produtos lidos no total e no preview nas árvores de dados.
+
+        v0.3.78 (2026-11-11)
+        - Ajustes na UI: botão "Comprar Licença" ocultado automaticamente quando existe uma licença válida; botão "Verificar Atualizações" movido para a aba "Sobre".
+
         v0.3.77 (2026-11-11)
         - Correção de interatividade: envio explícito da imagem de fundo para o fundo absoluto (lower()) e elevação do notebook de abas (lift()) para garantir que os separadores fiquem clicáveis.
 
@@ -3365,7 +3405,12 @@ class App(Tk):
         lic_path = self._stored_license_path()
         ok, reason = check_license(lic_path)
         if ok:
-            # Licença válida: não abre dialog, devolve diretamente
+            # Licença válida: verificar aviso de expiração (nos próximos 7 dias)
+            if not getattr(self, "_license_warning_shown", False):
+                self._license_warning_shown = True
+                warning_msg = check_license_expiry_warning(lic_path)
+                if warning_msg:
+                    messagebox.showwarning("Aviso de Validade da Licença", warning_msg, parent=self)
             return True
 
         # primeira tentativa: explicar porquê, se houver cached path
@@ -3417,8 +3462,12 @@ class App(Tk):
                     parent=self,
                 )
             self._licensed = True
+            self._license_warning_shown = False
             msg = f"Licença ativa: {path.name}"
             self._last_license_message = msg
+            warning_msg = check_license_expiry_warning(path)
+            if warning_msg:
+                messagebox.showwarning("Aviso de Validade da Licença", warning_msg, parent=self)
             return True, msg
         else:
             self._licensed = False
@@ -3551,6 +3600,34 @@ class App(Tk):
         """Botão 'Verificar Atualizações': verifica se há novas versões."""
         from updater import check_for_updates, get_current_version
         check_for_updates(show_message=True, parent=self)
+
+    def _on_auto_update_toggle(self):
+        try:
+            set_auto_check_updates(self.auto_update_var.get())
+        except Exception:
+            pass
+
+    def _check_updates_startup(self):
+        if not get_auto_check_updates():
+            return
+        def worker():
+            try:
+                from updater import get_latest_version, _parse_version, get_current_version
+                current = get_current_version()
+                latest = get_latest_version()
+                if latest and _parse_version(latest) > _parse_version(current):
+                    def notify():
+                        if messagebox.askyesno(
+                            "Atualização disponível",
+                            f"Nova versão disponível: {latest}\n\nPretende abrir a página de download?",
+                            parent=self
+                        ):
+                            import webbrowser
+                            webbrowser.open("https://alexsanderfer.github.io/conversor/")
+                    self.after(0, notify)
+            except Exception:
+                pass
+        threading.Thread(target=worker, daemon=True).start()
 
     def _refresh_profile_combo(self):
         """Actualiza a lista de fornecedores na dropdown."""

@@ -254,3 +254,31 @@ def check_license(lic_path: Path, state_dir: Path | None = None, secret: str | N
 
 def clear_license_state(state_dir: Path | None = None) -> None:
     save_license_state(state_dir or _STATE_DIR, {})
+
+
+def check_license_expiry_warning(lic_path: Path) -> str | None:
+    """
+    Verifica se a licença expira nos próximos 7 dias.
+    Devolve uma string de aviso ou None.
+    """
+    if not lic_path.is_file():
+        return None
+    try:
+        with open(lic_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        expires_str = (data.get("expires") or "").strip()
+        if not expires_str:
+            return None
+        expires = datetime.fromisoformat(expires_str.replace("Z", "+00:00"))
+        now = datetime.now(timezone.utc)
+        delta = expires - now
+        days_left = delta.total_seconds() / 86400
+        if 0 <= days_left <= 7:
+            days_int = max(0, int(days_left))
+            return (
+                f"Atenção: A sua licença expira em {expires_str} "
+                f"(restam {days_int} dias). Contacte o fornecedor para renovação."
+            )
+    except Exception:
+        pass
+    return None

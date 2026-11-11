@@ -86,6 +86,15 @@ def main() -> int:
     )
     args = ap.parse_args()
 
+    # Sincronizar VERSION.txt com docs/version.txt para o GitHub Pages (atualizações)
+    version_file = RAIZ / "VERSION.txt"
+    docs_version_file = RAIZ / "docs" / "version.txt"
+    if version_file.is_file():
+        ver_text = version_file.read_text(encoding="utf-8").strip()
+        docs_version_file.parent.mkdir(parents=True, exist_ok=True)
+        docs_version_file.write_text(ver_text + "\n", encoding="utf-8")
+        print(f"Sincronizado docs/version.txt para {ver_text}")
+
     garantir_segredo(novo=args.novo_segredo)
     if args.so_segredo:
         return 0
