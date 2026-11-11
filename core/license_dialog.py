@@ -21,9 +21,9 @@ from gui.theme import (
     GRAY_100,
     GRAY_600,
     GRAY_800,
-    GREEN_100,
-    GREEN_700,
-    GREEN_900,
+    BLUE_100,
+    BLUE_700,
+    BLUE_900,
     WHITE,
 )
 
@@ -65,7 +65,7 @@ class LicenseDialog:
             frm,
             text="Este Conversor precisa de uma licença para funcionar.",
             bg=BG_WINDOW,
-            fg=GREEN_900,
+            fg=BLUE_900,
             font=("Segoe UI", 12, "bold"),
         ).pack(anchor="w")
 
@@ -91,8 +91,8 @@ class LicenseDialog:
             fg=GRAY_800,
             font=("Segoe UI", 10),
             borderwidth=0,
-            highlightbackground=GREEN_700,
-            highlightcolor=GREEN_700,
+            highlightbackground=BLUE_700,
+            highlightcolor=BLUE_700,
             highlightthickness=1,
             wrap="word",
             padx=8,
@@ -136,9 +136,9 @@ class LicenseDialog:
             frm_btn,
             text="Procurar…",
             command=self._browse,
-            bg=GREEN_700,
+            bg=BLUE_700,
             fg=WHITE,
-            activebackground=GREEN_900,
+            activebackground=BLUE_900,
             activeforeground=WHITE,
             relief="flat",
             font=("Segoe UI", 10, "bold"),
@@ -236,14 +236,14 @@ class LicenseDialog:
         """Valida e, se aceite, fecha."""
         if self._closing:
             return
-        self._set_status("A verificar licença…", GREEN_100, GREEN_900)
+        self._set_status("A verificar licença…", BLUE_100, BLUE_900)
         self.win.update_idletasks()
 
         ok, message = self._on_submit(path)
 
         if ok:
             self._closing = True
-            self._set_status(f"Licença aceite.\n{message}", GREEN_100, GREEN_700)
+            self._set_status(f"Licença aceite.\n{message}", BLUE_100, BLUE_700)
             self.win.after(700, self._close)
         else:
             # a recusa fica no ecrã; o utilizador pode tentar outro ficheiro

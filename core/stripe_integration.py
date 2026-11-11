@@ -6,7 +6,7 @@ This module will be implemented when ready to accept payments.
 import webbrowser
 from pathlib import Path
 from tkinter import messagebox
-from gui.theme import GREEN_700, GREEN_900, WHITE
+from gui.theme import BLUE_700, BLUE_900, WHITE
 
 
 def open_stripe_checkout():

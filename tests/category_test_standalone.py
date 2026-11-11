@@ -26,7 +26,7 @@ try:
         GRAY_100,
         GRAY_600,
         GRAY_800,
-        GREEN_100,
+        BLUE_100,
         WHITE,
     )
 except Exception:  # fallback simples se o tema não estiver disponível
@@ -34,7 +34,7 @@ except Exception:  # fallback simples se o tema não estiver disponível
     GRAY_100 = "#F5F5F5"
     GRAY_600 = "#555555"
     GRAY_800 = "#333333"
-    GREEN_100 = "#E8F5E9"
+    BLUE_100 = "#EFF6FF"
 
     def apply_theme(root):
         return ttk.Style(root)

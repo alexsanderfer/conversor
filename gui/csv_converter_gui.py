@@ -37,9 +37,9 @@ from gui.theme import (
     GRAY_100,
     GRAY_600,
     GRAY_800,
-    GREEN_100,
-    GREEN_500,
-    GREEN_700,
+    BLUE_100,
+    BLUE_500,
+    BLUE_700,
     WHITE,
     apply_theme,
     style_drop_area,
@@ -1016,9 +1016,9 @@ class App(Tk):
             top_container,
             text="Comprar Licença",
             command=self._open_stripe_checkout,
-            bg=GREEN_700,
+            bg=BLUE_700,
             fg=WHITE,
-            activebackground=GREEN_500,
+            activebackground=BLUE_500,
             activeforeground=WHITE,
             relief="flat",
             font=("Segoe UI", 9, "bold"),
@@ -1113,7 +1113,7 @@ class App(Tk):
                     from PIL import Image, ImageTk
                     im = Image.open(p)
                     # Limitar largura e altura para caber no header (logo pequeno, não empurra as tabs)
-                    max_w, max_h = 140, 42
+                    max_w, max_h = 280, 90
                     ratio = min(max_w / im.width, max_h / im.height, 1.0)
                     im2 = im.resize((int(im.width * ratio), int(im.height * ratio)), Image.LANCZOS)
                     img = ImageTk.PhotoImage(im2)
@@ -1192,29 +1192,44 @@ class App(Tk):
             row=0, column=2, sticky="e"
         )
 
-        self.drop_text = tk.Text(
-            self.tab_novo, height=6, relief="sunken",
-            bg=GRAY_100, font=("Segoe UI", 10), borderwidth=1, wrap="word",
-        )
-        self.drop_text.pack(fill="both", expand=True, pady=(8, 8))
+        # Spreadsheet Preview Container (Lado a Lado: Original vs Convertido)
+        preview_container = ttk.Frame(self.tab_novo)
+        preview_container.pack(fill="both", expand=True, pady=(4, 6))
+        preview_container.columnconfigure(0, weight=1)
+        preview_container.columnconfigure(1, weight=1)
+        preview_container.rowconfigure(0, weight=1)
 
-        # Background image inside drop text area
-        self._bg_image = self._load_background()
-        if getattr(self, '_bg_image', None):
-            try:
-                self._bg_label = tk.Label(self.drop_text, image=self._bg_image, bg=WHITE)
-                self._bg_label.place(relx=0.5, rely=0.5, anchor="center")
-            except Exception:
-                pass
+        # Coluna Esquerda: Original
+        orig_frame = ttk.Frame(preview_container)
+        orig_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        ttk.Label(orig_frame, text="📄 CSV ORIGINAL (Primeiras Linhas)", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+        orig_box = ttk.Frame(orig_frame)
+        orig_box.pack(fill="both", expand=True)
+        self._preview_orig_tree = ttk.Treeview(orig_box, show="headings", height=22)
+        orig_scroll = ttk.Scrollbar(orig_box, orient="vertical", command=self._preview_orig_tree.yview)
+        orig_scroll_x = ttk.Scrollbar(orig_box, orient="horizontal", command=self._preview_orig_tree.xview)
+        self._preview_orig_tree.configure(yscrollcommand=orig_scroll.set, xscrollcommand=orig_scroll_x.set)
+        self._preview_orig_tree.pack(side="left", fill="both", expand=True)
+        orig_scroll.pack(side="right", fill="y")
+        orig_scroll_x.pack(side="bottom", fill="x")
 
-        self.drop_text.drop_target_register(DND_FILES)
-        self.drop_text.dnd_bind("<<Drop>>", self._on_drop)
-        self._set_drop_text(
-            "Arraste um arquivo .csv aqui, ou clique em 'Escolher arquivo…'",
-            GRAY_100, GRAY_800,
-            widget=self.drop_text,
-        )
-        self._status_widget = self.drop_text
+        # Coluna Direita: Convertido Jumpseller Preview
+        conv_frame = ttk.Frame(preview_container)
+        conv_frame.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+        ttk.Label(conv_frame, text="✨ PREVIEW CONVERTIDO (Jumpseller)", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+        conv_box = ttk.Frame(conv_frame)
+        conv_box.pack(fill="both", expand=True)
+        self._preview_conv_tree = ttk.Treeview(conv_box, show="headings", height=22)
+        conv_scroll = ttk.Scrollbar(conv_box, orient="vertical", command=self._preview_conv_tree.yview)
+        conv_scroll_x = ttk.Scrollbar(conv_box, orient="horizontal", command=self._preview_conv_tree.xview)
+        self._preview_conv_tree.configure(yscrollcommand=conv_scroll.set, xscrollcommand=conv_scroll_x.set)
+        self._preview_conv_tree.pack(side="left", fill="both", expand=True)
+        conv_scroll.pack(side="right", fill="y")
+        conv_scroll_x.pack(side="bottom", fill="x")
+
+        # Fallback / Status text hidden or minimized if needed, but treeviews take full space
+        self.drop_text = None
+        self._status_widget = None
 
         frm_opts = ttk.Frame(self.tab_novo)
         frm_opts.pack(fill="x", pady=(0, 4))
@@ -1308,20 +1323,43 @@ class App(Tk):
             font=("Segoe UI", 9),
         ).pack(fill="x", pady=(4, 8))
 
-        self.drop_text_update = tk.Text(
-            self.tab_update, height=6, relief="sunken",
-            bg=GRAY_100, font=("Segoe UI", 10), borderwidth=1, wrap="word",
-        )
-        self.drop_text_update.pack(fill="both", expand=True, pady=(0, 8))
-        style_drop_area(self.drop_text_update)
+        # Spreadsheet Preview Container (Lado a Lado: Original vs Convertido) para Atualizar Loja
+        preview_container_up = ttk.Frame(self.tab_update)
+        preview_container_up.pack(fill="both", expand=True, pady=(4, 6))
+        preview_container_up.columnconfigure(0, weight=1)
+        preview_container_up.columnconfigure(1, weight=1)
+        preview_container_up.rowconfigure(0, weight=1)
 
-        # Background image inside drop text area
-        if getattr(self, '_bg_image', None):
-            try:
-                self._bg_label_up = tk.Label(self.drop_text_update, image=self._bg_image, bg=WHITE)
-                self._bg_label_up.place(relx=0.5, rely=0.5, anchor="center")
-            except Exception:
-                pass
+        # Coluna Esquerda: Original
+        orig_frame_up = ttk.Frame(preview_container_up)
+        orig_frame_up.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        ttk.Label(orig_frame_up, text="📄 FORNECEDOR ORIGINAL (Primeiras Linhas)", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+        orig_box_up = ttk.Frame(orig_frame_up)
+        orig_box_up.pack(fill="both", expand=True)
+        self._preview_orig_tree_up = ttk.Treeview(orig_box_up, show="headings", height=22)
+        orig_scroll_up = ttk.Scrollbar(orig_box_up, orient="vertical", command=self._preview_orig_tree_up.yview)
+        orig_scroll_x_up = ttk.Scrollbar(orig_box_up, orient="horizontal", command=self._preview_orig_tree_up.xview)
+        self._preview_orig_tree_up.configure(yscrollcommand=orig_scroll_up.set, xscrollcommand=orig_scroll_x_up.set)
+        self._preview_orig_tree_up.pack(side="left", fill="both", expand=True)
+        orig_scroll_up.pack(side="right", fill="y")
+        orig_scroll_x_up.pack(side="bottom", fill="x")
+
+        # Coluna Direita: Convertido Jumpseller Preview
+        conv_frame_up = ttk.Frame(preview_container_up)
+        conv_frame_up.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+        ttk.Label(conv_frame_up, text="✨ PREVIEW CONVERTIDO (Jumpseller)", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+        conv_box_up = ttk.Frame(conv_frame_up)
+        conv_box_up.pack(fill="both", expand=True)
+        self._preview_conv_tree_up = ttk.Treeview(conv_box_up, show="headings", height=22)
+        conv_scroll_up = ttk.Scrollbar(conv_box_up, orient="vertical", command=self._preview_conv_tree_up.yview)
+        conv_scroll_x_up = ttk.Scrollbar(conv_box_up, orient="horizontal", command=self._preview_conv_tree_up.xview)
+        self._preview_conv_tree_up.configure(yscrollcommand=conv_scroll_up.set, xscrollcommand=conv_scroll_x_up.set)
+        self._preview_conv_tree_up.pack(side="left", fill="both", expand=True)
+        conv_scroll_up.pack(side="right", fill="y")
+        conv_scroll_x_up.pack(side="bottom", fill="x")
+
+        self.drop_text_update = None
+        self._status_widget_update = None
 
         frm_opts_up = ttk.Frame(self.tab_update)
         frm_opts_up.pack(fill="x", pady=(0, 4))
@@ -1687,6 +1725,45 @@ class App(Tk):
             if not headers:
                 return
             mapping = load_field_mapping()
+            compiled_rules = get_compiled_keyword_rules()
+
+            # Preencher Treeview de Preview Lado a Lado (primeiras 15 linhas)
+            if hasattr(self, "_preview_orig_tree") and hasattr(self, "_preview_conv_tree"):
+                # Configurar colunas originais
+                orig_cols = headers[:6]  # Primeiras 6 colunas do CSV original
+                self._preview_orig_tree["columns"] = orig_cols
+                self._preview_orig_tree["show"] = "headings"
+                for col in orig_cols:
+                    self._preview_orig_tree.heading(col, text=col)
+                    self._preview_orig_tree.column(col, width=120, anchor="w")
+
+                # Limpar itens anteriores
+                for item in self._preview_orig_tree.get_children():
+                    self._preview_orig_tree.delete(item)
+                for item in self._preview_conv_tree.get_children():
+                    self._preview_conv_tree.delete(item)
+
+                # Configurar colunas convertidas (Jumpseller principais)
+                conv_cols = ["Name", "Categories", "Brand", "Price", "Stock", "SKU"]
+                self._preview_conv_tree["columns"] = conv_cols
+                self._preview_conv_tree["show"] = "headings"
+                for col in conv_cols:
+                    self._preview_conv_tree.heading(col, text=col)
+                    self._preview_conv_tree.column(col, width=120, anchor="w")
+
+                for row in rows[:50]:
+                    # Inserir original
+                    orig_values = [str(row.get(c, "")) for c in orig_cols]
+                    self._preview_orig_tree.insert("", "end", values=orig_values)
+
+                    # Converter e inserir preview
+                    try:
+                        conv = convert_row(row, mapping, compiled_rules=compiled_rules)
+                        conv_values = [str(conv.get(c, "")) for c in conv_cols]
+                        self._preview_conv_tree.insert("", "end", values=conv_values)
+                    except Exception:
+                        pass
+
             unique_cats_set = set()
             subcat_cats_set = set()
             unique_brands_set = set()
