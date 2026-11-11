@@ -489,7 +489,7 @@ def get_output_path(input_path: str, output_dir: str = None) -> str:
     if output_dir is None:
         output_dir = str(Path.home() / "Downloads")
     input_name = Path(input_path).stem
-    output_name = f"{input_name}_jumpseller.csv"
+    output_name = f"{input_name}_convertido.csv"
     return os.path.join(output_dir, output_name)
 
 
@@ -540,10 +540,6 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
         )
         writer.writeheader()
         writer.writerows(rows)
-    _write_xlsx_preview(
-        rows, os.path.join(os.path.dirname(output_path),
-                           Path(output_path).stem + "_visualizar.xlsx")
-    )
     return len(rows), output_path, removed_unavailable
 
 
@@ -796,7 +792,8 @@ def merge_update(export_path: str, fornecedor_path: str, output_dir: str, exclud
             row["Featured"] = (existing.get("Featured") or "").strip() or "NO"
             merged.append(row)
 
-    output_path = os.path.join(output_dir, "loja_atualizada_jumpseller.csv")
+    export_stem = Path(export_path).stem if export_path else "loja_atualizada"
+    output_path = os.path.join(output_dir, f"{export_stem}_atualizacao.csv")
     with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(
             f, fieldnames=DEST_COLUMNS, delimiter=";", quoting=csv.QUOTE_ALL
@@ -804,7 +801,6 @@ def merge_update(export_path: str, fornecedor_path: str, output_dir: str, exclud
         writer.writeheader()
         writer.writerows(merged)
 
-    _write_xlsx_preview(merged, os.path.join(output_dir, "loja_atualizada_visualizar.xlsx"))
     save_price_state(output_dir, new_state)
 
     n_atualizados = len(matched_skus)
@@ -813,21 +809,6 @@ def merge_update(export_path: str, fornecedor_path: str, output_dir: str, exclud
         n_novos = 0
     n_intactos = sum(len(v) for v in by_sku.values()) - n_atualizados
     return output_path, n_atualizados, n_novos, n_intactos, removed_unavailable
-
-
-def _write_xlsx_preview(rows, path):
-    try:
-        from openpyxl import Workbook
-    except ImportError:
-        return None
-    wb = Workbook(write_only=True)
-    ws = wb.create_sheet("loja_atualizada")
-    ws.freeze_panes = "A2"
-    ws.append([str(c) for c in DEST_COLUMNS])
-    for row in rows:
-        ws.append([str(row.get(col, "") or "") for col in DEST_COLUMNS])
-    wb.save(path)
-    return path
 
 
 # ---------------------------------------------------------------------------
@@ -1632,25 +1613,51 @@ class App(Tk):
         self._refresh_adv_rules_list()
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
-        self._cat_found_title_var = tk.StringVar(value="Categorias encontradas no ficheiro selecionado (0)")
-        ttk.Label(frm, textvariable=self._cat_found_title_var, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 2))
+
+        # Listagem em duas colunas: Categorias Únicas e Categorias e Subcategorias
+        lists_container = ttk.Frame(frm)
+        lists_container.pack(fill="both", expand=True, pady=(2, 0))
+        lists_container.columnconfigure(0, weight=1)
+        lists_container.columnconfigure(1, weight=1)
+        lists_container.rowconfigure(0, weight=1)
+
+        # Coluna 1: Categorias Únicas
+        col1_frame = ttk.Frame(lists_container)
+        col1_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        self._cat_unique_title_var = tk.StringVar(value="CATEGORIAS ÚNICAS (0)")
+        ttk.Label(col1_frame, textvariable=self._cat_unique_title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+
+        c1_box = ttk.Frame(col1_frame)
+        c1_box.pack(fill="both", expand=True)
+        self._cat_unique_text = tk.Text(c1_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        c1_scroll = ttk.Scrollbar(c1_box, orient="vertical", command=self._cat_unique_text.yview)
+        self._cat_unique_text.configure(yscrollcommand=c1_scroll.set)
+        self._cat_unique_text.pack(side="left", fill="both", expand=True)
+        c1_scroll.pack(side="right", fill="y")
+        self._cat_unique_text.config(state="disabled")
+
+        # Coluna 2: Categorias e Subcategorias
+        col2_frame = ttk.Frame(lists_container)
+        col2_frame.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+        self._cat_subcat_title_var = tk.StringVar(value="CATEGORIAS E SUBCATEGORIAS (0)")
+        ttk.Label(col2_frame, textvariable=self._cat_subcat_title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+
+        c2_box = ttk.Frame(col2_frame)
+        c2_box.pack(fill="both", expand=True)
+        self._cat_subcat_text = tk.Text(c2_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        c2_scroll = ttk.Scrollbar(c2_box, orient="vertical", command=self._cat_subcat_text.yview)
+        self._cat_subcat_text.configure(yscrollcommand=c2_scroll.set)
+        self._cat_subcat_text.pack(side="left", fill="both", expand=True)
+        c2_scroll.pack(side="right", fill="y")
+        self._cat_subcat_text.config(state="disabled")
 
         search_row = ttk.Frame(frm)
-        search_row.pack(fill="x", pady=(0, 4))
+        search_row.pack(fill="x", pady=(6, 4))
         ttk.Label(search_row, text="🔍 Pesquisar:").pack(side="left", padx=(0, 4))
         self._cat_search_var = tk.StringVar()
         self._cat_search_var.trace_add("write", lambda *args: self._filter_categories())
         ttk.Entry(search_row, textvariable=self._cat_search_var, width=28).pack(side="left", padx=(0, 8))
         ttk.Button(search_row, text="🔄 Recarregar", command=self._reload_categories, width=14).pack(side="left")
-
-        cat_frame = ttk.Frame(frm)
-        cat_frame.pack(fill="both", expand=True)
-        self._cat_list_text = tk.Text(cat_frame, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
-        cat_scroll = ttk.Scrollbar(cat_frame, orient="vertical", command=self._cat_list_text.yview)
-        self._cat_list_text.configure(yscrollcommand=cat_scroll.set)
-        self._cat_list_text.pack(side="left", fill="both", expand=True)
-        cat_scroll.pack(side="right", fill="y")
-        self._cat_list_text.config(state="disabled")
 
     def _extract_categories_from_file(self, filepath):
         try:
@@ -1661,7 +1668,8 @@ class App(Tk):
             if not headers:
                 return
             mapping = load_field_mapping()
-            cats_set = set()
+            unique_cats_set = set()
+            subcat_cats_set = set()
             for row in rows:  # Analisar todas as linhas do ficheiro sem limite artificial
                 try:
                     familia = str(get_mapped_value(row, "familia_principal", mapping)).strip()
@@ -1669,14 +1677,17 @@ class App(Tk):
                     sub_sub_familia = str(get_mapped_value(row, "sub_sub_familia", mapping)).strip()
 
                     if familia:
-                        cats_set.add(familia)
+                        unique_cats_set.add(familia)
+                        subcat_cats_set.add(familia)
                     if sub_familia and familia:
-                        cats_set.add(f"{familia}/{sub_familia}")
+                        subcat_cats_set.add(f"{familia} > {sub_familia}")
                     if sub_sub_familia and familia and sub_familia:
-                        cats_set.add(f"{familia}/{sub_familia}/{sub_sub_familia}")
+                        subcat_cats_set.add(f"{familia} > {sub_familia} > {sub_sub_familia}")
                 except Exception:
                     continue
-            self._all_categories = sorted(list(cats_set)) if cats_set else []
+            self._unique_categories = sorted(list(unique_cats_set)) if unique_cats_set else []
+            self._subcat_categories = sorted(list(subcat_cats_set)) if subcat_cats_set else []
+            self._all_categories = self._subcat_categories
             self._filter_categories()
             self._hb_filter_categories()
         except Exception:
@@ -1686,20 +1697,29 @@ class App(Tk):
         try:
             query = getattr(self, "_cat_search_var", None)
             q = query.get().strip().lower() if query else ""
-            all_cats = getattr(self, "_all_categories", [])
-            filtered = [c for c in all_cats if not q or q in c.lower()]
-            count = len(filtered)
-            total = len(all_cats)
-            title = f"Categorias encontradas no ficheiro selecionado ({count} de {total})" if q else f"Categorias encontradas no ficheiro selecionado ({total})"
 
-            # Atualizar aba Categorias
-            if hasattr(self, '_cat_found_title_var'):
-                self._cat_found_title_var.set(title)
-            if hasattr(self, '_cat_list_text'):
-                self._cat_list_text.config(state="normal")
-                self._cat_list_text.delete("1.0", "end")
-                self._cat_list_text.insert("1.0", "\n".join(filtered) if filtered else "(nenhuma categoria encontrada)")
-                self._cat_list_text.config(state="disabled")
+            unique_all = getattr(self, "_unique_categories", [])
+            subcat_all = getattr(self, "_subcat_categories", [])
+
+            filtered_unique = [c for c in unique_all if not q or q in c.lower()]
+            filtered_subcat = [c for c in subcat_all if not q or q in c.lower()]
+
+            if hasattr(self, '_cat_unique_title_var'):
+                self._cat_unique_title_var.set(f"CATEGORIAS ÚNICAS ({len(filtered_unique)} de {len(unique_all)})" if q else f"CATEGORIAS ÚNICAS ({len(unique_all)})")
+            if hasattr(self, '_cat_subcat_title_var'):
+                self._cat_subcat_title_var.set(f"CATEGORIAS E SUBCATEGORIAS ({len(filtered_subcat)} de {len(subcat_all)})" if q else f"CATEGORIAS E SUBCATEGORIAS ({len(subcat_all)})")
+
+            if hasattr(self, '_cat_unique_text'):
+                self._cat_unique_text.config(state="normal")
+                self._cat_unique_text.delete("1.0", "end")
+                self._cat_unique_text.insert("1.0", "\n".join(filtered_unique) if filtered_unique else "(nenhuma categoria)")
+                self._cat_unique_text.config(state="disabled")
+
+            if hasattr(self, '_cat_subcat_text'):
+                self._cat_subcat_text.config(state="normal")
+                self._cat_subcat_text.delete("1.0", "end")
+                self._cat_subcat_text.insert("1.0", "\n".join(filtered_subcat) if filtered_subcat else "(nenhuma categoria)")
+                self._cat_subcat_text.config(state="disabled")
         except Exception:
             pass
 
@@ -1707,20 +1727,29 @@ class App(Tk):
         try:
             query = getattr(self, "_hb_search_var", None)
             q = query.get().strip().lower() if query else ""
-            all_cats = getattr(self, "_all_categories", [])
-            filtered = [c for c in all_cats if not q or q in c.lower()]
-            count = len(filtered)
-            total = len(all_cats)
-            title = f"Categorias encontradas no ficheiro selecionado ({count} de {total})" if q else f"Categorias encontradas no ficheiro selecionado ({total})"
 
-            # Atualizar aba Destaques e Marcas
-            if hasattr(self, '_hb_found_title_var'):
-                self._hb_found_title_var.set(title)
-            if hasattr(self, '_hb_list_text'):
-                self._hb_list_text.config(state="normal")
-                self._hb_list_text.delete("1.0", "end")
-                self._hb_list_text.insert("1.0", "\n".join(filtered) if filtered else "(nenhuma categoria encontrada)")
-                self._hb_list_text.config(state="disabled")
+            unique_all = getattr(self, "_unique_categories", [])
+            subcat_all = getattr(self, "_subcat_categories", [])
+
+            filtered_unique = [c for c in unique_all if not q or q in c.lower()]
+            filtered_subcat = [c for c in subcat_all if not q or q in c.lower()]
+
+            if hasattr(self, '_hb_unique_title_var'):
+                self._hb_unique_title_var.set(f"CATEGORIAS ÚNICAS ({len(filtered_unique)} de {len(unique_all)})" if q else f"CATEGORIAS ÚNICAS ({len(unique_all)})")
+            if hasattr(self, '_hb_subcat_title_var'):
+                self._hb_subcat_title_var.set(f"CATEGORIAS E SUBCATEGORIAS ({len(filtered_subcat)} de {len(subcat_all)})" if q else f"CATEGORIAS E SUBCATEGORIAS ({len(subcat_all)})")
+
+            if hasattr(self, '_hb_unique_text'):
+                self._hb_unique_text.config(state="normal")
+                self._hb_unique_text.delete("1.0", "end")
+                self._hb_unique_text.insert("1.0", "\n".join(filtered_unique) if filtered_unique else "(nenhuma categoria)")
+                self._hb_unique_text.config(state="disabled")
+
+            if hasattr(self, '_hb_subcat_text'):
+                self._hb_subcat_text.config(state="normal")
+                self._hb_subcat_text.delete("1.0", "end")
+                self._hb_subcat_text.insert("1.0", "\n".join(filtered_subcat) if filtered_subcat else "(nenhuma categoria)")
+                self._hb_subcat_text.config(state="disabled")
         except Exception:
             pass
 
@@ -2110,25 +2139,51 @@ class App(Tk):
         self._refresh_hb_adv_rules_list()
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
-        self._hb_found_title_var = tk.StringVar(value="Categorias encontradas no ficheiro selecionado (0)")
-        ttk.Label(frm, textvariable=self._hb_found_title_var, font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 2))
+
+        # Listagem em duas colunas: Categorias Únicas e Categorias e Subcategorias
+        hb_lists_container = ttk.Frame(frm)
+        hb_lists_container.pack(fill="both", expand=True, pady=(2, 0))
+        hb_lists_container.columnconfigure(0, weight=1)
+        hb_lists_container.columnconfigure(1, weight=1)
+        hb_lists_container.rowconfigure(0, weight=1)
+
+        # Coluna 1: Categorias Únicas
+        hb_col1_frame = ttk.Frame(hb_lists_container)
+        hb_col1_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        self._hb_unique_title_var = tk.StringVar(value="CATEGORIAS ÚNICAS (0)")
+        ttk.Label(hb_col1_frame, textvariable=self._hb_unique_title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+
+        hb_c1_box = ttk.Frame(hb_col1_frame)
+        hb_c1_box.pack(fill="both", expand=True)
+        self._hb_unique_text = tk.Text(hb_c1_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        hb_c1_scroll = ttk.Scrollbar(hb_c1_box, orient="vertical", command=self._hb_unique_text.yview)
+        self._hb_unique_text.configure(yscrollcommand=hb_c1_scroll.set)
+        self._hb_unique_text.pack(side="left", fill="both", expand=True)
+        hb_c1_scroll.pack(side="right", fill="y")
+        self._hb_unique_text.config(state="disabled")
+
+        # Coluna 2: Categorias e Subcategorias
+        hb_col2_frame = ttk.Frame(hb_lists_container)
+        hb_col2_frame.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+        self._hb_subcat_title_var = tk.StringVar(value="CATEGORIAS E SUBCATEGORIAS (0)")
+        ttk.Label(hb_col2_frame, textvariable=self._hb_subcat_title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+
+        hb_c2_box = ttk.Frame(hb_col2_frame)
+        hb_c2_box.pack(fill="both", expand=True)
+        self._hb_subcat_text = tk.Text(hb_c2_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        hb_c2_scroll = ttk.Scrollbar(hb_c2_box, orient="vertical", command=self._hb_subcat_text.yview)
+        self._hb_subcat_text.configure(yscrollcommand=hb_c2_scroll.set)
+        self._hb_subcat_text.pack(side="left", fill="both", expand=True)
+        hb_c2_scroll.pack(side="right", fill="y")
+        self._hb_subcat_text.config(state="disabled")
 
         hb_search_row = ttk.Frame(frm)
-        hb_search_row.pack(fill="x", pady=(0, 4))
+        hb_search_row.pack(fill="x", pady=(6, 4))
         ttk.Label(hb_search_row, text="🔍 Pesquisar:").pack(side="left", padx=(0, 4))
         self._hb_search_var = tk.StringVar()
         self._hb_search_var.trace_add("write", lambda *args: self._hb_filter_categories())
         ttk.Entry(hb_search_row, textvariable=self._hb_search_var, width=28).pack(side="left", padx=(0, 8))
         ttk.Button(hb_search_row, text="🔄 Recarregar", command=self._reload_categories, width=14).pack(side="left")
-
-        cat_frame = ttk.Frame(frm)
-        cat_frame.pack(fill="both", expand=True)
-        self._hb_list_text = tk.Text(cat_frame, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
-        cat_scroll = ttk.Scrollbar(cat_frame, orient="vertical", command=self._hb_list_text.yview)
-        self._hb_list_text.configure(yscrollcommand=cat_scroll.set)
-        self._hb_list_text.pack(side="left", fill="both", expand=True)
-        cat_scroll.pack(side="right", fill="y")
-        self._hb_list_text.config(state="disabled")
 
     def _save_highlights_brands_settings(self):
         try:
