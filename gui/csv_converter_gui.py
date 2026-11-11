@@ -1078,6 +1078,15 @@ class App(Tk):
         self._build_tab_sobre()
         self._build_footer()
 
+        try:
+            last_file = get_last_input_file()
+            if last_file and os.path.isfile(last_file):
+                self.path_var.set(last_file)
+                self._update_drop_text(last_file)
+                self._extract_categories_from_file(last_file)
+        except Exception:
+            pass
+
     # -- ícone da janela --------------------------------------------------
 
     def _apply_window_icon(self):
@@ -1204,15 +1213,6 @@ class App(Tk):
             widget=self.drop_text,
         )
         self._status_widget = self.drop_text
-
-        try:
-            last_file = get_last_input_file()
-            if last_file and os.path.isfile(last_file):
-                self.path_var.set(last_file)
-                self._update_drop_text(last_file)
-                self._extract_categories_from_file(last_file)
-        except Exception:
-            pass
 
         frm_opts = ttk.Frame(self.tab_novo)
         frm_opts.pack(fill="x", pady=(0, 4))
