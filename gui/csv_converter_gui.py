@@ -1605,10 +1605,12 @@ class App(Tk):
         adv_row.pack(fill="x", pady=2)
         ttk.Label(adv_row, text="Cat.:").pack(side="left", padx=(0, 2))
         self._adv_cat_var = tk.StringVar()
-        ttk.Entry(adv_row, textvariable=self._adv_cat_var, width=18).pack(side="left", padx=(0, 4))
+        self._adv_cat_combo = ttk.Combobox(adv_row, textvariable=self._adv_cat_var, width=18)
+        self._adv_cat_combo.pack(side="left", padx=(0, 4))
         ttk.Label(adv_row, text="Subcat.:").pack(side="left", padx=(4, 2))
         self._adv_subcat_var = tk.StringVar()
-        ttk.Entry(adv_row, textvariable=self._adv_subcat_var, width=18).pack(side="left", padx=(0, 4))
+        self._adv_subcat_combo = ttk.Combobox(adv_row, textvariable=self._adv_subcat_var, width=18)
+        self._adv_subcat_combo.pack(side="left", padx=(0, 4))
         ttk.Label(adv_row, text="Pai:").pack(side="left", padx=(4, 2))
         self._cat_pai_combo = ttk.Combobox(adv_row, state="readonly", width=22)
         self._cat_pai_combo.pack(side="left", padx=(0, 4))
@@ -1725,6 +1727,7 @@ class App(Tk):
             self._brand_filter_categories()
             self._refresh_hb_adv_combos()
             self._refresh_brand_adv_combos()
+            self._refresh_cat_adv_combos()
         except Exception:
             pass
 
@@ -1966,6 +1969,15 @@ class App(Tk):
             new_cats = [c.strip() for c in cat_settings.get("new_categories", []) if c.strip()]
             if hasattr(self, "_cat_pai_combo"):
                 self._cat_pai_combo["values"] = new_cats
+        except Exception:
+            pass
+
+    def _refresh_cat_adv_combos(self):
+        try:
+            if hasattr(self, "_adv_cat_combo"):
+                self._adv_cat_combo["values"] = getattr(self, "_unique_categories", [])
+            if hasattr(self, "_adv_subcat_combo"):
+                self._adv_subcat_combo["values"] = getattr(self, "_subcat_categories", [])
         except Exception:
             pass
 
