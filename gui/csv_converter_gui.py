@@ -989,6 +989,7 @@ class App(Tk):
             self.bg_label = tk.Label(self, image=bg_img)
             self.bg_label.image = bg_img
             self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+            self.bg_label.lower()
 
         # container superior com logo, botão de compra e botão de atualização
         top_container = tk.Frame(self, bg=BG_WINDOW)
@@ -1049,6 +1050,7 @@ class App(Tk):
         # barra de separadores
         self.tabs = ttk.Notebook(self)
         self.tabs.pack(fill="both", expand=True, padx=8, pady=(2, 6))
+        self.tabs.lift()
 
         self.tab_fornecedores = ttk.Frame(self.tabs, padding=8)
         self.tab_novo = ttk.Frame(self.tabs, padding=8)
@@ -2926,6 +2928,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.77 (2026-11-11)
+        - Correção de interatividade: envio explícito da imagem de fundo para o fundo absoluto (lower()) e elevação do notebook de abas (lift()) para garantir que os separadores fiquem clicáveis.
+
         v0.3.76 (2026-11-11)
         - Otimização de desempenho no arranque e carregamento de ficheiros: leitura de CSV e extração de categorias movidas para thread em background (não bloqueia a interface / sem efeito de loading demorado).
 
