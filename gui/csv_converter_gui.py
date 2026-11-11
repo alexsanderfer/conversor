@@ -161,12 +161,12 @@ def _calc_price(raw_preco: str) -> str:
         iva_pct = float(settings.get("iva_percentage", 0.0))
         shipping = float(settings.get("shipping_cost", 0.0))
 
-        # Fórmula detalhada: (Custo * (1 + lucro%)) + portes, aplicando IVA se > 0
+        # Fórmula detalhada ajustada: ((Custo * (1 + lucro%)) * (1 + iva%)) + portes
         price = preco * (1.0 + profit_pct / 100.0)
-        if shipping and shipping > 0:
-            price += shipping
         if iva_pct and iva_pct > 0:
             price = price * (1.0 + iva_pct / 100.0)
+        if shipping and shipping > 0:
+            price += shipping
         return str(round(price, 2))
     except Exception:
         try:
