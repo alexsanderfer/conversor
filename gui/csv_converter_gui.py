@@ -689,24 +689,11 @@ def _read_csv_any_delimiter(input_path: str):
 
 
 def load_price_state(output_dir: str) -> dict:
-    path = os.path.join(output_dir, STATE_FILENAME)
-    if not os.path.isfile(path):
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
-        return {}
+    return {}
 
 
 def save_price_state(output_dir: str, state: dict):
-    path = os.path.join(output_dir, STATE_FILENAME)
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(state, f, ensure_ascii=False, indent=2, sort_keys=True)
-    except OSError as exc:
-        raise OSError(f"Nao foi possivel guardar o estado dos precos: {exc}")
+    pass
 
 
 def _read_fornecedor_rows(fornecedor_path: str):
