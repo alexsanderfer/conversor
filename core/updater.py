@@ -16,6 +16,9 @@ from tkinter import messagebox
 
 def _parse_version(v: str) -> tuple[int, ...]:
     """Extrai partes numericas de uma string de versão."""
+    if not v:
+        return (0,)
+    v = v.lstrip("v")
     m = re.match(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", v)
     if not m:
         return (0,)
