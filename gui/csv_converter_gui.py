@@ -1094,6 +1094,15 @@ class App(Tk):
     def _apply_window_icon(self):
         """Define o ícone da aplicação (barra de título e taskbar)."""
         try:
+            # Tentar aplicar .ico via iconbitmap (essencial no Windows para taskbar/titlebar)
+            ico_path = ASSETS / "icon.ico"
+            if ico_path.is_file():
+                try:
+                    self.iconbitmap(str(ico_path))
+                except Exception:
+                    pass
+
+            # Aplicar .png via iconphoto
             p = ASSETS / "icon.png"
             if p.is_file():
                 from PIL import Image, ImageTk
@@ -2913,6 +2922,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.75 (2026-11-11)
+        - Correção do ícone da aplicação no Windows (uso explícito de iconbitmap com o ficheiro icon.ico para substituir o ícone padrão de pena do Tkinter).
+
         v0.3.74 (2026-11-11)
         - Correção no carregamento e visualização de CSVs após rebranding (filtragem de metadados de preço/SKU no mapeamento e auto-deteção inteligente robusta de colunas de fornecedor).
 
