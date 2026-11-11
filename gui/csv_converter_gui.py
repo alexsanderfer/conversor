@@ -3308,29 +3308,32 @@ class App(Tk):
     # -- acesso a licenca (botao no rodape) -------------------------------
 
     def _open_license_window(self):
-        """Botao 'Licença…': mostra a licencia activa ou permite renovar."""
+        """Botão 'Licença…': mostra a licença ativa e permite renovar/carregar novo ficheiro .lic."""
         lic_path = self._stored_license_path()
         ok, reason = check_license(lic_path)
-        if ok:
-            # Licença válida: fecha o diálogo sem mostrar popup
-            self._licensed = True
-            return
+
         detail = ""
         if lic_path.is_file():
             try:
                 data = json.loads(lic_path.read_text(encoding="utf-8"))
                 detail = (
-                    f"\n\nLoja: {data.get('licensee', '—')}\n"
-                    f"Válida até: {data.get('expires', '—')}"
+                    f"Licença ativa:\n"
+                    f"• Loja / Licenciado: {data.get('licensee', '—')}\n"
+                    f"• Válida até: {data.get('expires', '—')}\n\n"
                 )
             except (OSError, ValueError):
                 pass
-        messagebox.showinfo(
-            "Licença",
-            f"Aplicação Conversor Jumpseller.{detail}\n\n"
-            "Para activar ou renovar, arraste o novo ficheiro .lic para a janela.",
-            parent=self,
-        )
+
+        msg = f"{detail}Deseja carregar ou renovar um novo ficheiro de licença (.lic)?" if ok else f"Licença inválida ou não encontrada.\n{reason}\n\nPretende carregar um ficheiro .lic?"
+
+        if messagebox.askyesno("Gestão de Licença", msg, parent=self):
+            dialog = LicenseDialog(
+                self,
+                LICENSE_DIR,
+                reason=reason if not ok else "",
+                on_submit=self._accept_license,
+            )
+            self.wait_window(dialog.win)
 
     def _save_price_settings(self):
         """Guarda as configurações de preços."""
