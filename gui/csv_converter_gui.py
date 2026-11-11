@@ -3286,9 +3286,9 @@ class App(Tk):
             return Path(cached)
         return LICENSE_DIR / "conversor.lic"
 
-    def _accept_license(self, path: Path) -> bool:
+    def _accept_license(self, path: Path) -> tuple[bool, str]:
         """
-        Chamado pelo dialog com o .lic escolhido. Devolve True se fechou.
+        Chamado pelo dialog com o .lic escolhido. Devolve (ok, message).
 
         Guarda a licença em %LOCALAPPDATA% para sobreviver a reinicios e
         move-a para a pasta de licenças, de modo a que o caminho guardado
@@ -3311,11 +3311,13 @@ class App(Tk):
                     parent=self,
                 )
             self._licensed = True
-            self._last_license_message = f"Licença activa: {path.name}"
+            msg = f"Licença ativa: {path.name}"
+            self._last_license_message = msg
+            return True, msg
         else:
             self._licensed = False
             self._last_license_message = reason
-        return self._licensed
+            return False, reason
 
     # -- acesso a licenca (botao no rodape) -------------------------------
 

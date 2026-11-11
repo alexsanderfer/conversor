@@ -44,7 +44,7 @@ class LicenseDialog:
         self._closing = False
 
         self.win = tk.Toplevel(root)
-        self.win.title("Licença — Conversor Jumpseller")
+        self.win.title("Licença — CsvFast-FileConverter")
         self.win.geometry("540x340")
         self.win.resizable(False, False)
         self.win.transient(root)
