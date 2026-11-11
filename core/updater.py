@@ -32,20 +32,23 @@ def _parse_version(v: str) -> tuple[int, ...]:
 
 def get_latest_version() -> str | None:
     """
-    Obtém a versão mais recente a partir de um ficheiro version.txt
-    hospedado na página pública (GitHub Pages).
+    Obtém a versão mais recente a partir da API privada do SaaS.
     Retorna None em caso de erro.
     """
     try:
-        # Aponta para o ficheiro version.txt no site público (GitHub Pages)
-        # O site é gerado a partir da branch gh-pages ou da pasta docs/
-        url = "https://alexsanderfer.github.io/conversor/version.txt"
+        # Aponta para o endpoint do SaaS privado
+        url = "https://shopsync.pt/api/version"
         req = urllib.request.Request(
             url, headers={"User-Agent": "ConversorJumpseller-Updater"}
         )
         with urllib.request.urlopen(req, timeout=10) as response:
-            version = response.read().decode("utf-8").strip()
-            # Remove prefixo 'v' se existir
+            content = response.read().decode("utf-8").strip()
+            if content.startswith("{"):
+                import json
+                data = json.loads(content)
+                version = data.get("version", "0.1.0")
+            else:
+                version = content
             return version.lstrip("v")
     except Exception:
         return None
