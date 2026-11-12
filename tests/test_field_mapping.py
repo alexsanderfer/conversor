@@ -83,12 +83,12 @@ if __name__ == "__main__":
     success = True
     
     # Test CSV with expected column names (should work with empty mapping)
-    test_csv = Path("cvs_examples/test_csv.csv")
+    test_csv = Path("csv_examples/test_csv.csv")
     if test_csv.exists():
         success = test_csv_file(str(test_csv)) and success
     
     # Test CSV that needs mapping (produtos.csv)
-    produtos_path = Path("cvs_examples/produtos.csv")
+    produtos_path = Path("csv_examples/produtos.csv")
     if produtos_path.exists():
         print("\nNOTE: produtos.csv requires field mapping configuration.")
         print("Run the GUI and use 'Mapear Campos...' to configure it.")

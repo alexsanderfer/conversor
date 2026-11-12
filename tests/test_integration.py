@@ -103,7 +103,7 @@ def test_conversion_with_mapping():
     print("Test 4: Conversion with field mapping...")
     
     # Test with a CSV that has expected column names (test_csv.csv)
-    test_csv_path = Path("cvs_examples/test_csv.csv")
+    test_csv_path = Path("csv_examples/test_csv.csv")
     if not test_csv_path.exists():
         print("  [SKIP] test_csv.csv not found")
         return True

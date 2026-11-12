@@ -16,7 +16,7 @@ from gui.csv_converter_gui import process_csv
 def test_complete_conversion():
     """Test complete conversion of produtos.csv with field mapping."""
     
-    produtos_path = Path("cvs_examples/produtos.csv")
+    produtos_path = Path("csv_examples/produtos.csv")
     if not produtos_path.exists():
         print(f"ERROR: {produtos_path} not found")
         return False

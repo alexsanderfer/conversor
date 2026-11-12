@@ -6,6 +6,7 @@ constantes para uniformizar a interface em tons de azul escuro, ciano e neutros.
 """
 
 import tkinter.ttk as ttk
+from core.i18n import translate, DEFAULT_LANGUAGE
 
 # --- paleta corporativa moderna (Azul / Ciano / Dourado) -------------------
 BLUE_900 = "#1E3A8A"   # cabeçalhos, texto sobre fundo azul-claro
@@ -22,9 +23,10 @@ BG_WINDOW = "#FFFFFF"
 ERROR_BG = "#FEF2F2"
 ERROR_FG = "#DC2626"
 
-FOOTER_TEXT = (
+FOOTER_TEXT = translate(
     "Reservados os direitos de autor e comercialização, é proibida "
-    "a reprodução e venda por agente não autorizado."
+    "a reprodução e venda por agente não autorizado.",
+    DEFAULT_LANGUAGE
 )
 
 

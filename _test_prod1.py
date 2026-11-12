@@ -34,7 +34,7 @@ def build_categories(familia, sub_familia, sub_sub_familia=""):
         return ",".join(result)
     return ",".join(categories)
 
-path = r"C:\Users\Alexsander\IdeaProjects\conversor\cvs_examples\produtos (1).csv"
+path = r"C:\Users\Alexsander\IdeaProjects\conversor\csv_examples\produtos (1).csv"
 with open(path, newline='', encoding='utf-8-sig') as f:
     reader = csv.DictReader(f, delimiter=';')
     rows = list(reader)

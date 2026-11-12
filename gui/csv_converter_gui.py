@@ -3428,6 +3428,13 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.81 (2026-11-12)
+        - Mapeamento massivo de categorias: nova aba "Categorias M" permite associar várias categorias de origem do fornecedor a uma categoria pai criada pelo utilizador, preservando a hierarquia original (até 4 níveis).
+        - Correspondência de categorias sem distinção de maiúsculas/minúsculas e sem acentos; regras legadas continuam a funcionar.
+        - Internacionalização: interface disponível em Português Europeu (padrão), Português Brasileiro e Inglês, com seleção na aba de Configurações.
+        - Licença, atualizações e integração de pagamento traduzidas.
+        - Documentação do projeto (CLAUDE.md) e plano de implementação adicionados.
+
         v0.3.80 (2026-11-11)
         - Atualizações automáticas: adicionada caixa de marcação na aba "Sobre" para ativar/desativar a verificação automática de atualizações no arranque com notificação inteligente.
 
