@@ -87,6 +87,29 @@ def test_legacy_massive_category_group_remains_supported(tmp_path, monkeypatch):
     assert field_mapping.apply_massive_category_rules("Informática") == "Loja INFORMÁTICA"
 
 
+def test_category_settings_supports_more_than_ten(tmp_path, monkeypatch):
+    config_path = tmp_path / "field_mapping_config.json"
+    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
+    values = [f"Categoria {i}" for i in range(15)]
+    assert field_mapping.set_category_settings(new_categories=values)
+    assert field_mapping.get_category_settings()["new_categories"] == values
+
+
+def test_highlights_brands_settings_supports_more_than_ten(tmp_path, monkeypatch):
+    config_path = tmp_path / "field_mapping_config.json"
+    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
+    values = [f"Destaque {i}" for i in range(15)]
+    assert field_mapping.set_highlights_brands_settings(new_categories=values)
+    assert field_mapping.get_highlights_brands_settings()["new_categories"] == values
+
+
+def test_window_geometry_roundtrip(tmp_path, monkeypatch):
+    config_path = tmp_path / "field_mapping_config.json"
+    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
+    assert field_mapping.set_window_geometry("1200x800+100+50")
+    assert field_mapping.get_window_geometry() == "1200x800+100+50"
+
+
 def test_massive_parent_settings_do_not_require_clearing_keywords(tmp_path, monkeypatch):
     config_path = tmp_path / "field_mapping_config.json"
     monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)

@@ -77,7 +77,21 @@ TRANSLATABLE_STRINGS = (
 
 _TRANSLATIONS = {
     "pt-PT": {
-        text: text for text in TRANSLATABLE_STRINGS
+        **{text: text for text in TRANSLATABLE_STRINGS},
+        # Correções para português europeu
+        "Configurações": "Definições",
+        "Configuração": "Configuração",
+        "Salvar": "Guardar",
+        "Excluir": "Eliminar",
+        "Excluído": "Eliminado",
+        "Excluindo": "A eliminar",
+        "Atualizar": "Actualizar",
+        "Actualização": "Actualização",
+        "Arquivo": "Ficheiro",
+        "Arquivos": "Ficheiros",
+        "Informação": "Informação",
+        "Aplicativo": "Aplicação",
+        "Aplicação": "Aplicação",
     },
     "pt-BR": {
         "Fornecedores": "Fornecedores", "Novo Ficheiro": "Novo Arquivo",

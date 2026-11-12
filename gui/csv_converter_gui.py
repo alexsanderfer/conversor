@@ -62,6 +62,7 @@ from core.field_mapping import (
     get_last_input_file, set_last_input_file,
     get_auto_check_updates, set_auto_check_updates,
     get_language, set_language,
+    get_window_geometry, set_window_geometry,
     get_massive_category_rules, set_massive_category_rules,
     add_massive_category_rule, save_massive_category_rule, remove_massive_category_rule,
     apply_massive_category_rules,
@@ -1020,6 +1021,21 @@ class App(Tk):
         self._build_ui()
         self._check_updates_startup()
 
+        # Restaurar geometria anterior
+        geometry = get_window_geometry()
+        if geometry:
+            self.geometry(geometry)
+
+        # Salvar geometria ao fechar
+        self.protocol("WM_DELETE_WINDOW", self._on_closing)
+
+    def _on_closing(self):
+        try:
+            set_window_geometry(self.geometry())
+        except Exception:
+            pass
+        self.destroy()
+
     def _build_ui(self):
         apply_theme(self)
 
@@ -1666,6 +1682,86 @@ class App(Tk):
                 else:
                     messagebox.showerror(translate("Erro", self.language), translate("Não foi possível eliminar o fornecedor.", self.language), parent=self)
 
+    def _build_dynamic_list(self, parent, label, values, add_command, remove_command):
+        """Constrói uma lista dinâmica com campo de entrada, botão Adicionar e botão Remover."""
+        frame = ttk.LabelFrame(parent, text=label, padding=6)
+        frame.pack(fill="both", expand=True)
+
+        entry_var = tk.StringVar()
+        self._cat_new_listbox = frame
+
+        entry_row = ttk.Frame(frame)
+        entry_row.pack(fill="x", pady=(0, 4))
+        entry = ttk.Entry(entry_row, textvariable=entry_var)
+        entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        ttk.Button(entry_row, text=translate("Adicionar", self.language), command=add_command, width=10).pack(side="left")
+
+        list_frame = ttk.Frame(frame)
+        list_frame.pack(fill="both", expand=True)
+        listbox = tk.Listbox(
+            list_frame, height=6, relief="sunken", bg=GRAY_100,
+            font=("Consolas", 9), selectmode="single", exportselection=False,
+        )
+        scroll = ttk.Scrollbar(list_frame, orient="vertical", command=listbox.yview)
+        listbox.configure(yscrollcommand=scroll.set)
+        listbox.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+
+        for value in values:
+            if value.strip():
+                listbox.insert(tk.END, value)
+
+        btn_row = ttk.Frame(frame)
+        btn_row.pack(fill="x", pady=(4, 0))
+        ttk.Button(btn_row, text=translate("Remover", self.language), command=lambda: remove_command(listbox), width=10).pack(side="left")
+
+        frame._entry_var = entry_var
+        frame._listbox = listbox
+        return frame
+
+    def _get_listbox_values(self, frame):
+        """Devolve os valores de uma lista dinâmica."""
+        if not hasattr(frame, "_listbox"):
+            return []
+        listbox = frame._listbox
+        return [listbox.get(i).strip() for i in range(listbox.size()) if listbox.get(i).strip()]
+
+    def _add_cat_new_item(self):
+        """Adiciona um item à lista dinâmica de categorias pai."""
+        if not hasattr(self, "_cat_new_listbox"):
+            return
+        value = self._cat_new_listbox._entry_var.get().strip()
+        if not value:
+            return
+        self._cat_new_listbox._listbox.insert(tk.END, value)
+        self._cat_new_listbox._entry_var.set("")
+        self._save_category_settings()
+
+    def _remove_cat_new_item(self, listbox):
+        """Remove o item selecionado da lista dinâmica de categorias pai."""
+        selection = listbox.curselection()
+        if selection:
+            listbox.delete(selection[0])
+            self._save_category_settings()
+
+    def _add_massive_parent_item(self):
+        """Adiciona um item à lista dinâmica de categorias pai massivas."""
+        if not hasattr(self, "_massive_parent_listbox"):
+            return
+        value = self._massive_parent_listbox._entry_var.get().strip()
+        if not value:
+            return
+        self._massive_parent_listbox._listbox.insert(tk.END, value)
+        self._massive_parent_listbox._entry_var.set("")
+        self._save_massive_parents()
+
+    def _remove_massive_parent_item(self, listbox):
+        """Remove o item selecionado da lista dinâmica de categorias pai massivas."""
+        selection = listbox.curselection()
+        if selection:
+            listbox.delete(selection[0])
+            self._save_massive_parents()
+
     def _build_tab_caturas_individuais(self):
         """Constrói a aba 'CATEGORIAS i' (individuais) com mapeamento de categorias."""
         frm = ttk.Frame(self.tab_categorias_individuais, padding=6)
@@ -1676,7 +1772,7 @@ class App(Tk):
         # Linha de instrução com seletor de fornecedor ao lado
         header_row = ttk.Frame(frm)
         header_row.pack(fill="x", pady=(0, 8))
-        ttk.Label(header_row, text="Crie até 10 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(side="left")
+        ttk.Label(header_row, text="Crie categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(side="left")
         ttk.Label(header_row, text="  Fornecedor:", font=("Segoe UI", 9)).pack(side="left", padx=(10, 4))
         self._cat_fornecedor_var = tk.StringVar(value=get_active_profile())
         self._cat_fornecedor_combo = ttk.Combobox(header_row, textvariable=self._cat_fornecedor_var, state="readonly", width=24)
@@ -1684,17 +1780,15 @@ class App(Tk):
         self._cat_fornecedor_combo.bind("<<ComboboxSelected>>", self._on_cat_fornecedor_change)
         self._refresh_cat_fornecedor_combo()
 
-        cat_settings = get_category_settings()
-        self._cat_new_vars = []
-        for i in range(10):
-            val = cat_settings.get("new_categories", [""] * 10)[i] if i < len(cat_settings.get("new_categories", [])) else ""
-            v = tk.StringVar(value=val)
-            self._cat_new_vars.append(v)
-            row = ttk.Frame(frm)
-            row.pack(fill="x", pady=2)
-            ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
-            ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True, padx=(4, 6))
-            ttk.Button(row, text="Guardar", command=self._save_category_settings, width=8).pack(side="left", padx=(4, 0))
+        # Lista dinâmica de categorias pai (sem limite)
+        self._cat_new_listbox = self._build_dynamic_list(
+            parent=frm,
+            label="Categorias Pai",
+            values=get_category_settings().get("new_categories", []),
+            add_command=self._add_cat_new_item,
+            remove_command=self._remove_cat_new_item,
+        )
+        self._cat_new_entry_var = self._cat_new_listbox._entry_var
 
         # Manter hierarquia original está sempre activo (não é configurável pelo utilizador)
         self._cat_use_parent_var = tk.BooleanVar(value=True)
@@ -1812,20 +1906,16 @@ class App(Tk):
             text=translate("Agrupe uma categoria do fornecedor e todas as suas subcategorias numa Categoria Pai. As regras aplicam-se automaticamente na conversão e na atualização da loja.", self.language),
             font=("Segoe UI", 9), foreground=GRAY_600, wraplength=430, justify="left",
         ).pack(anchor="w", pady=(0, 6))
-        left_body = ttk.LabelFrame(left, text=translate("Categorias Pai (até 10)", self.language), padding=6)
+        left_body = ttk.LabelFrame(left, text=translate("Categorias Pai", self.language), padding=6)
         left_body.pack(fill="both", expand=True)
         left = left_body
-        self._massive_parent_vars = []
-        cat_settings = get_category_settings()
-        saved_parents = cat_settings.get("new_categories", [])
-        for i in range(10):
-            value = saved_parents[i] if i < len(saved_parents) else ""
-            var = tk.StringVar(value=value)
-            self._massive_parent_vars.append(var)
-            row = ttk.Frame(left)
-            row.pack(fill="x", pady=1)
-            ttk.Label(row, text=f"{translate('Categoria pai:', self.language)} {i + 1}:", width=18).pack(side="left")
-            ttk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+        self._massive_parent_listbox = self._build_dynamic_list(
+            parent=left,
+            label="Categorias Pai",
+            values=get_category_settings().get("new_categories", []),
+            add_command=self._add_massive_parent_item,
+            remove_command=self._remove_massive_parent_item,
+        )
         ttk.Button(
             left,
             text="Guardar categorias pai",
@@ -1847,14 +1937,6 @@ class App(Tk):
         right_body = ttk.Frame(right, padding=6)
         right_body.pack(fill="both", expand=True)
         right = right_body
-        self._massive_description_vars = []
-        for i in range(10):
-            var = tk.StringVar()
-            self._massive_description_vars.append(var)
-            row = ttk.Frame(right)
-            row.pack(fill="x", pady=1)
-            ttk.Label(row, text=f"Regra {i + 1}:", width=9).pack(side="left")
-            ttk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
         ttk.Label(frm, text=translate("Associar grupo de categorias à Categoria Pai", self.language), font=("Segoe UI", 10, "bold")).pack(anchor="w")
@@ -1952,7 +2034,7 @@ class App(Tk):
         return text
 
     def _save_massive_parents(self):
-        values = [var.get().strip() for var in self._massive_parent_vars]
+        values = self._get_listbox_values(self._massive_parent_listbox)
         set_category_settings(
             new_categories=values,
             apply_to_all=False,
@@ -1972,12 +2054,7 @@ class App(Tk):
         if not hasattr(self, "_massive_description_combo"):
             return
         rules = get_massive_category_rules()
-        configured = [
-            str(var.get()).strip()
-            for var in getattr(self, "_massive_description_vars", [])
-            if str(var.get()).strip()
-        ]
-        descriptions = configured[:]
+        descriptions = []
         for rule in rules:
             description = str(rule.get("description", "")).strip()
             if not description:
@@ -2466,7 +2543,7 @@ class App(Tk):
 
     def _save_category_settings(self):
         try:
-            new_cats = [v.get().strip() for v in self._cat_new_vars]
+            new_cats = self._get_listbox_values(self._cat_new_listbox)
             set_category_settings(
                 new_categories=new_cats,
                 cat_keywords=[""] * len(new_cats),
@@ -2588,7 +2665,7 @@ class App(Tk):
 
         hb_header_row = ttk.Frame(frm)
         hb_header_row.pack(fill="x", pady=(0, 8))
-        ttk.Label(hb_header_row, text="Crie até 10 categorias pai para Destaques", font=("Segoe UI", 9), foreground=GRAY_600).pack(side="left")
+        ttk.Label(hb_header_row, text="Crie categorias pai para Destaques", font=("Segoe UI", 9), foreground=GRAY_600).pack(side="left")
         ttk.Label(hb_header_row, text="  Fornecedor:", font=("Segoe UI", 9)).pack(side="left", padx=(10, 4))
         self._hb_fornecedor_var = tk.StringVar(value=get_active_profile())
         self._hb_fornecedor_combo = ttk.Combobox(hb_header_row, textvariable=self._hb_fornecedor_var, state="readonly", width=24)
@@ -2597,16 +2674,13 @@ class App(Tk):
         self._refresh_hb_fornecedor_combo()
 
         hb_settings = get_highlights_brands_settings()
-        self._hb_new_vars = []
-        for i in range(10):
-            val = hb_settings.get("new_categories", [""] * 10)[i] if i < len(hb_settings.get("new_categories", [])) else ""
-            v = tk.StringVar(value=val)
-            self._hb_new_vars.append(v)
-            row = ttk.Frame(frm)
-            row.pack(fill="x", pady=2)
-            ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
-            ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True, padx=(4, 6))
-            ttk.Button(row, text="Guardar", command=self._save_highlights_brands_settings, width=8).pack(side="left", padx=(4, 0))
+        self._hb_new_listbox = self._build_dynamic_list(
+            parent=frm,
+            label="Categorias Pai de Destaques",
+            values=hb_settings.get("new_categories", []),
+            add_command=self._add_hb_new_item,
+            remove_command=self._remove_hb_new_item,
+        )
 
         self._hb_use_parent_var = tk.BooleanVar(value=True)
 
@@ -2700,7 +2774,7 @@ class App(Tk):
 
         brand_header_row = ttk.Frame(frm)
         brand_header_row.pack(fill="x", pady=(0, 8))
-        ttk.Label(brand_header_row, text="Crie até 10 categorias pai para agrupar as marcas e produtos", font=("Segoe UI", 9), foreground=GRAY_600).pack(side="left")
+        ttk.Label(brand_header_row, text="Crie categorias pai para agrupar as marcas e produtos", font=("Segoe UI", 9), foreground=GRAY_600).pack(side="left")
         ttk.Label(brand_header_row, text="  Fornecedor:", font=("Segoe UI", 9)).pack(side="left", padx=(10, 4))
         self._brand_fornecedor_var = tk.StringVar(value=get_active_profile())
         self._brand_fornecedor_combo = ttk.Combobox(brand_header_row, textvariable=self._brand_fornecedor_var, state="readonly", width=24)
@@ -2709,16 +2783,13 @@ class App(Tk):
         self._refresh_brand_fornecedor_combo()
 
         brand_settings = get_highlights_brands_settings()
-        self._brand_new_vars = []
-        for i in range(10):
-            val = brand_settings.get("new_categories", [""] * 10)[i] if i < len(brand_settings.get("new_categories", [])) else ""
-            v = tk.StringVar(value=val)
-            self._brand_new_vars.append(v)
-            row = ttk.Frame(frm)
-            row.pack(fill="x", pady=2)
-            ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
-            ttk.Entry(row, textvariable=v).pack(side="left", fill="x", expand=True, padx=(4, 6))
-            ttk.Button(row, text="Guardar", command=self._save_brand_settings, width=8).pack(side="left", padx=(4, 0))
+        self._brand_new_listbox = self._build_dynamic_list(
+            parent=frm,
+            label="Categorias Pai de Marcas",
+            values=brand_settings.get("new_categories", []),
+            add_command=self._add_brand_new_item,
+            remove_command=self._remove_brand_new_item,
+        )
 
         ttk.Button(frm, text="Guardar todas as configurações de Marcas", command=self._save_brand_settings, width=45).pack(anchor="w", pady=(4, 0))
 
@@ -2808,7 +2879,7 @@ class App(Tk):
 
     def _save_highlights_brands_settings(self):
         try:
-            new_cats = [v.get().strip() for v in self._hb_new_vars]
+            new_cats = self._get_listbox_values(self._hb_new_listbox)
             set_highlights_brands_settings(
                 new_categories=new_cats,
                 apply_to_all=False,
@@ -2818,6 +2889,24 @@ class App(Tk):
         except Exception:
             pass
         self._refresh_hb_pai_combo()
+
+    def _add_hb_new_item(self):
+        """Adiciona um item à lista dinâmica de categorias pai de destaques."""
+        if not hasattr(self, "_hb_new_listbox"):
+            return
+        value = self._hb_new_listbox._entry_var.get().strip()
+        if not value:
+            return
+        self._hb_new_listbox._listbox.insert(tk.END, value)
+        self._hb_new_listbox._entry_var.set("")
+        self._save_highlights_brands_settings()
+
+    def _remove_hb_new_item(self, listbox):
+        """Remove o item selecionado da lista dinâmica de categorias pai de destaques."""
+        selection = listbox.curselection()
+        if selection:
+            listbox.delete(selection[0])
+            self._save_highlights_brands_settings()
 
     def _refresh_hb_pai_combo(self):
         try:
@@ -2953,7 +3042,7 @@ class App(Tk):
 
     def _save_brand_settings(self):
         try:
-            new_cats = [v.get().strip() for v in self._brand_new_vars]
+            new_cats = self._get_listbox_values(self._brand_new_listbox)
             set_highlights_brands_settings(
                 new_categories=new_cats,
                 apply_to_all=False,
@@ -2963,6 +3052,24 @@ class App(Tk):
         except Exception:
             pass
         self._refresh_brand_pai_combo()
+
+    def _add_brand_new_item(self):
+        """Adiciona um item à lista dinâmica de categorias pai de marcas."""
+        if not hasattr(self, "_brand_new_listbox"):
+            return
+        value = self._brand_new_listbox._entry_var.get().strip()
+        if not value:
+            return
+        self._brand_new_listbox._listbox.insert(tk.END, value)
+        self._brand_new_listbox._entry_var.set("")
+        self._save_brand_settings()
+
+    def _remove_brand_new_item(self, listbox):
+        """Remove o item selecionado da lista dinâmica de categorias pai de marcas."""
+        selection = listbox.curselection()
+        if selection:
+            listbox.delete(selection[0])
+            self._save_brand_settings()
 
     def _brand_add_advanced_rule(self):
         marca = self._brand_adv_marca_var.get().strip()
@@ -3121,7 +3228,7 @@ class App(Tk):
         # Linha de instrução com seletor de fornecedor ao lado (igual ao separador Categorias)
         hb_header_row = ttk.Frame(frm)
         hb_header_row.pack(fill="x", pady=(0, 8))
-        ttk.Label(hb_header_row, text="Crie até 10 categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(side="left")
+        ttk.Label(hb_header_row, text="Crie categorias pai para agrupar as categorias do fornecedor", font=("Segoe UI", 9), foreground=GRAY_600).pack(side="left")
         ttk.Label(hb_header_row, text="  Fornecedor:", font=("Segoe UI", 9)).pack(side="left", padx=(10, 4))
         self._hb_fornecedor_var = tk.StringVar(value=get_active_profile())
         self._hb_fornecedor_combo = ttk.Combobox(hb_header_row, textvariable=self._hb_fornecedor_var, state="readonly", width=24)
@@ -3130,16 +3237,13 @@ class App(Tk):
         self._refresh_hb_fornecedor_combo()
 
         hb_settings = get_highlights_brands_settings()
-        self._hb_new_vars = []
-        for i in range(10):
-            val = hb_settings.get("new_categories", [""] * 10)[i] if i < len(hb_settings.get("new_categories", [])) else ""
-            v = tk.StringVar(value=val)
-            self._hb_new_vars.append(v)
-            row = ttk.Frame(frm)
-            row.pack(fill="x", pady=2)
-            ttk.Label(row, text=f"Categoria {i+1}:", width=12).pack(side="left")
-            ttk.Entry(row, textvariable=v, width=34).pack(side="left", padx=(4, 6))
-            ttk.Button(row, text="Guardar", command=self._save_highlights_brands_settings, width=8).pack(side="left", padx=(4, 0))
+        self._hb_new_listbox = self._build_dynamic_list(
+            parent=frm,
+            label="Categorias Pai de Destaques e Marcas",
+            values=hb_settings.get("new_categories", []),
+            add_command=self._add_hb_new_item,
+            remove_command=self._remove_hb_new_item,
+        )
 
         # Manter hierarquia original está sempre activo (não é configurável pelo utilizador)
         self._hb_use_parent_var = tk.BooleanVar(value=True)
@@ -3225,7 +3329,7 @@ class App(Tk):
 
     def _save_highlights_brands_settings(self):
         try:
-            new_cats = [v.get().strip() for v in self._hb_new_vars]
+            new_cats = self._get_listbox_values(self._hb_new_listbox)
             set_highlights_brands_settings(
                 new_categories=new_cats,
                 apply_to_all=False,
@@ -3428,6 +3532,12 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.3.82 (2026-11-12)
+        - Listas dinâmicas: Categorias Pai, Destaques, Marcas e regras de mapeamento passam a aceitar itens ilimitados com um único campo e botões Adicionar/Remover.
+        - Responsividade: a janela lembra o tamanho usado pelo utilizador entre sessões.
+        - Correções de português europeu na interface (ex.: "Definições", "Guardar", "Eliminar").
+        - Atualizações: verificação passa a consultar a API pública do GitHub em vez do domínio antigo.
+
         v0.3.81 (2026-11-12)
         - Mapeamento massivo de categorias: nova aba "Categorias M" permite associar várias categorias de origem do fornecedor a uma categoria pai criada pelo utilizador, preservando a hierarquia original (até 4 níveis).
         - Correspondência de categorias sem distinção de maiúsculas/minúsculas e sem acentos; regras legadas continuam a funcionar.

@@ -1,10 +1,9 @@
 """
 Verificação de atualizações — não afeta licenças válidas.
 
-Consulta um ficheiro de versão simples hospedado na página pública (GitHub Pages),
-sem expor o repositório GitHub. A verificação de licença é totalmente independente:
-se a licença for válida, o programa simplesmente prossegue; a atualização é
-apenas informativa.
+Consulta a API pública do GitHub para saber a tag da release mais recente.
+A verificação de licença é totalmente independente: se a licença for válida,
+o programa simplesmente prossegue; a atualização é apenas informativa.
 """
 
 import re
@@ -13,6 +12,9 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox
 from core.i18n import translate, DEFAULT_LANGUAGE
+
+# Repositório público onde são publicadas as releases
+GITHUB_REPO = "alexsanderfer/conversor"
 
 
 def _parse_version(v: str) -> tuple[int, ...]:
@@ -33,24 +35,19 @@ def _parse_version(v: str) -> tuple[int, ...]:
 
 def get_latest_version() -> str | None:
     """
-    Obtém a versão mais recente a partir da API privada do SaaS.
+    Obtém a versão mais recente a partir da API pública do GitHub.
     Retorna None em caso de erro.
     """
+    import json
     try:
-        # Aponta para o endpoint do SaaS privado
-        url = "https://shopsync.pt/api/version"
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
         req = urllib.request.Request(
             url, headers={"User-Agent": "ConversorJumpseller-Updater"}
         )
         with urllib.request.urlopen(req, timeout=10) as response:
-            content = response.read().decode("utf-8").strip()
-            if content.startswith("{"):
-                import json
-                data = json.loads(content)
-                version = data.get("version", "0.1.0")
-            else:
-                version = content
-            return version.lstrip("v")
+            data = json.loads(response.read().decode("utf-8"))
+            version = data.get("tag_name") or data.get("name") or ""
+            return version.lstrip("v") or None
     except Exception:
         return None
 

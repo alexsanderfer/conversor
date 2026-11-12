@@ -417,6 +417,25 @@ def get_language() -> str:
         return _DEFAULT_LANGUAGE
 
 
+def get_window_geometry() -> str:
+    """Retorna a geometria da janela guardada na configuração."""
+    try:
+        geometry = str(_read_config().get("settings", {}).get("window_geometry", ""))
+        return geometry if "x" in geometry else ""
+    except Exception:
+        return ""
+
+
+def set_window_geometry(geometry: str) -> bool:
+    """Guarda a geometria da janela na configuração."""
+    try:
+        data = _read_config()
+        data.setdefault("settings", {})["window_geometry"] = str(geometry)
+        return _write_config(data)
+    except Exception:
+        return False
+
+
 def set_language(language: str) -> bool:
     """Guarda o idioma da interface; valores desconhecidos usam português europeu."""
     try:
@@ -495,7 +514,7 @@ def set_highlights_brands_settings(
         settings = data.setdefault("settings", {})
         hb = settings.setdefault("highlights_brands", {})
         if new_categories is not None:
-            hb["new_categories"] = list(new_categories)[:10]
+            hb["new_categories"] = list(new_categories)
         if apply_to_all is not None:
             hb["apply_to_all"] = bool(apply_to_all)
         if selected_prefix is not None:
@@ -523,9 +542,9 @@ def set_category_settings(new_categories=None, cat_keywords=None, apply_to_all=N
         settings = data.setdefault("settings", {})
         cats = settings.setdefault("category_mapping", {})
         if new_categories is not None:
-            cats["new_categories"] = list(new_categories)[:10]
+            cats["new_categories"] = list(new_categories)
         if cat_keywords is not None:
-            cats["cat_keywords"] = list(cat_keywords)[:10]
+            cats["cat_keywords"] = list(cat_keywords)
         if apply_to_all is not None:
             cats["apply_to_all"] = bool(apply_to_all)
         if selected_prefix is not None:
