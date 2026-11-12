@@ -2385,17 +2385,18 @@ class App(Tk):
 
         # Usar grid para garantir que os botões fiquem sempre visíveis na parte inferior
         dialog.columnconfigure(0, weight=1)
-        dialog.rowconfigure(0, weight=1)  # área de scroll expande
-        dialog.rowconfigure(1, weight=0)  # botões fixos
+        dialog.rowconfigure(0, weight=0)  # busca
+        dialog.rowconfigure(1, weight=1)  # área de scroll expande
+        dialog.rowconfigure(2, weight=0)  # botões fixos
 
         search_var = tk.StringVar()
         ttk.Label(dialog, text=translate("Pesquisar:", self.language)).grid(
             row=0, column=0, sticky="w", padx=10, pady=(10, 0)
         )
         search_entry = ttk.Entry(dialog, textvariable=search_var)
-        search_entry.grid(row=0, column=0, sticky="ew", padx=10, pady=(0, 10))
+        search_entry.grid(row=0, column=0, sticky="ew", padx=10, pady=(0, 5))
 
-        # Área de scroll com canvas (linha 0, expande)
+        # Área de scroll com canvas
         canvas_frame = ttk.Frame(dialog)
         canvas_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
         canvas_frame.columnconfigure(0, weight=1)
