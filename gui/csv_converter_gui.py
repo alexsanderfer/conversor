@@ -1119,8 +1119,8 @@ class App(Tk):
         self.tabs.add(self.tab_update, text=f"  {translate('Atualizar Loja', self.language)}  ")
         self.tabs.add(self.tab_lucro, text=f"  {translate('Lucro e Taxas', self.language)}  ")
         self.tabs.add(self.tab_sku_prefix, text=f"  {translate('Prefixo SKU', self.language)}  ")
-        self.tabs.add(self.tab_categorias_individuais, text=f"  {translate('CATEGORIAS i', self.language)}  ")
-        self.tabs.add(self.tab_caturas_massivas, text=f"  {translate('CATEGORIAS M', self.language)}  ")
+        self.tabs.add(self.tab_categorias_individuais, text=f"  {translate('Categorias I', self.language)}  ")
+        self.tabs.add(self.tab_caturas_massivas, text=f"  {translate('Categorias M', self.language)}  ")
         self.tabs.add(self.tab_destaques, text=f"  {translate('Destaques', self.language)}  ")
         self.tabs.add(self.tab_marcas, text=f"  {translate('Marcas', self.language)}  ")
         self.tabs.add(self.tab_configuracoes, text=f"  {translate('Configurações', self.language)}  ")
@@ -3557,7 +3557,7 @@ class App(Tk):
         - Atualizações: verificação passa a consultar a API pública do GitHub em vez do domínio antigo.
         - CATEGORIAS M: campo "Nome da regra:" adicionado na linha de regras, igual ao mapeamento avançado.
         - CATEGORIAS M: label duplicado "Categorias Pai" removido da coluna da esquerda.
-        - Abas: CATEGORIAS i → "Categorias I"; CATEGORIAS M → "Categorias M".
+        - Abas: "CATEGORIAS i" → "Categorias I"; "CATEGORIAS M" → "Categorias M".
         - UI: logo reduzida no header (160x60).
 
         v0.3.81 (2026-11-12)

@@ -97,8 +97,8 @@ _TRANSLATIONS = {
     "pt-BR": {
         "Fornecedores": "Fornecedores", "Novo Ficheiro": "Novo Arquivo",
         "Atualizar Loja": "Atualizar Loja", "Lucro e Taxas": "Lucro e Taxas",
-        "Prefixo SKU": "Prefixo SKU", "CATEGORIAS i": "Categorias I",
-        "CATEGORIAS M": "Categorias M", "Destaques": "Destaques", "Marcas": "Marcas",
+        "Prefixo SKU": "Prefixo SKU", "Categorias I": "Categorias I",
+        "Categorias M": "Categorias M", "Destaques": "Destaques", "Marcas": "Marcas",
         "Configurações": "Configurações", "Sobre": "Sobre", "Comprar Licença": "Comprar Licença",
         "Pasta de destino:": "Pasta de destino:", "Escolher pasta…": "Escolher pasta…",
         "Arquivo CSV de entrada:": "Arquivo CSV de entrada:", "Escolher arquivo…": "Escolher arquivo…",
@@ -265,7 +265,7 @@ _TRANSLATIONS = {
     },
     "en": {
         "Fornecedores": "Suppliers", "Novo Ficheiro": "New File", "Atualizar Loja": "Update Store", "Lucro e Taxas": "Profit and Taxes",
-        "Prefixo SKU": "SKU Prefix", "CATEGORIAS i": "CATEGORIES i", "CATEGORIAS M": "CATEGORIES M", "Destaques": "Highlights", "Marcas": "Brands",
+        "Prefixo SKU": "SKU Prefix", "Categorias I": "CATEGORIES i", "Categorias M": "CATEGORIES M", "Destaques": "Highlights", "Marcas": "Brands",
         "Configurações": "Settings", "Sobre": "About", "Comprar Licença": "Buy License", "Pasta de destino:": "Destination folder:",
         "Escolher pasta…": "Choose folder…", "Arquivo CSV de entrada:": "Input CSV file:", "Escolher arquivo…": "Choose file…", "Escolher ficheiro…": "Choose file…",
         "CSV ORIGINAL (Nenhum ficheiro carregado)": "ORIGINAL CSV (No file loaded)", "PREVIEW CONVERTIDO (Nenhum ficheiro carregado)": "CONVERTED PREVIEW (No file loaded)",
