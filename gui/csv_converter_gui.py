@@ -2000,6 +2000,10 @@ class App(Tk):
             command=self._open_massive_origem_selector_dialog,
             width=30,
         ).pack(side="left", padx=(0, 6))
+        self._massive_selected_origem_count_var = tk.StringVar(value="")
+        self._massive_selected_source_indices = set()
+        self._massive_origem_search_var = tk.StringVar()
+
         ttk.Label(
             sel_origem_frame,
             textvariable=self._massive_selected_origem_count_var,
@@ -2018,9 +2022,6 @@ class App(Tk):
         self._massive_rule_ids = {}
         self._massive_rule_list_indices = []
         self._massive_selected_rule_id = None
-        self._massive_selected_origem_count_var = tk.StringVar(value="")
-        self._massive_selected_source_indices = set()
-        self._massive_origem_search_var = tk.StringVar()
         self._refresh_massive_description_combo()
         self._refresh_massive_parent_combo()
         self._refresh_massive_source_list()
