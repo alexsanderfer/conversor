@@ -3469,7 +3469,7 @@ class App(Tk):
         self.start_maximized_var = tk.BooleanVar(value=get_start_maximized())
         ttk.Checkbutton(
             frm,
-            text=translate("Abrir a janela maximizada", self.language),
+            text=translate("Abrir maximizado", self.language),
             variable=self.start_maximized_var,
             command=self._on_start_maximized_toggle,
         ).pack(anchor="w")
@@ -3552,7 +3552,7 @@ class App(Tk):
         v0.4.0 (2026-11-12)
         - Versionamento semântico: funcionalidades novas elevam a versão de 0.3.x para 0.4.0.
         - Listas dinâmicas: Categorias Pai, Destaques, Marcas e regras de mapeamento passam a aceitar itens ilimitados com um único campo e botões Adicionar/Remover.
-        - Responsividade: a janela lembra o tamanho usado pelo utilizador entre sessões, com opção "Abrir a janela maximizada" nas definições.
+        - Responsividade: a janela lembra o tamanho usado pelo utilizador entre sessões, com opção "Abrir maximizado" nas definições.
         - Correções de português europeu na interface (ex.: "Definições", "Guardar", "Eliminar").
         - Atualizações: verificação passa a consultar a API pública do GitHub em vez do domínio antigo.
         - CATEGORIAS M: campo "Nome da regra:" adicionado na linha de regras, igual ao mapeamento avançado.
