@@ -1154,7 +1154,7 @@ class App(Tk):
     def _apply_window_icon(self):
         """Define o ícone da aplicação (barra de título e taskbar)."""
         try:
-            # Tentar aplicar .ico via iconbitmap (essencial no Windows para taskbar/titlebar)
+            # iconbitmap com .ico é o método nativo do Windows (título + taskbar).
             ico_path = ASSETS / "icon.ico"
             if ico_path.is_file():
                 try:
@@ -1162,13 +1162,15 @@ class App(Tk):
                 except Exception:
                     pass
 
-            # Aplicar .png via iconphoto
+            # Fallback com .png via iconphoto, sem depender de PIL.
             p = ASSETS / "icon.png"
             if p.is_file():
-                from PIL import Image, ImageTk
-                img = ImageTk.PhotoImage(file=str(p))
-                self.iconphoto(True, img)
-                self._window_icon = img  # manter referência para não ser coletado pelo GC
+                try:
+                    img = tk.PhotoImage(file=str(p))
+                    self.iconphoto(True, img)
+                    self._window_icon = img  # manter referência para não ser coletado pelo GC
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -1949,7 +1951,6 @@ class App(Tk):
         )
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
-        ttk.Label(frm, text=translate("Associar grupo de categorias à Categoria Pai", self.language), font=("Segoe UI", 10, "bold")).pack(anchor="w")
         ttk.Label(
             frm,
             text=translate("Escolha uma categoria principal da origem. Todas as respetivas subcategorias serão incluídas automaticamente.", self.language),
@@ -1975,9 +1976,36 @@ class App(Tk):
         ttk.Button(rule_row, text=translate("Adicionar Regra", self.language), command=self._add_massive_rule, width=15).pack(side="left", padx=(0, 4))
         ttk.Button(rule_row, text=translate("Remover Regra", self.language), command=self._remove_massive_rule, width=15).pack(side="left")
 
+        # Instrução guiada para o usuário (ex: "Selecione categorias de origem e depois a Categoria Pai")
+        self._massive_instruction_var = tk.StringVar(
+            value=translate("Escolha uma regra na lista para editar, ou crie uma nova.", self.language)
+        )
+        self._massive_instruction_lbl = ttk.Label(
+            frm,
+            textvariable=self._massive_instruction_var,
+            font=("Segoe UI", 8),
+            foreground=GRAY_600,
+            justify="left",
+        )
+        self._massive_instruction_lbl.pack(anchor="w", pady=(2, 2))
+
         source_row = ttk.Frame(frm)
         source_row.pack(fill="x", pady=(4, 2))
-        ttk.Label(source_row, text=translate("Categorias de origem (selecione uma ou mais):", self.language)).pack(anchor="w")
+        ttk.Label(source_row, text=translate("Categorias de origem (use a janela 'Selecionar' para marcar):", self.language)).pack(anchor="w")
+        sel_origem_frame = ttk.Frame(source_row)
+        sel_origem_frame.pack(fill="x", pady=(2, 0))
+        ttk.Button(
+            sel_origem_frame,
+            text=translate("Selecionar Categorias de Origem…", self.language),
+            command=self._open_massive_origem_selector_dialog,
+            width=30,
+        ).pack(side="left", padx=(0, 6))
+        ttk.Label(
+            sel_origem_frame,
+            textvariable=self._massive_selected_origem_count_var,
+            font=("Segoe UI", 8),
+            foreground=GRAY_600,
+        ).pack(side="left")
         self._massive_source_listbox = tk.Listbox(
             source_row, height=5, relief="sunken", bg=GRAY_100,
             font=("Consolas", 8), selectmode="extended", exportselection=False,
@@ -1986,9 +2014,13 @@ class App(Tk):
         self._massive_source_listbox.configure(yscrollcommand=source_scroll.set)
         self._massive_source_listbox.pack(side="left", fill="both", expand=True)
         source_scroll.pack(side="right", fill="y")
+        self._massive_source_listbox.bind("<<ListboxSelect>>", lambda _e: self._on_massive_source_listbox_selected())
         self._massive_rule_ids = {}
         self._massive_rule_list_indices = []
         self._massive_selected_rule_id = None
+        self._massive_selected_origem_count_var = tk.StringVar(value="")
+        self._massive_selected_source_indices = set()
+        self._massive_origem_search_var = tk.StringVar()
         self._refresh_massive_description_combo()
         self._refresh_massive_parent_combo()
         self._refresh_massive_source_list()
@@ -2006,6 +2038,17 @@ class App(Tk):
         rules_scroll.pack(side="right", fill="y")
         self._refresh_massive_rules_list()
         self._massive_rules_listbox.bind("<<ListboxSelect>>", self._on_massive_rule_list_selected)
+
+        # Preview dinâmico do resultado da regra
+        self._massive_preview_var = tk.StringVar(value="")
+        self._massive_preview_lbl = ttk.Label(
+            frm,
+            textvariable=self._massive_preview_var,
+            font=("Segoe UI", 8, "italic"),
+            foreground="#0055AA",
+            justify="left",
+        )
+        self._massive_preview_lbl.pack(anchor="w", pady=(4, 2))
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
         lists = ttk.Frame(frm)
@@ -2042,6 +2085,43 @@ class App(Tk):
         scroll.pack(side="right", fill="y")
         text.config(state="disabled")
         return text
+
+    def _add_massive_rule_from_dynamic(self):
+        """Adiciona uma nova regra massiva a partir da lista dinâmica."""
+        if not hasattr(self, "_massive_rules_dyn_list"):
+            return
+        value = self._massive_rules_dyn_list._entry_var.get().strip()
+        if not value:
+            return
+        if save_massive_category_rule(value, [], ""):
+            self._massive_rules_dyn_list._listbox.insert(tk.END, value)
+            self._massive_rules_dyn_list._entry_var.set("")
+            self._refresh_massive_rules_list()
+            self._refresh_massive_description_combo()
+        else:
+            messagebox.showerror(
+                translate("Erro", self.language),
+                translate("Não foi possível guardar a regra.", self.language),
+                parent=self,
+            )
+
+    def _remove_massive_rule_from_dynamic(self, listbox):
+        """Remove a regra selecionada da lista dinâmica."""
+        selection = listbox.curselection()
+        if not selection:
+            return
+        value = listbox.get(selection[0]).strip()
+        if not value:
+            return
+        rules = get_massive_category_rules()
+        for i, rule in enumerate(rules):
+            description = str(rule.get("description", "")).strip() or str(rule.get("category_group", "")).strip()
+            if description == value:
+                if remove_massive_category_rule(i):
+                    listbox.delete(selection[0])
+                    self._refresh_massive_rules_list()
+                    self._refresh_massive_description_combo()
+                break
 
     def _save_massive_parents(self):
         values = self._get_listbox_values(self._massive_parent_listbox)
@@ -2091,6 +2171,14 @@ class App(Tk):
         """Compatibilidade com chamadas antigas; atualiza a lista de origens."""
         self._refresh_massive_source_list()
 
+    def _update_massive_instruction(self):
+        """Atualiza a instrução guiada conforme o estado da seleção."""
+        if self._massive_selected_rule_id:
+            msg = translate("Editando regra selecionada. Altere os campos e clique em 'Adicionar Regra' para guardar as alterações.", self.language)
+        else:
+            msg = translate("Preencha o nome, selecione as categorias de origem e a Categoria Pai, depois clique em 'Adicionar Regra'.", self.language)
+        self._massive_instruction_var.set(msg)
+
     def _on_massive_description_selected(self, _event=None):
         description = self._massive_description_var.get().strip()
         rule = next(
@@ -2113,9 +2201,13 @@ class App(Tk):
             for index, value in enumerate(source_values):
                 if str(value).strip().casefold() in normalized_sources:
                     self._massive_source_listbox.selection_set(index)
+            self._update_massive_instruction()
+            self._update_massive_preview()
         else:
             self._massive_parent_var.set("")
             self._massive_source_listbox.selection_clear(0, tk.END)
+            self._update_massive_instruction()
+            self._update_massive_preview()
 
     def _on_massive_rule_list_selected(self, _event=None):
         selection = self._massive_rules_listbox.curselection()
@@ -2169,6 +2261,8 @@ class App(Tk):
             self._refresh_massive_description_combo()
             self._refresh_massive_rules_list()
             messagebox.showinfo(translate("Guardado", self.language), translate("Regra de mapeamento massivo guardada.", self.language), parent=self)
+            self._massive_selected_rule_id = None
+            self._update_massive_instruction()
         else:
             messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar a regra.", self.language), parent=self)
 
@@ -2210,6 +2304,7 @@ class App(Tk):
                 self._massive_selected_rule_id = None
                 self._refresh_massive_description_combo()
                 self._refresh_massive_rules_list()
+                self._update_massive_instruction()
 
     def _filter_massive_categories(self):
         query = self._massive_search_var.get().strip().lower()
@@ -2228,6 +2323,125 @@ class App(Tk):
             widget.insert("1.0", "\n".join(values) if values else empty)
             widget.config(state="disabled")
 
+    def _filter_massive_origens_search(self):
+        """Mantido para compatibilidade: o filtro de pesquisa vive no diálogo modal."""
+        self._update_selected_source_count()
+
+    def _update_massive_preview(self):
+        """Mostra ao utilizador como a regra será aplicada no resultado."""
+        if not hasattr(self, "_massive_preview_var"):
+            return
+        parent = self._massive_parent_var.get().strip()
+        sources = self._get_selected_sources_from_indices()
+        if not sources or not parent:
+            self._massive_preview_var.set("")
+            return
+        fontes = ", ".join(sources)
+        self._massive_preview_var.set(
+            translate("Resultado: quando encontradas as categorias '{fontes}', os produtos serão movidos para '{pai}'.".format(fontes=fontes, pai=parent), self.language)
+        )
+
+    def _get_selected_sources_from_indices(self):
+        """Retorna as categorias de origem selecionadas (Listbox ou dialog)."""
+        if not hasattr(self, "_massive_source_listbox"):
+            return []
+        source_values = getattr(self, "_massive_source_list_values", [])
+        selection = self._massive_source_listbox.curselection()
+        if selection:
+            return [source_values[index] for index in selection if index < len(source_values)]
+        # Fallback para seleção via dialog (guarda em _massive_selected_source_indices)
+        selected = set(getattr(self, "_massive_selected_source_indices", set()))
+        return [v for i, v in enumerate(source_values) if i in selected]
+
+    def _on_massive_source_listbox_selected(self):
+        """Sincroniza a seleção do listbox com o estado do diálogo modal."""
+        if hasattr(self, "_massive_source_listbox") and hasattr(self, "_massive_source_list_values"):
+            self._massive_selected_source_indices = set(self._massive_source_listbox.curselection())
+        self._update_selected_source_count()
+
+    def _update_selected_source_count(self):
+        sources = self._get_selected_sources_from_indices()
+        n = len(sources)
+        self._massive_selected_origem_count_var.set(f"({n} selecionada(s))" if n > 0 else "")
+        # Reflete a seleção do dialog no listbox visível
+        if hasattr(self, "_massive_source_listbox") and hasattr(self, "_massive_source_list_values"):
+            source_values = self._massive_source_list_values
+            selected_names = {str(v).strip().casefold() for v in sources}
+            self._massive_source_listbox.selection_clear(0, tk.END)
+            for index, value in enumerate(source_values):
+                if str(value).strip().casefold() in selected_names:
+                    self._massive_source_listbox.selection_set(index)
+        self._update_massive_preview()
+
+    def _open_massive_origem_selector_dialog(self):
+        """Abre um dialog modal com checkboxes para selecionar categorias de origem de forma clara."""
+        dialog = tk.Toplevel(self)
+        dialog.title(translate("Selecionar Categorias de Origem", self.language))
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.geometry("400x500")
+
+        search_var = tk.StringVar()
+        ttk.Label(dialog, text=translate("Pesquisar:", self.language)).pack(anchor="w", padx=10, pady=(10, 0))
+        search_entry = ttk.Entry(dialog, textvariable=search_var)
+        search_entry.pack(fill="x", padx=10, pady=(0, 10))
+
+        canvas = tk.Canvas(dialog, bg="white", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(dialog, orient="vertical", command=canvas.yview)
+        scroll_frame = ttk.Frame(canvas)
+
+        scroll_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=(0, 10))
+        scrollbar.pack(side="right", fill="y", pady=(0, 10))
+
+        selected_state = {i: True for i in getattr(self, "_massive_selected_source_indices", set())}
+        check_vars = {}
+
+        def refresh_list():
+            for widget in scroll_frame.winfo_children():
+                widget.destroy()
+            query = search_var.get().strip().lower()
+            source_values = getattr(self, "_massive_source_list_values", [])
+            check_vars.clear()
+            for index, value in enumerate(source_values):
+                if query and query not in str(value).lower():
+                    continue
+                var = tk.BooleanVar(value=index in selected_state)
+                check_vars[index] = var
+                cb = ttk.Checkbutton(
+                    scroll_frame,
+                    text=str(value),
+                    variable=var,
+                    command=lambda i=index, v=var: _on_check(i, v),
+                )
+                cb.pack(anchor="w", padx=15, pady=2)
+
+        def _on_check(index, var):
+            if var.get():
+                selected_state[index] = True
+            else:
+                selected_state.pop(index, None)
+            self._massive_selected_source_indices = set(selected_state.keys())
+            self._update_selected_source_count()
+
+        search_var.trace_add("write", lambda *args: refresh_list())
+
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(fill="x", padx=10, pady=10)
+        ttk.Button(
+            btn_frame,
+            text=translate("Fechar", self.language),
+            command=dialog.destroy,
+        ).pack(side="right")
+
+        refresh_list()
+        dialog.wait_window()
 
     def _extract_categories_from_file(self, filepath):
         def worker():
