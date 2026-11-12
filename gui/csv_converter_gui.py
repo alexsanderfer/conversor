@@ -1938,6 +1938,16 @@ class App(Tk):
         right_body.pack(fill="both", expand=True)
         right = right_body
 
+        # Lista dinâmica de regras (campo único + Adicionar/Remover, sem limite)
+        self._massive_rules_dyn_list = self._build_dynamic_list(
+            parent=right,
+            label=translate("Regras", self.language),
+            values=[str(r.get("description", "")).strip() or str(r.get("category_group", "")).strip()
+                    for r in get_massive_category_rules()],
+            add_command=self._add_massive_rule_from_dynamic,
+            remove_command=self._remove_massive_rule_from_dynamic,
+        )
+
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
         ttk.Label(frm, text=translate("Associar grupo de categorias à Categoria Pai", self.language), font=("Segoe UI", 10, "bold")).pack(anchor="w")
         ttk.Label(
