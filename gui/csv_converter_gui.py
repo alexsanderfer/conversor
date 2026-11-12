@@ -2380,15 +2380,29 @@ class App(Tk):
         dialog.title(translate("Selecionar Categorias de Origem", self.language))
         dialog.transient(self)
         dialog.grab_set()
-        dialog.geometry("400x500")
+        dialog.geometry("450x520")
+        dialog.minsize(400, 400)
+
+        # Usar grid para garantir que os botões fiquem sempre visíveis na parte inferior
+        dialog.columnconfigure(0, weight=1)
+        dialog.rowconfigure(0, weight=1)  # área de scroll expande
+        dialog.rowconfigure(1, weight=0)  # botões fixos
 
         search_var = tk.StringVar()
-        ttk.Label(dialog, text=translate("Pesquisar:", self.language)).pack(anchor="w", padx=10, pady=(10, 0))
+        ttk.Label(dialog, text=translate("Pesquisar:", self.language)).grid(
+            row=0, column=0, sticky="w", padx=10, pady=(10, 0)
+        )
         search_entry = ttk.Entry(dialog, textvariable=search_var)
-        search_entry.pack(fill="x", padx=10, pady=(0, 10))
+        search_entry.grid(row=0, column=0, sticky="ew", padx=10, pady=(0, 10))
 
-        canvas = tk.Canvas(dialog, bg="white", highlightthickness=0)
-        scrollbar = ttk.Scrollbar(dialog, orient="vertical", command=canvas.yview)
+        # Área de scroll com canvas (linha 0, expande)
+        canvas_frame = ttk.Frame(dialog)
+        canvas_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
+        canvas_frame.columnconfigure(0, weight=1)
+        canvas_frame.rowconfigure(0, weight=1)
+
+        canvas = tk.Canvas(canvas_frame, bg="white", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
         scroll_frame = ttk.Frame(canvas)
 
         scroll_frame.bind(
@@ -2398,8 +2412,8 @@ class App(Tk):
         canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
 
-        canvas.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=(0, 10))
-        scrollbar.pack(side="right", fill="y", pady=(0, 10))
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
 
         selected_state = {i: True for i in getattr(self, "_massive_selected_source_indices", set())}
         check_vars = {}
@@ -2433,8 +2447,9 @@ class App(Tk):
 
         search_var.trace_add("write", lambda *args: refresh_list())
 
+        # Barra de botões fixa na parte inferior (sempre visível)
         btn_frame = ttk.Frame(dialog)
-        btn_frame.pack(fill="x", padx=10, pady=10)
+        btn_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=10)
 
         def _guardar_selecao():
             self._massive_selected_source_indices = set(selected_state.keys())
