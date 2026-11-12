@@ -2435,10 +2435,21 @@ class App(Tk):
 
         btn_frame = ttk.Frame(dialog)
         btn_frame.pack(fill="x", padx=10, pady=10)
+
+        def _guardar_selecao():
+            self._massive_selected_source_indices = set(selected_state.keys())
+            self._update_selected_source_count()
+            dialog.destroy()
+
         ttk.Button(
             btn_frame,
-            text=translate("Fechar", self.language),
+            text=translate("Cancelar", self.language),
             command=dialog.destroy,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            btn_frame,
+            text=translate("Guardar seleção", self.language),
+            command=_guardar_selecao,
         ).pack(side="right")
 
         refresh_list()
