@@ -61,6 +61,7 @@ from core.field_mapping import (
     get_compiled_brands_rules, apply_compiled_brands_rules,
     get_last_input_file, set_last_input_file,
     get_auto_check_updates, set_auto_check_updates,
+    get_start_maximized, set_start_maximized,
     get_language, set_language,
     get_window_geometry, set_window_geometry,
     get_massive_category_rules, set_massive_category_rules,
@@ -1025,6 +1026,8 @@ class App(Tk):
         geometry = get_window_geometry()
         if geometry:
             self.geometry(geometry)
+        if get_start_maximized():
+            self.state("zoomed")
 
         # Salvar geometria ao fechar
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
@@ -1179,7 +1182,7 @@ class App(Tk):
                     from PIL import Image, ImageTk
                     im = Image.open(p)
                     # Limitar largura e altura para caber no header (logo pequeno, não empurra as tabs)
-                    max_w, max_h = 280, 90
+                    max_w, max_h = 160, 60
                     ratio = min(max_w / im.width, max_h / im.height, 1.0)
                     im2 = im.resize((int(im.width * ratio), int(im.height * ratio)), Image.LANCZOS)
                     img = ImageTk.PhotoImage(im2)
@@ -1906,12 +1909,9 @@ class App(Tk):
             text=translate("Agrupe uma categoria do fornecedor e todas as suas subcategorias numa Categoria Pai. As regras aplicam-se automaticamente na conversão e na atualização da loja.", self.language),
             font=("Segoe UI", 9), foreground=GRAY_600, wraplength=430, justify="left",
         ).pack(anchor="w", pady=(0, 6))
-        left_body = ttk.LabelFrame(left, text=translate("Categorias Pai", self.language), padding=6)
-        left_body.pack(fill="both", expand=True)
-        left = left_body
         self._massive_parent_listbox = self._build_dynamic_list(
             parent=left,
-            label="Categorias Pai",
+            label=translate("Categorias Pai", self.language),
             values=get_category_settings().get("new_categories", []),
             add_command=self._add_massive_parent_item,
             remove_command=self._remove_massive_parent_item,
@@ -1949,7 +1949,7 @@ class App(Tk):
 
         rule_row = ttk.Frame(frm)
         rule_row.pack(fill="x", pady=2)
-        ttk.Label(rule_row, text=translate("Selecionar regra:", self.language)).pack(side="left", padx=(0, 4))
+        ttk.Label(rule_row, text=translate("Nome da regra:", self.language)).pack(side="left", padx=(0, 4))
         self._massive_description_var = tk.StringVar()
         self._massive_description_combo = ttk.Combobox(
             rule_row, textvariable=self._massive_description_var, state="normal", width=48
@@ -3463,6 +3463,30 @@ class App(Tk):
             foreground=GRAY_600,
         ).pack(anchor="w", pady=(8, 0))
 
+        # Opções gerais da janela e atualizações
+        options_label = ttk.Label(frm, text=translate("Opções gerais", self.language), font=("Segoe UI", 10, "bold"))
+        options_label.pack(anchor="w", pady=(12, 4))
+        self.start_maximized_var = tk.BooleanVar(value=get_start_maximized())
+        ttk.Checkbutton(
+            frm,
+            text=translate("Abrir a janela maximizada", self.language),
+            variable=self.start_maximized_var,
+            command=self._on_start_maximized_toggle,
+        ).pack(anchor="w")
+        self.auto_update_var = tk.BooleanVar(value=get_auto_check_updates())
+        ttk.Checkbutton(
+            frm,
+            text=translate("Verificar atualizações automaticamente ao iniciar", self.language),
+            variable=self.auto_update_var,
+            command=self._on_auto_update_toggle,
+        ).pack(anchor="w", pady=(2, 0))
+
+    def _on_start_maximized_toggle(self):
+        try:
+            set_start_maximized(self.start_maximized_var.get())
+        except Exception:
+            pass
+
     def _save_language(self):
         selected_name = self._language_var.get()
         try:
@@ -3507,15 +3531,8 @@ class App(Tk):
         )
         check_up_btn.pack(anchor="w", pady=(0, 6))
 
-        # Checkbox de atualizações automáticas
-        self.auto_update_var = tk.BooleanVar(value=get_auto_check_updates())
-        auto_chk = ttk.Checkbutton(
-            frm,
-            text="Verificar atualizações automaticamente ao iniciar",
-            variable=self.auto_update_var,
-            command=self._on_auto_update_toggle,
-        )
-        auto_chk.pack(anchor="w", pady=(0, 12))
+        # Atualizações automáticas são configuradas na aba de definições;
+        # aqui mostramos apenas o estado atual, sem duplicar o controlo.
 
         ttk.Label(frm, text="Notas de versão", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 4))
         notas = tk.Text(
@@ -3532,11 +3549,16 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
-        v0.3.82 (2026-11-12)
+        v0.4.0 (2026-11-12)
+        - Versionamento semântico: funcionalidades novas elevam a versão de 0.3.x para 0.4.0.
         - Listas dinâmicas: Categorias Pai, Destaques, Marcas e regras de mapeamento passam a aceitar itens ilimitados com um único campo e botões Adicionar/Remover.
-        - Responsividade: a janela lembra o tamanho usado pelo utilizador entre sessões.
+        - Responsividade: a janela lembra o tamanho usado pelo utilizador entre sessões, com opção "Abrir a janela maximizada" nas definições.
         - Correções de português europeu na interface (ex.: "Definições", "Guardar", "Eliminar").
         - Atualizações: verificação passa a consultar a API pública do GitHub em vez do domínio antigo.
+        - CATEGORIAS M: campo "Nome da regra:" adicionado na linha de regras, igual ao mapeamento avançado.
+        - CATEGORIAS M: label duplicado "Categorias Pai" removido da coluna da esquerda.
+        - Abas: CATEGORIAS i → "Categorias I"; CATEGORIAS M → "Categorias M".
+        - UI: logo reduzida no header (160x60).
 
         v0.3.81 (2026-11-12)
         - Mapeamento massivo de categorias: nova aba "Categorias M" permite associar várias categorias de origem do fornecedor a uma categoria pai criada pelo utilizador, preservando a hierarquia original (até 4 níveis).

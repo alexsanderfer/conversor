@@ -436,6 +436,24 @@ def set_window_geometry(geometry: str) -> bool:
         return False
 
 
+def get_start_maximized() -> bool:
+    """Devolve True se a janela deve abrir maximizada."""
+    try:
+        return bool(_read_config().get("settings", {}).get("start_maximized", False))
+    except Exception:
+        return False
+
+
+def set_start_maximized(enabled: bool) -> bool:
+    """Define se a janela deve abrir maximizada."""
+    try:
+        data = _read_config()
+        data.setdefault("settings", {})["start_maximized"] = bool(enabled)
+        return _write_config(data)
+    except Exception:
+        return False
+
+
 def set_language(language: str) -> bool:
     """Guarda o idioma da interface; valores desconhecidos usam português europeu."""
     try:
