@@ -1092,7 +1092,7 @@ def save_massive_category_rule(
             source = str(source or "").strip()
             if source and source not in sources:
                 sources.append(source)
-        if not description or not sources or not parent_category:
+        if not description:
             return False
 
         rules = get_massive_category_rules()
