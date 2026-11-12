@@ -32,6 +32,8 @@ trata esses ficheiros como o perfil "Padrão".
 import json
 import os
 import sys
+import unicodedata
+import uuid
 from pathlib import Path
 
 # Default field mapping - maps expected names to source column names.
@@ -53,6 +55,8 @@ _PROFILE_DEFAULT = "Padrão"
 
 # Margem de lucro padrão (1.40 = 40% de lucro)
 _DEFAULT_PROFIT_MARGIN = 1.40
+_SUPPORTED_LANGUAGES = ("pt-PT", "pt-BR", "en")
+_DEFAULT_LANGUAGE = "pt-PT"
 
 
 def _config_path():
@@ -104,7 +108,8 @@ def _read_config():
         "profit_percentage": 40.0,
         "iva_percentage": 0.0,
         "shipping_cost": 0.0,
-        "price_formula": "margin"
+        "price_formula": "margin",
+        "language": _DEFAULT_LANGUAGE,
     }
     if not path.is_file():
         return {
@@ -401,6 +406,28 @@ def load_field_mapping():
         dict: Mapping of expected field names to source column names
     """
     return get_profile_mapping(get_active_profile())
+
+
+def get_language() -> str:
+    """Retorna o idioma da interface guardado na configuração."""
+    try:
+        language = str(_read_config().get("settings", {}).get("language", _DEFAULT_LANGUAGE))
+        return language if language in _SUPPORTED_LANGUAGES else _DEFAULT_LANGUAGE
+    except Exception:
+        return _DEFAULT_LANGUAGE
+
+
+def set_language(language: str) -> bool:
+    """Guarda o idioma da interface; valores desconhecidos usam português europeu."""
+    try:
+        selected = str(language or "").strip()
+        if selected not in _SUPPORTED_LANGUAGES:
+            selected = _DEFAULT_LANGUAGE
+        data = _read_config()
+        data.setdefault("settings", {})["language"] = selected
+        return _write_config(data)
+    except Exception:
+        return False
 
 
 def get_category_settings() -> dict:
@@ -930,7 +957,7 @@ def apply_compiled_brands_rules(marca: str, familia: str, sub_familia: str, comp
 
 
 def get_auto_check_updates() -> bool:
-    """Devolve True se a verificação automática de atualizações estiver ativada."""
+    """Devolve True se a verificação automática de atualizações está ativada."""
     try:
         data = _read_config()
         settings = data.get("settings", {})
@@ -948,6 +975,187 @@ def set_auto_check_updates(enabled: bool) -> bool:
         return _write_config(data)
     except Exception:
         return False
+
+
+# ---------------------------------------------------------------------------
+# Mapeamento Massivo de CATEGORIAS M
+# ---------------------------------------------------------------------------
+
+def get_massive_category_rules() -> list:
+    """
+    Retorna a lista de regras de mapeamento massivo de categorias.
+
+    Cada regra: {"category_group": str, "parent_category": str, "priority": int}
+    Ordenadas por prioridade decrescente (maior prioridade primeiro).
+    """
+    try:
+        data = _read_config()
+        rules = data.get("settings", {}).get("massive_category_rules", [])
+        if not isinstance(rules, list):
+            rules = []
+        return sorted(rules, key=lambda r: int(r.get("priority", 0)), reverse=True)
+    except Exception:
+        return []
+
+
+def set_massive_category_rules(rules: list) -> bool:
+    """Guarda a lista completa de regras de mapeamento massivo."""
+    try:
+        data = _read_config()
+        settings = data.setdefault("settings", {})
+        settings["massive_category_rules"] = list(rules)
+        return _write_config(data)
+    except Exception:
+        return False
+
+
+def add_massive_category_rule(
+    category_group: str, parent_category: str, priority: int | None = None
+) -> bool:
+    """Adiciona uma regra de mapeamento massivo.
+
+    Quando a prioridade não é indicada, atribui uma prioridade acima da maior
+    prioridade existente, garantindo que a regra mais recente seja aplicada
+    primeiro pela interface.
+    """
+    try:
+        group_str = str(category_group).strip()
+        parent_str = str(parent_category).strip()
+        if not group_str or not parent_str:
+            return False
+        rules = get_massive_category_rules()
+        if priority is None:
+            priorities = [int(rule.get("priority", 0)) for rule in rules]
+            rule_priority = max(priorities, default=0) + 1
+        else:
+            rule_priority = int(priority)
+        rules.append({
+            "category_group": group_str,
+            "parent_category": parent_str,
+            "priority": rule_priority,
+        })
+        return set_massive_category_rules(rules)
+    except Exception:
+        return False
+
+
+def save_massive_category_rule(
+    description: str,
+    source_categories: list,
+    parent_category: str,
+    rule_id: str = None,
+    priority: int = None,
+) -> bool:
+    """Cria ou atualiza uma regra massiva com várias categorias de origem."""
+    try:
+        description = str(description or "").strip()
+        parent_category = str(parent_category or "").strip()
+        sources = []
+        for source in source_categories or []:
+            source = str(source or "").strip()
+            if source and source not in sources:
+                sources.append(source)
+        if not description or not sources or not parent_category:
+            return False
+
+        rules = get_massive_category_rules()
+        existing_index = None
+        if rule_id:
+            existing_index = next(
+                (index for index, rule in enumerate(rules) if rule.get("rule_id") == rule_id),
+                None,
+            )
+        else:
+            # Reaproveita regras legadas quando a descrição selecionada coincide;
+            # isso evita criar uma duplicata ao editar uma configuração antiga.
+            existing_index = next(
+                (
+                    index for index, rule in enumerate(rules)
+                    if str(rule.get("description", "")).strip() == description
+                    or str(rule.get("category_group", "")).strip() == description
+                ),
+                None,
+            )
+        if priority is None:
+            if existing_index is not None:
+                priority = int(rules[existing_index].get("priority", 0))
+            else:
+                priorities = [int(rule.get("priority", 0)) for rule in rules]
+                priority = max(priorities, default=0) + 1
+        normalized_rule = {
+            "rule_id": rule_id or uuid.uuid4().hex,
+            "description": description,
+            "source_categories": sources,
+            "parent_category": parent_category,
+            "priority": int(priority),
+        }
+        if existing_index is None:
+            rules.append(normalized_rule)
+        else:
+            rules[existing_index] = normalized_rule
+        return set_massive_category_rules(rules)
+    except Exception:
+        return False
+
+
+def remove_massive_category_rule(index: int) -> bool:
+    """Remove a regra de mapeamento massivo na posição dada (lista ordenada)."""
+    try:
+        rules = get_massive_category_rules()
+        if 0 <= index < len(rules):
+            del rules[index]
+            return set_massive_category_rules(rules)
+        return False
+    except Exception:
+        return False
+
+
+def _normalize_massive_category(value: str) -> str:
+    """Normaliza categorias para comparação exata sem acentos e sem caixa."""
+    text = unicodedata.normalize("NFKD", str(value or "").strip())
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    return " ".join(text.casefold().split())
+
+
+def apply_massive_category_rules(
+    familia: str, sub_familia: str = "", sub_sub_familia: str = ""
+) -> str:
+    """Aplica regras massivas por categorias de origem selecionadas.
+
+    Regras novas usam ``source_categories`` e fazem correspondência exata
+    normalizada com qualquer nível da linha. Regras antigas que só possuem
+    ``category_group`` continuam a usar correspondência parcial para preservar
+    a compatibilidade com configurações existentes.
+    """
+    familia_norm = _normalize_massive_category(familia)
+    source_values = {
+        familia_norm,
+        _normalize_massive_category(sub_familia),
+        _normalize_massive_category(sub_sub_familia),
+    }
+    source_values.discard("")
+
+    for rule in get_massive_category_rules():
+        parent = str(rule.get("parent_category", "")).strip()
+        if not parent:
+            continue
+
+        source_categories = rule.get("source_categories")
+        if isinstance(source_categories, list):
+            normalized_sources = {
+                _normalize_massive_category(value)
+                for value in source_categories
+                if _normalize_massive_category(value)
+            }
+            if familia_norm in normalized_sources:
+                return parent
+            continue
+
+        # Compatibilidade com regras antigas guardadas como category_group.
+        group = _normalize_massive_category(rule.get("category_group", ""))
+        if group and any(group in value for value in source_values):
+            return parent
+    return ""
 
 
 

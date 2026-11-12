@@ -13,6 +13,7 @@ from tkinter import filedialog, messagebox
 from tkinterdnd2 import DND_FILES
 
 from core.license_manager import compute_machine_fingerprint
+from core.i18n import translate, DEFAULT_LANGUAGE
 from gui.theme import (
     BG_WINDOW,
     ERROR_BG,
@@ -36,15 +37,16 @@ class LicenseDialog:
     fecha-se sozinho quando ok é True, ou quando o utilizador desiste.
     """
 
-    def __init__(self, root, license_dir, on_submit, on_cancel=None, reason=""):
+    def __init__(self, root, license_dir, on_submit, on_cancel=None, reason="", language=DEFAULT_LANGUAGE):
         self._root = root
         self._license_dir = Path(license_dir)
         self._on_submit = on_submit
         self._on_cancel = on_cancel or (lambda: None)
         self._closing = False
+        self.language = language
 
         self.win = tk.Toplevel(root)
-        self.win.title("Licença — CsvFast-FileConverter")
+        self.win.title(translate("Licença — CsvFast-FileConverter", self.language))
         self.win.geometry("540x340")
         self.win.resizable(False, False)
         self.win.transient(root)
@@ -63,7 +65,7 @@ class LicenseDialog:
 
         tk.Label(
             frm,
-            text="Este Conversor precisa de uma licença para funcionar.",
+            text=translate("Este Conversor precisa de uma licença para funcionar.", self.language),
             bg=BG_WINDOW,
             fg=BLUE_900,
             font=("Segoe UI", 12, "bold"),
@@ -72,9 +74,9 @@ class LicenseDialog:
         tk.Label(
             frm,
             text=(
-                "Arraste para baixo o ficheiro .lic que lhe foi enviado, ou "
-                "clique em «Procurar…». A licença é guardada neste computador "
-                "e vale durante 12 meses."
+                translate("Arraste para baixo o ficheiro .lic que lhe foi enviado, ou ", self.language) +
+                translate("clique em «Procurar…». A licença é guardada neste computador ", self.language) +
+                translate("e vale durante 12 meses.", self.language)
             ),
             bg=BG_WINDOW,
             fg=GRAY_800,
@@ -102,11 +104,10 @@ class LicenseDialog:
         self.drop.drop_target_register(DND_FILES)
         self.drop.dnd_bind("<<Drop>>", self._on_drop)
 
-        inicial = (
-            f"A licença anterior foi recusada:\n{reason}"
-            if reason
-            else f"Nenhuma licença aceite.\nColoque a licença em: {self._license_dir}"
-        )
+        if reason:
+            inicial = translate("A licença anterior foi recusada:", self.language) + f"\n{reason}"
+        else:
+            inicial = translate("Nenhuma licença aceite.", self.language) + f"\n{translate('Coloque a licença em:', self.language)} {self._license_dir}"
         self._set_status(
             inicial,
             ERROR_BG if reason else GRAY_100,
@@ -119,7 +120,7 @@ class LicenseDialog:
 
         tk.Button(
             frm_btn,
-            text="Sair",
+            text=translate("Sair", self.language),
             command=self._cancel,
             bg=GRAY_100,
             fg=GRAY_800,
@@ -134,7 +135,7 @@ class LicenseDialog:
 
         tk.Button(
             frm_btn,
-            text="Procurar…",
+            text=translate("Procurar…", self.language),
             command=self._browse,
             bg=BLUE_700,
             fg=WHITE,
@@ -151,7 +152,7 @@ class LicenseDialog:
         # código da máquina: é o que o cliente envia ao fornecedor
         tk.Label(
             frm,
-            text="Para receber a licença, envie este código ao fornecedor:",
+            text=translate("Para receber a licença, envie este código ao fornecedor:", self.language),
             bg=BG_WINDOW,
             fg=GRAY_600,
             font=("Segoe UI", 8),
@@ -176,7 +177,7 @@ class LicenseDialog:
 
         tk.Button(
             row,
-            text="Copiar",
+            text=translate("Copiar", self.language),
             command=self._copy_code,
             bg=GRAY_100,
             fg=GRAY_800,
@@ -202,8 +203,8 @@ class LicenseDialog:
         self._code_entry.clipboard_clear()
         self._code_entry.clipboard_append(self._code_entry.get())
         messagebox.showinfo(
-            "Copiado",
-            "Código copiado. Envie-o ao fornecedor por email ou WhatsApp.",
+            translate("Copiado", self.language),
+            translate("Código copiado. Envie-o ao fornecedor por email ou WhatsApp.", self.language),
             parent=self.win,
         )
 
@@ -211,9 +212,9 @@ class LicenseDialog:
 
     def _browse(self):
         path = filedialog.askopenfilename(
-            title="Selecione o ficheiro de licença",
+            title=translate("Selecione o ficheiro de licença", self.language),
             initialdir=str(self._license_dir),
-            filetypes=[("Licenças", "*.lic"), ("Todos os arquivos", "*")],
+            filetypes=[(translate("Licenças", self.language), "*.lic"), (translate("Todos os arquivos", self.language), "*")],
         )
         if path:
             self._submit(Path(path))
@@ -227,8 +228,8 @@ class LicenseDialog:
             self._submit(Path(lic))
         else:
             messagebox.showwarning(
-                "Ficheiro inválido",
-                "Arraste apenas um ficheiro .lic.",
+                translate("Ficheiro inválido", self.language),
+                translate("Arraste apenas um ficheiro .lic.", self.language),
                 parent=self.win,
             )
 
@@ -236,14 +237,14 @@ class LicenseDialog:
         """Valida e, se aceite, fecha."""
         if self._closing:
             return
-        self._set_status("A verificar licença…", BLUE_100, BLUE_900)
+        self._set_status(translate("A verificar licença…", self.language), BLUE_100, BLUE_900)
         self.win.update_idletasks()
 
         ok, message = self._on_submit(path)
 
         if ok:
             self._closing = True
-            self._set_status(f"Licença aceite.\n{message}", BLUE_100, BLUE_700)
+            self._set_status(f"{translate('Licença aceite.', self.language)}\n{message}", BLUE_100, BLUE_700)
             self.win.after(700, self._close)
         else:
             # a recusa fica no ecrã; o utilizador pode tentar outro ficheiro

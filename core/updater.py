@@ -12,6 +12,7 @@ import sys
 import urllib.request
 from pathlib import Path
 from tkinter import messagebox
+from core.i18n import translate, DEFAULT_LANGUAGE
 
 
 def _parse_version(v: str) -> tuple[int, ...]:
@@ -74,7 +75,7 @@ def get_current_version() -> str:
     return "0.1.0"
 
 
-def check_for_updates(show_message: bool = True, parent=None) -> tuple[bool, str]:
+def check_for_updates(show_message: bool = True, parent=None, language: str = DEFAULT_LANGUAGE) -> tuple[bool, str]:
     """
     Verifica se há atualizações disponíveis.
     NÃO afeta licenças válidas — apenas lê a versão do site público
@@ -87,9 +88,9 @@ def check_for_updates(show_message: bool = True, parent=None) -> tuple[bool, str
     latest = get_latest_version()
 
     if latest is None:
-        message = "Não foi possível verificar atualizações no momento."
+        message = translate("Não foi possível verificar atualizações no momento.", language)
         if show_message:
-            messagebox.showwarning("Atualização", message, parent=parent)
+            messagebox.showwarning(translate("Atualização", language), message, parent=parent)
         return False, message
 
     current_parts = _parse_version(current)
@@ -97,18 +98,18 @@ def check_for_updates(show_message: bool = True, parent=None) -> tuple[bool, str
 
     if current_parts and latest_parts and latest_parts > current_parts:
         message = (
-            f"Nova versão disponível: {latest}\n\n"
-            f"Clique em OK para abrir a página de download."
+            f"{translate('Nova versão disponível:', language)} {latest}\n\n"
+            f"{translate('Clique em OK para abrir a página de download.', language)}"
         )
         if show_message:
             import webbrowser
-            if messagebox.askyesno("Atualização disponível", message, parent=parent):
+            if messagebox.askyesno(translate("Atualização disponível", language), message, parent=parent):
                 webbrowser.open("https://alexsanderfer.github.io/conversor/")
         return True, message
 
-    message = f"Já está na última versão: {current}"
+    message = f"{translate('Já está na última versão:', language)} {current}"
     if show_message:
-        messagebox.showinfo("Atualização", message, parent=parent)
+        messagebox.showinfo(translate("Atualização", language), message, parent=parent)
     return False, message
 
 

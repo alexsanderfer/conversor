@@ -25,6 +25,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from tkinterdnd2 import DND_FILES, Tk
 
+from core.i18n import translate, DEFAULT_LANGUAGE
 from core.license_dialog import LicenseDialog
 from core.license_manager import check_license, load_license_state, check_license_expiry_warning
 from core.stripe_integration import open_stripe_checkout
@@ -60,8 +61,13 @@ from core.field_mapping import (
     get_compiled_brands_rules, apply_compiled_brands_rules,
     get_last_input_file, set_last_input_file,
     get_auto_check_updates, set_auto_check_updates,
+    get_language, set_language,
+    get_massive_category_rules, set_massive_category_rules,
+    add_massive_category_rule, save_massive_category_rule, remove_massive_category_rule,
+    apply_massive_category_rules,
 )
 from core.category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
+from core.i18n import translate, TRANSLATABLE_STRINGS
 
 # Cache for category settings
 _category_settings_cache = None
@@ -291,6 +297,37 @@ def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> st
                     familia = auto_cat
         except Exception:
             pass
+
+    # ---- Mapeamento Massivo (CATEGORIAS M) ----
+    # Aplica as regras massivas com base nas categorias originais do fornheiro.
+    # Se houver correspondência, a categoria pai definida na regra substitui
+    # toda a hierarquia, mantendo as subcategoria originais abaixo dela.
+    try:
+        massive_parent = apply_massive_category_rules(familia, sub_familia, sub_sub_familia)
+        if massive_parent:
+            # Constrói a hierarquia sob a nova categoria pai
+            result = [massive_parent]
+            if familia:
+                prefixed = f"{massive_parent}/{familia}"
+                if prefixed not in result:
+                    result.append(prefixed)
+            if sub_familia and familia:
+                cat2 = f"{massive_parent}/{familia}/{sub_familia}"
+                parts = cat2.split('/')
+                if len(parts) > 4:
+                    cat2 = '/'.join(parts[:4])
+                if cat2 not in result:
+                    result.append(cat2)
+            if sub_sub_familia and familia and sub_familia:
+                cat3 = f"{massive_parent}/{familia}/{sub_familia}/{sub_sub_familia}"
+                parts = cat3.split('/')
+                if len(parts) > 4:
+                    cat3 = '/'.join(parts[:4])
+                if cat3 not in result:
+                    result.append(cat3)
+            return ",".join(result)
+    except Exception:
+        pass
 
     categories = []
     if familia:
@@ -977,6 +1014,7 @@ class App(Tk):
         self.minsize(900, 650)
         self.resizable(True, True)
         self.last_output = None
+        self.language = get_language()
         self._status_widget = None   # widget onde _set_drop_text escreve
         self._apply_window_icon()
         self._build_ui()
@@ -1051,30 +1089,37 @@ class App(Tk):
         self.tab_update = ttk.Frame(self.tabs, padding=8)
         self.tab_lucro = ttk.Frame(self.tabs, padding=8)
         self.tab_sku_prefix = ttk.Frame(self.tabs, padding=8)
-        self.tab_categorias = ttk.Frame(self.tabs, padding=8)
+        self.tab_categorias_individuais = ttk.Frame(self.tabs, padding=8)
+        self.tab_caturas_massivas = ttk.Frame(self.tabs, padding=8)
         self.tab_destaques = ttk.Frame(self.tabs, padding=8)
         self.tab_marcas = ttk.Frame(self.tabs, padding=8)
+        self.tab_configuracoes = ttk.Frame(self.tabs, padding=8)
         self.tab_sobre = ttk.Frame(self.tabs, padding=8)
-        self.tabs.add(self.tab_fornecedores, text="  Fornecedores  ")
-        self.tabs.add(self.tab_novo, text="  Novo Ficheiro  ")
-        self.tabs.add(self.tab_update, text="  Atualizar Loja  ")
-        self.tabs.add(self.tab_lucro, text="  Lucro e Taxas  ")
-        self.tabs.add(self.tab_sku_prefix, text="  Prefixo SKU  ")
-        self.tabs.add(self.tab_categorias, text="  Categorias  ")
-        self.tabs.add(self.tab_destaques, text="  Destaques  ")
-        self.tabs.add(self.tab_marcas, text="  Marcas  ")
-        self.tabs.add(self.tab_sobre, text="  Sobre  ")
+        self.tabs.add(self.tab_fornecedores, text=f"  {translate('Fornecedores', self.language)}  ")
+        self.tabs.add(self.tab_novo, text=f"  {translate('Novo Ficheiro', self.language)}  ")
+        self.tabs.add(self.tab_update, text=f"  {translate('Atualizar Loja', self.language)}  ")
+        self.tabs.add(self.tab_lucro, text=f"  {translate('Lucro e Taxas', self.language)}  ")
+        self.tabs.add(self.tab_sku_prefix, text=f"  {translate('Prefixo SKU', self.language)}  ")
+        self.tabs.add(self.tab_categorias_individuais, text=f"  {translate('CATEGORIAS i', self.language)}  ")
+        self.tabs.add(self.tab_caturas_massivas, text=f"  {translate('CATEGORIAS M', self.language)}  ")
+        self.tabs.add(self.tab_destaques, text=f"  {translate('Destaques', self.language)}  ")
+        self.tabs.add(self.tab_marcas, text=f"  {translate('Marcas', self.language)}  ")
+        self.tabs.add(self.tab_configuracoes, text=f"  {translate('Configurações', self.language)}  ")
+        self.tabs.add(self.tab_sobre, text=f"  {translate('Sobre', self.language)}  ")
 
         self._build_tab_fornecedores()
         self._build_tab_novo()
         self._build_tab_update()
         self._build_tab_lucro()
         self._build_tab_sku_prefix()
-        self._build_tab_categorias()
+        self._build_tab_caturas_individuais()
+        self._build_tab_categorias_massivas()
         self._build_tab_destaques()
         self._build_tab_marcas()
+        self._build_tab_configuracoes()
         self._build_tab_sobre()
         self._build_footer()
+        self._translate_static_widgets()
 
         try:
             last_file = get_last_input_file()
@@ -1166,6 +1211,31 @@ class App(Tk):
             justify="center",
             wraplength=604,
         ).pack(fill="x", pady=(0, 4))
+
+    def _translate_static_widgets(self):
+        """Traduz todos os widgets estáticos da GUI com base no idioma atual."""
+        import tkinter as _tk
+        def _translate_widget(w, key):
+            if isinstance(w, (_tk.Label, _tk.Button, _tk.Checkbutton, _tk.Radiobutton, _tk.Message, _tk.Menubutton)):
+                try:
+                    current = w.cget("text")
+                    if current in TRANSLATABLE_STRINGS:
+                        w.config(text=translate(current, self.language))
+                except Exception:
+                    pass
+            elif isinstance(w, _tk.Toplevel):
+                try:
+                    current = w.title()
+                    if current in TRANSLATABLE_STRINGS:
+                        w.title(translate(current, self.language))
+                except Exception:
+                    pass
+            elif isinstance(w, _tk.Frame):
+                pass
+            elif hasattr(w, "winfo_children"):
+                for child in w.winfo_children():
+                    _translate_widget(child, key)
+        _translate_widget(self, "root")
 
     # -- tabs -----------------------------------------------------------
 
@@ -1522,7 +1592,7 @@ class App(Tk):
             except Exception:
                 pass
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao propagar fornecedor: {e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro ao propagar fornecedor:', self.language)} {e}", parent=self)
 
     def _refresh_forn_list(self):
         """Atualiza a lista de fornecedores na aba Fornecedores."""
@@ -1540,7 +1610,7 @@ class App(Tk):
     def _tab_add_profile(self):
         name = self._new_forn_var.get().strip()
         if not name:
-            messagebox.showwarning("Atenção", "Insira o nome do novo fornecedor.", parent=self)
+            messagebox.showwarning(translate("Atenção", self.language), translate("Insira o nome do novo fornecedor.", self.language), parent=self)
             return
         try:
             if save_profile(name, {}):
@@ -1550,16 +1620,16 @@ class App(Tk):
                 self._refresh_cat_fornecedor_combo()
                 self._refresh_hb_fornecedor_combo()
                 self._refresh_sku_fornecedor_combo()
-                messagebox.showinfo("Sucesso", f"Fornecedor '{name}' criado e selecionado com sucesso.", parent=self)
+                messagebox.showinfo(translate("Sucesso", self.language), f"{translate('Fornecedor', self.language)} '{name}' {translate('criado e selecionado com sucesso.', self.language)}", parent=self)
             else:
-                messagebox.showerror("Erro", "Não foi possível criar o fornecedor.", parent=self)
+                messagebox.showerror(translate("Erro", self.language), translate("Não foi possível criar o fornecedor.", self.language), parent=self)
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao criar fornecedor: {e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro ao criar fornecedor:', self.language)} {e}", parent=self)
 
     def _tab_set_active_selected_profile(self):
         sel = self._forn_listbox.curselection()
         if not sel:
-            messagebox.showwarning("Atenção", "Selecione um fornecedor na lista.", parent=self)
+            messagebox.showwarning(translate("Atenção", self.language), translate("Selecione um fornecedor na lista.", self.language), parent=self)
             return
         profiles = list_profiles()
         idx = sel[0]
@@ -1570,21 +1640,21 @@ class App(Tk):
             self._refresh_cat_fornecedor_combo()
             self._refresh_hb_fornecedor_combo()
             self._refresh_sku_fornecedor_combo()
-            messagebox.showinfo("Ativo", f"Fornecedor '{name}' definido como ativo.", parent=self)
+            messagebox.showinfo(translate("Ativo", self.language), f"{translate('Fornecedor', self.language)} '{name}' {translate('definido como ativo.', self.language)}", parent=self)
 
     def _tab_delete_selected_profile(self):
         sel = self._forn_listbox.curselection()
         if not sel:
-            messagebox.showwarning("Atenção", "Selecione um fornecedor na lista para eliminar.", parent=self)
+            messagebox.showwarning(translate("Atenção", self.language), translate("Selecione um fornecedor na lista para eliminar.", self.language), parent=self)
             return
         profiles = list_profiles()
         idx = sel[0]
         if idx < len(profiles):
             name = profiles[idx]
             if len(profiles) <= 1:
-                messagebox.showwarning("Atenção", "Não pode eliminar o último fornecedor restante.", parent=self)
+                messagebox.showwarning(translate("Atenção", self.language), translate("Não pode eliminar o último fornecedor restante.", self.language), parent=self)
                 return
-            if messagebox.askyesno("Eliminar", f"Tem certeza que deseja eliminar o fornecedor '{name}'?", parent=self):
+            if messagebox.askyesno(translate("Eliminar", self.language), f"{translate('Tem certeza que deseja eliminar o fornecedor', self.language)} '{name}'?", parent=self):
                 if delete_profile(name):
                     new_active = get_active_profile()
                     self._set_active_profile_global(new_active)
@@ -1592,13 +1662,13 @@ class App(Tk):
                     self._refresh_cat_fornecedor_combo()
                     self._refresh_hb_fornecedor_combo()
                     self._refresh_sku_fornecedor_combo()
-                    messagebox.showinfo("Eliminado", f"Fornecedor '{name}' eliminado com sucesso.", parent=self)
+                    messagebox.showinfo(translate("Eliminado", self.language), f"{translate('Fornecedor', self.language)} '{name}' {translate('eliminado com sucesso.', self.language)}", parent=self)
                 else:
-                    messagebox.showerror("Erro", "Não foi possível eliminar o fornecedor.", parent=self)
+                    messagebox.showerror(translate("Erro", self.language), translate("Não foi possível eliminar o fornecedor.", self.language), parent=self)
 
-    def _build_tab_categorias(self):
-        """Constrói a aba 'Categorias' com mapeamento de categorias."""
-        frm = ttk.Frame(self.tab_categorias, padding=6)
+    def _build_tab_caturas_individuais(self):
+        """Constrói a aba 'CATEGORIAS i' (individuais) com mapeamento de categorias."""
+        frm = ttk.Frame(self.tab_categorias_individuais, padding=6)
         frm.pack(fill="both", expand=True)
 
         ttk.Label(frm, text="Mapeamento", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
@@ -1723,6 +1793,355 @@ class App(Tk):
         ttk.Entry(search_row, textvariable=self._cat_search_var, width=28).pack(side="left", padx=(0, 8))
         ttk.Button(search_row, text="🔄 Recarregar", command=self._reload_categories, width=14).pack(side="left")
 
+    def _build_tab_categorias_massivas(self):
+        """Constrói a aba 'CATEGORIAS M' para agrupamento massivo."""
+        frm = ttk.Frame(self.tab_caturas_massivas, padding=6)
+        frm.pack(fill="both", expand=True)
+
+        top = ttk.Frame(frm)
+        top.pack(fill="both", expand=False)
+        top.columnconfigure(0, weight=1)
+        top.columnconfigure(1, weight=1)
+
+        # Cada coluna mantém o seu cabeçalho e descrição, sem deslocar a outra coluna.
+        left = ttk.Frame(top, padding=(0, 0, 5, 0))
+        left.grid(row=0, column=0, sticky="nsew")
+        ttk.Label(left, text=translate("Mapeamento Massivo", self.language), font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(
+            left,
+            text=translate("Agrupe uma categoria do fornecedor e todas as suas subcategorias numa Categoria Pai. As regras aplicam-se automaticamente na conversão e na atualização da loja.", self.language),
+            font=("Segoe UI", 9), foreground=GRAY_600, wraplength=430, justify="left",
+        ).pack(anchor="w", pady=(0, 6))
+        left_body = ttk.LabelFrame(left, text=translate("Categorias Pai (até 10)", self.language), padding=6)
+        left_body.pack(fill="both", expand=True)
+        left = left_body
+        self._massive_parent_vars = []
+        cat_settings = get_category_settings()
+        saved_parents = cat_settings.get("new_categories", [])
+        for i in range(10):
+            value = saved_parents[i] if i < len(saved_parents) else ""
+            var = tk.StringVar(value=value)
+            self._massive_parent_vars.append(var)
+            row = ttk.Frame(left)
+            row.pack(fill="x", pady=1)
+            ttk.Label(row, text=f"{translate('Categoria pai:', self.language)} {i + 1}:", width=18).pack(side="left")
+            ttk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+        ttk.Button(
+            left,
+            text="Guardar categorias pai",
+            command=self._save_massive_parents,
+            width=26,
+        ).pack(anchor="w", pady=(5, 0))
+
+        right = ttk.Frame(top, padding=(5, 0, 0, 0))
+        right.grid(row=0, column=1, sticky="nsew")
+        ttk.Label(right, text=translate("Lista de Regras", self.language), font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 4))
+        ttk.Label(
+            right,
+            text=(
+                translate("Insira as regras para associar grupos de categorias e as subcategorias a uma categoria pai.", self.language) + "\n"
+                + translate("Ex: Todas as linhas das categorias de artigos para o lar e casa enviar para...", self.language)
+            ),
+            font=("Segoe UI", 8), foreground=GRAY_600, wraplength=430, justify="left",
+        ).pack(anchor="w", pady=(0, 6))
+        right_body = ttk.Frame(right, padding=6)
+        right_body.pack(fill="both", expand=True)
+        right = right_body
+        self._massive_description_vars = []
+        for i in range(10):
+            var = tk.StringVar()
+            self._massive_description_vars.append(var)
+            row = ttk.Frame(right)
+            row.pack(fill="x", pady=1)
+            ttk.Label(row, text=f"Regra {i + 1}:", width=9).pack(side="left")
+            ttk.Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
+        ttk.Label(frm, text=translate("Associar grupo de categorias à Categoria Pai", self.language), font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        ttk.Label(
+            frm,
+            text=translate("Escolha uma categoria principal da origem. Todas as respetivas subcategorias serão incluídas automaticamente.", self.language),
+            font=("Segoe UI", 8),
+            foreground=GRAY_600,
+        ).pack(anchor="w", pady=(0, 4))
+
+        rule_row = ttk.Frame(frm)
+        rule_row.pack(fill="x", pady=2)
+        ttk.Label(rule_row, text=translate("Selecionar regra:", self.language)).pack(side="left", padx=(0, 4))
+        self._massive_description_var = tk.StringVar()
+        self._massive_description_combo = ttk.Combobox(
+            rule_row, textvariable=self._massive_description_var, state="normal", width=48
+        )
+        self._massive_description_combo.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self._massive_description_combo.bind("<<ComboboxSelected>>", self._on_massive_description_selected)
+        ttk.Label(rule_row, text=translate("Categoria pai:", self.language)).pack(side="left", padx=(0, 4))
+        self._massive_parent_var = tk.StringVar()
+        self._massive_parent_combo = ttk.Combobox(
+            rule_row, textvariable=self._massive_parent_var, state="readonly", width=28
+        )
+        self._massive_parent_combo.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        ttk.Button(rule_row, text=translate("Adicionar Regra", self.language), command=self._add_massive_rule, width=15).pack(side="left", padx=(0, 4))
+        ttk.Button(rule_row, text=translate("Remover Regra", self.language), command=self._remove_massive_rule, width=15).pack(side="left")
+
+        source_row = ttk.Frame(frm)
+        source_row.pack(fill="x", pady=(4, 2))
+        ttk.Label(source_row, text=translate("Categorias de origem (selecione uma ou mais):", self.language)).pack(anchor="w")
+        self._massive_source_listbox = tk.Listbox(
+            source_row, height=5, relief="sunken", bg=GRAY_100,
+            font=("Consolas", 8), selectmode="extended", exportselection=False,
+        )
+        source_scroll = ttk.Scrollbar(source_row, orient="vertical", command=self._massive_source_listbox.yview)
+        self._massive_source_listbox.configure(yscrollcommand=source_scroll.set)
+        self._massive_source_listbox.pack(side="left", fill="both", expand=True)
+        source_scroll.pack(side="right", fill="y")
+        self._massive_rule_ids = {}
+        self._massive_rule_list_indices = []
+        self._massive_selected_rule_id = None
+        self._refresh_massive_description_combo()
+        self._refresh_massive_parent_combo()
+        self._refresh_massive_source_list()
+
+        ttk.Label(frm, text=translate("Regras configuradas (as mais recentes têm prioridade):", self.language), font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(6, 2))
+        rules_frame = ttk.Frame(frm)
+        rules_frame.pack(fill="x", expand=False)
+        self._massive_rules_listbox = tk.Listbox(
+            rules_frame, height=5, relief="sunken", bg=GRAY_100,
+            font=("Consolas", 8), selectmode="single"
+        )
+        rules_scroll = ttk.Scrollbar(rules_frame, orient="vertical", command=self._massive_rules_listbox.yview)
+        self._massive_rules_listbox.configure(yscrollcommand=rules_scroll.set)
+        self._massive_rules_listbox.pack(side="left", fill="both", expand=True)
+        rules_scroll.pack(side="right", fill="y")
+        self._refresh_massive_rules_list()
+        self._massive_rules_listbox.bind("<<ListboxSelect>>", self._on_massive_rule_list_selected)
+
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
+        lists = ttk.Frame(frm)
+        lists.pack(fill="both", expand=True)
+        lists.columnconfigure(0, weight=1)
+        lists.columnconfigure(1, weight=1)
+        lists.rowconfigure(0, weight=1)
+        self._massive_unique_title_var = tk.StringVar(value="CATEGORIAS ÚNICAS (0)")
+        self._massive_subcat_title_var = tk.StringVar(value="CATEGORIAS E SUBCATEGORIAS (0)")
+        self._massive_unique_text = self._create_category_text_panel(
+            lists, self._massive_unique_title_var, 0
+        )
+        self._massive_subcat_text = self._create_category_text_panel(
+            lists, self._massive_subcat_title_var, 1
+        )
+        search = ttk.Frame(frm)
+        search.pack(fill="x", pady=(6, 0))
+        ttk.Label(search, text="Pesquisar:").pack(side="left", padx=(0, 4))
+        self._massive_search_var = tk.StringVar()
+        self._massive_search_var.trace_add("write", lambda *_: self._filter_massive_categories())
+        ttk.Entry(search, textvariable=self._massive_search_var, width=28).pack(side="left", padx=(0, 8))
+        ttk.Button(search, text="Recarregar", command=self._reload_categories, width=14).pack(side="left")
+
+    def _create_category_text_panel(self, parent, title_var, column):
+        panel = ttk.Frame(parent)
+        panel.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else 4, 4 if column == 0 else 0))
+        ttk.Label(panel, textvariable=title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
+        box = ttk.Frame(panel)
+        box.pack(fill="both", expand=True)
+        text = tk.Text(box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        scroll = ttk.Scrollbar(box, orient="vertical", command=text.yview)
+        text.configure(yscrollcommand=scroll.set)
+        text.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+        text.config(state="disabled")
+        return text
+
+    def _save_massive_parents(self):
+        values = [var.get().strip() for var in self._massive_parent_vars]
+        set_category_settings(
+            new_categories=values,
+            apply_to_all=False,
+            selected_prefix="",
+            use_parent=True,
+        )
+        self._refresh_massive_parent_combo()
+        self._refresh_cat_pai_combo()
+
+    def _refresh_massive_parent_combo(self):
+        if hasattr(self, "_massive_parent_combo"):
+            settings = get_category_settings()
+            values = [value.strip() for value in settings.get("new_categories", []) if value.strip()]
+            self._massive_parent_combo["values"] = values
+
+    def _refresh_massive_description_combo(self):
+        if not hasattr(self, "_massive_description_combo"):
+            return
+        rules = get_massive_category_rules()
+        configured = [
+            str(var.get()).strip()
+            for var in getattr(self, "_massive_description_vars", [])
+            if str(var.get()).strip()
+        ]
+        descriptions = configured[:]
+        for rule in rules:
+            description = str(rule.get("description", "")).strip()
+            if not description:
+                description = str(rule.get("category_group", "")).strip()
+            if description and description not in descriptions:
+                descriptions.append(description)
+        self._massive_description_combo["values"] = descriptions
+        self._massive_rule_ids = {
+            str(rule.get("description", "")).strip() or str(rule.get("category_group", "")).strip(): rule.get("rule_id")
+            for rule in rules
+            if str(rule.get("description", "")).strip() or str(rule.get("category_group", "")).strip()
+        }
+
+    def _refresh_massive_source_list(self):
+        if not hasattr(self, "_massive_source_listbox"):
+            return
+        values = list(getattr(self, "_unique_categories", []))
+        self._massive_source_listbox.delete(0, tk.END)
+        for value in values:
+            self._massive_source_listbox.insert(tk.END, value)
+        self._massive_source_list_values = values
+
+    def _refresh_massive_group_combo(self):
+        """Compatibilidade com chamadas antigas; atualiza a lista de origens."""
+        self._refresh_massive_source_list()
+
+    def _on_massive_description_selected(self, _event=None):
+        description = self._massive_description_var.get().strip()
+        rule = next(
+            (
+                item for item in get_massive_category_rules()
+                if (str(item.get("description", "")).strip() or str(item.get("category_group", "")).strip()) == description
+            ),
+            None,
+        )
+        self._massive_selected_rule_id = rule.get("rule_id") if rule else None
+        if rule:
+            self._massive_parent_var.set(str(rule.get("parent_category", "")).strip())
+            sources = rule.get("source_categories")
+            if not isinstance(sources, list):
+                legacy = str(rule.get("category_group", "")).strip()
+                sources = [legacy] if legacy else []
+            source_values = getattr(self, "_massive_source_list_values", [])
+            self._massive_source_listbox.selection_clear(0, tk.END)
+            normalized_sources = {str(source).strip().casefold() for source in sources}
+            for index, value in enumerate(source_values):
+                if str(value).strip().casefold() in normalized_sources:
+                    self._massive_source_listbox.selection_set(index)
+        else:
+            self._massive_parent_var.set("")
+            self._massive_source_listbox.selection_clear(0, tk.END)
+
+    def _on_massive_rule_list_selected(self, _event=None):
+        selection = self._massive_rules_listbox.curselection()
+        if not selection or selection[0] >= len(self._massive_rule_list_indices):
+            return
+        rules = get_massive_category_rules()
+        rule_index = self._massive_rule_list_indices[selection[0]]
+        rule = rules[rule_index] if rule_index < len(rules) else None
+        if not rule:
+            return
+        description = str(rule.get("description", "")).strip() or str(rule.get("category_group", "")).strip()
+        if description in self._massive_description_combo["values"]:
+            self._massive_description_var.set(description)
+            self._on_massive_description_selected()
+
+    def _add_massive_rule(self):
+        description = self._massive_description_var.get().strip()
+        parent = self._massive_parent_var.get().strip()
+        selection = self._massive_source_listbox.curselection()
+        source_values = getattr(self, "_massive_source_list_values", [])
+        sources = [source_values[index] for index in selection if index < len(source_values)]
+        if not description or not sources or not parent:
+            messagebox.showwarning(
+                "Atenção",
+                "Escolha a regra, uma ou mais categorias de origem e a Categoria Pai.",
+                parent=self,
+            )
+            return
+        rules = get_massive_category_rules()
+        rule_id = self._massive_selected_rule_id
+        # Verificar se é uma nova regra ou atualização de uma existente pelo ID ou descrição
+        is_update = False
+        if rule_id:
+            is_update = True
+        else:
+            # Também é update se a descrição já existir
+            for rule in rules:
+                if str(rule.get("description", "")).strip() == description or \
+                   str(rule.get("category_group", "")).strip() == description:
+                    is_update = True
+                    break
+
+        if not is_update and len(rules) >= 10:
+            messagebox.showwarning(translate("Limite atingido", self.language), translate("Só pode criar até 10 regras massivas.", self.language), parent=self)
+            return
+        if save_massive_category_rule(description, sources, parent, rule_id=rule_id):
+            self._massive_selected_rule_id = None
+            self._massive_description_var.set("")
+            self._massive_parent_var.set("")
+            self._massive_source_listbox.selection_clear(0, tk.END)
+            self._refresh_massive_description_combo()
+            self._refresh_massive_rules_list()
+            messagebox.showinfo(translate("Guardado", self.language), translate("Regra de mapeamento massivo guardada.", self.language), parent=self)
+        else:
+            messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar a regra.", self.language), parent=self)
+
+    def _refresh_massive_rules_list(self):
+        if not hasattr(self, "_massive_rules_listbox"):
+            return
+        self._massive_rules_listbox.delete(0, tk.END)
+        self._massive_rule_list_indices = []
+        rules = get_massive_category_rules()
+        for rule_index, rule in enumerate(rules):
+            description = str(rule.get("description", "")).strip() or str(rule.get("category_group", "")).strip()
+            sources = rule.get("source_categories")
+            if not isinstance(sources, list):
+                sources = [str(rule.get("category_group", "")).strip()]
+            source_text = ", ".join(source for source in sources if source)
+            self._massive_rules_listbox.insert(
+                tk.END,
+                f"[P{rule.get('priority', 0)}] {description} | {source_text} -> {rule.get('parent_category', '')}",
+            )
+            self._massive_rule_list_indices.append(rule_index)
+        if not rules:
+            self._massive_rules_listbox.insert(tk.END, "(Nenhuma regra massiva configurada)")
+
+    def _remove_massive_rule(self):
+        selection = self._massive_rules_listbox.curselection()
+        if not selection or selection[0] >= len(self._massive_rule_list_indices):
+            messagebox.showwarning(translate("Atenção", self.language), translate("Selecione uma regra para remover.", self.language), parent=self)
+            return
+        rules = get_massive_category_rules()
+        rule_index = self._massive_rule_list_indices[selection[0]]
+        rule = rules[rule_index] if rule_index < len(rules) else None
+        if rule is None:
+            messagebox.showwarning(translate("Atenção", self.language), translate("A regra selecionada já não existe.", self.language), parent=self)
+            self._refresh_massive_rules_list()
+            return
+        description = str(rule.get("description", "")).strip() or str(rule.get("category_group", "")).strip()
+        if messagebox.askyesno(translate("Remover Regra", self.language), f"{translate('Remover a regra', self.language)} '{description}'?", parent=self):
+            if remove_massive_category_rule(rule_index):
+                self._massive_selected_rule_id = None
+                self._refresh_massive_description_combo()
+                self._refresh_massive_rules_list()
+
+    def _filter_massive_categories(self):
+        query = self._massive_search_var.get().strip().lower()
+        unique_all = getattr(self, "_unique_categories", [])
+        subcat_all = getattr(self, "_subcat_categories", [])
+        unique = [item for item in unique_all if not query or query in item.lower()]
+        subcats = [item for item in subcat_all if not query or query in item.lower()]
+        self._massive_unique_title_var.set(f"CATEGORIAS ÚNICAS ({len(unique)})")
+        self._massive_subcat_title_var.set(f"CATEGORIAS E SUBCATEGORIAS ({len(subcats)})")
+        for widget, values, empty in (
+            (self._massive_unique_text, unique, "(nenhuma categoria)"),
+            (self._massive_subcat_text, subcats, "(nenhuma categoria)"),
+        ):
+            widget.config(state="normal")
+            widget.delete("1.0", "end")
+            widget.insert("1.0", "\n".join(values) if values else empty)
+            widget.config(state="disabled")
+
+
     def _extract_categories_from_file(self, filepath):
         def worker():
             try:
@@ -1821,6 +2240,8 @@ class App(Tk):
                     self._refresh_hb_adv_combos()
                     self._refresh_brand_adv_combos()
                     self._refresh_cat_adv_combos()
+                    self._refresh_massive_group_combo()
+                    self._filter_massive_categories()
 
                 self.after(0, update_categories)
             except Exception:
@@ -1929,11 +2350,11 @@ class App(Tk):
                     filepath = forn.get().strip()
             if filepath and os.path.isfile(filepath):
                 self._extract_categories_from_file(filepath)
-                messagebox.showinfo("Sucesso", "Categorias recarregadas com sucesso a partir do ficheiro!", parent=self)
+                messagebox.showinfo(translate("Sucesso", self.language), translate("Categorias recarregadas com sucesso a partir do ficheiro!", self.language), parent=self)
             else:
-                messagebox.showwarning("Atenção", "Nenhum ficheiro CSV válido selecionado para recarregar.", parent=self)
+                messagebox.showwarning(translate("Atenção", self.language), translate("Nenhum ficheiro CSV válido selecionado para recarregar.", self.language), parent=self)
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao recarregar categorias: {e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
 
     def _toggle_auto_classification(self):
         try:
@@ -1942,7 +2363,7 @@ class App(Tk):
             data["enabled"] = bool(self._auto_cat_enabled_var.get())
             save_rules(data)
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
 
     def _add_classification_rule(self):
         try:
@@ -1950,7 +2371,7 @@ class App(Tk):
             keyword = self._rule_keyword_var.get().strip()
             category = self._rule_category_var.get().strip()
             if not keyword or not category:
-                messagebox.showwarning("Atenção", "Preencha palavra-chave e categoria destino.", parent=self)
+                messagebox.showwarning(translate("Atenção", self.language), translate("Preencha palavra-chave e categoria destino.", self.language), parent=self)
                 return
             data = load_rules()
             rules = data.get("rules", [])
@@ -1960,11 +2381,11 @@ class App(Tk):
                 self._rule_keyword_var.set("")
                 self._rule_category_var.set("")
                 self._refresh_rules_list()
-                messagebox.showinfo("Guardado", "Regra adicionada com sucesso.", parent=self)
+                messagebox.showinfo(translate("Guardado", self.language), translate("Regra adicionada com sucesso.", self.language), parent=self)
             else:
-                messagebox.showerror("Erro", "Não foi possível guardar a regra.", parent=self)
+                messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar a regra.", self.language), parent=self)
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
 
     def _learn_from_current_file(self):
         try:
@@ -1972,20 +2393,20 @@ class App(Tk):
             if not selected_file or not os.path.isfile(selected_file):
                 selected_file = self.fornecedor_var.get().strip().strip('"').strip("'")
             if not selected_file or not os.path.isfile(selected_file):
-                messagebox.showwarning("Atenção", "Selecione ou arraste um ficheiro CSV primeiro.", parent=self)
+                messagebox.showwarning(translate("Atenção", self.language), translate("Selecione ou arraste um ficheiro CSV primeiro.", self.language), parent=self)
                 return
             headers, rows = _read_csv_any_delimiter(selected_file)
             if not rows:
-                messagebox.showwarning("Atenção", "Não foi possível ler o ficheiro ou está vazio.", parent=self)
+                messagebox.showwarning(translate("Atenção", self.language), translate("Não foi possível ler o ficheiro ou está vazio.", self.language), parent=self)
                 return
             mapping = load_field_mapping()
             count = learn_from_file_rows(rows, mapping)
             self._refresh_rules_list()
             if hasattr(self, '_category_settings_cache'):
                 self._category_settings_cache = None
-            messagebox.showinfo("Aprendido", f"Aprendidas {count} novas regras com base no ficheiro.", parent=self)
+            messagebox.showinfo(translate("Aprendido", self.language), f"{translate('Aprendidas novas regras com base no ficheiro.', self.language)} ({{count}})", parent=self)
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao aprender: {e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
 
     def _preview_classification(self):
         try:
@@ -1993,11 +2414,11 @@ class App(Tk):
             if not selected_file or not os.path.isfile(selected_file):
                 selected_file = self.fornecedor_var.get().strip().strip('"').strip("'")
             if not selected_file or not os.path.isfile(selected_file):
-                messagebox.showwarning("Atenção", "Selecione ou arraste um ficheiro CSV primeiro.", parent=self)
+                messagebox.showwarning(translate("Atenção", self.language), translate("Selecione ou arraste um ficheiro CSV primeiro.", self.language), parent=self)
                 return
             headers, rows = _read_csv_any_delimiter(selected_file)
             if not rows:
-                messagebox.showwarning("Atenção", "Não foi possível ler o ficheiro ou está vazio.", parent=self)
+                messagebox.showwarning(translate("Atenção", self.language), translate("Não foi possível ler o ficheiro ou está vazio.", self.language), parent=self)
                 return
             mapping = load_field_mapping()
             lines = []
@@ -2020,7 +2441,7 @@ class App(Tk):
                 self._preview_text.insert("1.0", "\n".join(lines) if lines else "Sem dados para pré-visualizar")
                 self._preview_text.config(state="disabled")
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao pré-visualizar: {e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
 
     def _refresh_rules_list(self):
         try:
@@ -2101,18 +2522,18 @@ class App(Tk):
         subcat_in = self._adv_subcat_var.get().strip()
         parent_cat = self._cat_pai_combo.get().strip()
         if not cat_in or not parent_cat:
-            messagebox.showwarning("Atenção", "Preencha a Categoria e selecione a Categoria Pai de destino.", parent=self)
+            messagebox.showwarning(translate("Atenção", self.language), translate("Preencha a Categoria e selecione a Categoria Pai de destino.", self.language), parent=self)
             return
         try:
             if add_keyword_rule(cat_in, subcat_in, parent_cat, priority=10):
                 self._adv_cat_var.set("")
                 self._adv_subcat_var.set("")
                 self._refresh_adv_rules_list()
-                messagebox.showinfo("Guardado", "Regra avançada adicionada com sucesso.", parent=self)
+                messagebox.showinfo(translate("Guardado", self.language), translate("Regra avançada adicionada com sucesso.", self.language), parent=self)
             else:
-                messagebox.showerror("Erro", "Não foi possível guardar a regra.", parent=self)
+                messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar a regra.", self.language), parent=self)
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao guardar regra: {e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
 
     def _refresh_adv_rules_list(self):
         """Preenche a lista de regras avançadas (maior prioridade primeiro)."""
@@ -2140,7 +2561,7 @@ class App(Tk):
         """Remove a regra selecionada na lista de regras avançadas (aba Categorias)."""
         rules = get_keyword_rules()
         if not rules:
-            messagebox.showinfo("Informação", "Não há regras para remover.", parent=self)
+            messagebox.showinfo(translate("Informação", self.language), translate("Não há regras para remover.", self.language), parent=self)
             return
         sel = self._adv_rules_listbox.curselection()
         if sel:
@@ -2156,7 +2577,7 @@ class App(Tk):
                     remove_keyword_rule(index)
                     self._refresh_adv_rules_list()
             return
-        messagebox.showwarning("Atenção", "Selecione uma regra na lista para remover.", parent=self)
+        messagebox.showwarning(translate("Atenção", self.language), translate("Selecione uma regra na lista para remover.", self.language), parent=self)
 
     def _build_tab_destaques(self):
         """Constrói a aba 'Destaques'."""
@@ -2438,18 +2859,18 @@ class App(Tk):
         subcat_in = self._hb_adv_subcat_var.get().strip()
         parent_cat = self._hb_pai_combo.get().strip()
         if not cat_in or not parent_cat:
-            messagebox.showwarning("Atenção", "Preencha a Categoria e selecione a Categoria Pai de destino.", parent=self)
+            messagebox.showwarning(translate("Atenção", self.language), translate("Preencha a Categoria e selecione a Categoria Pai de destino.", self.language), parent=self)
             return
         try:
             if add_highlights_brands_keyword_rule(cat_in, subcat_in, parent_cat, priority=10):
                 self._hb_adv_cat_var.set("")
                 self._hb_adv_subcat_var.set("")
                 self._refresh_hb_adv_rules_list()
-                messagebox.showinfo("Guardado", "Regra avançada adicionada com sucesso.", parent=self)
+                messagebox.showinfo(translate("Guardado", self.language), translate("Regra avançada adicionada com sucesso.", self.language), parent=self)
             else:
-                messagebox.showerror("Erro", "Não foi possível guardar a regra.", parent=self)
+                messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar a regra.", self.language), parent=self)
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao guardar regra: {e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
 
     def _refresh_hb_adv_rules_list(self):
         try:
@@ -2475,7 +2896,7 @@ class App(Tk):
     def _hb_remove_advanced_keyword_rule(self):
         rules = get_highlights_brands_keyword_rules()
         if not rules:
-            messagebox.showinfo("Informação", "Não há regras para remover.", parent=self)
+            messagebox.showinfo(translate("Informação", self.language), translate("Não há regras para remover.", self.language), parent=self)
             return
         sel = self._hb_adv_rules_listbox.curselection()
         if sel:
@@ -2491,7 +2912,7 @@ class App(Tk):
                     remove_highlights_brands_keyword_rule(index)
                     self._refresh_hb_adv_rules_list()
             return
-        messagebox.showwarning("Atenção", "Selecione uma regra na lista para remover.", parent=self)
+        messagebox.showwarning(translate("Atenção", self.language), translate("Selecione uma regra na lista para remover.", self.language), parent=self)
 
     def _refresh_brand_pai_combo(self):
         try:
@@ -2549,7 +2970,7 @@ class App(Tk):
         subcat = self._brand_adv_subcat_var.get().strip()
         parent_cat = self._brand_pai_combo.get().strip()
         if not marca or not parent_cat:
-            messagebox.showwarning("Atenção", "Preencha a Marca e selecione a Categoria Pai de destino.", parent=self)
+            messagebox.showwarning(translate("Atenção", self.language), translate("Preencha a Marca e selecione a Categoria Pai de destino.", self.language), parent=self)
             return
         try:
             if add_brands_keyword_rule(marca, cat, subcat, parent_cat, priority=10):
@@ -2557,11 +2978,11 @@ class App(Tk):
                 self._brand_adv_cat_var.set("")
                 self._brand_adv_subcat_var.set("")
                 self._refresh_brand_adv_rules_list()
-                messagebox.showinfo("Guardado", "Regra de marca avançada adicionada com sucesso.", parent=self)
+                messagebox.showinfo(translate("Guardado", self.language), translate("Regra de marca avançada adicionada com sucesso.", self.language), parent=self)
             else:
-                messagebox.showerror("Erro", "Não foi possível guardar a regra de marca.", parent=self)
+                messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar a regra de marca.", self.language), parent=self)
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao guardar regra: {e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
 
     def _refresh_brand_adv_rules_list(self):
         try:
@@ -2586,7 +3007,7 @@ class App(Tk):
     def _brand_remove_advanced_rule(self):
         rules = get_brands_keyword_rules()
         if not rules:
-            messagebox.showinfo("Informação", "Não há regras de marca para remover.", parent=self)
+            messagebox.showinfo(translate("Informação", self.language), translate("Não há regras de marca para remover.", self.language), parent=self)
             return
         sel = self._brand_adv_rules_listbox.curselection()
         if sel:
@@ -2599,7 +3020,7 @@ class App(Tk):
                     remove_brands_keyword_rule(index)
                     self._refresh_brand_adv_rules_list()
             return
-        messagebox.showwarning("Atenção", "Selecione uma regra na lista para remover.", parent=self)
+        messagebox.showwarning(translate("Atenção", self.language), translate("Selecione uma regra na lista para remover.", self.language), parent=self)
 
     def _build_tab_sku_prefix(self):
         """Constrói a aba 'Prefixo SKU' — prefixo de 3 letras + traço por fornecedor."""
@@ -2672,23 +3093,23 @@ class App(Tk):
         prefix = self._sku_prefix_var.get().strip()
         name = self._sku_fornecedor_var.get().strip()
         if not name:
-            messagebox.showwarning("Atenção", "Selecione um fornecedor.", parent=self)
+            messagebox.showwarning(translate("Atenção", self.language), translate("Selecione um fornecedor.", self.language), parent=self)
             return
         if not prefix:
             set_sku_prefix("", name)
-            messagebox.showinfo("Guardado", f"Prefixo SKU removido para '{name}'.", parent=self)
+            messagebox.showinfo(translate("Guardado", self.language), f"{translate('Prefixo SKU removido para', self.language)} '{name}'.", parent=self)
             return
         # Valida: 3 letras + traço (ex: VIP-)
         import re
         if not re.match(r"^[A-Za-z]{3}-$", prefix):
-            messagebox.showwarning("Atenção", "O prefixo deve ter 3 letras seguidas de um traço (ex: VIP-).", parent=self)
+            messagebox.showwarning(translate("Atenção", self.language), translate("O prefixo deve ter 3 letras seguidas de um traço (ex: VIP-).", self.language), parent=self)
             return
         prefix = prefix.upper()
         self._sku_prefix_var.set(prefix)
         if set_sku_prefix(prefix, name):
-            messagebox.showinfo("Guardado", f"Prefixo SKU '{prefix}' guardado para '{name}'.", parent=self)
+            messagebox.showinfo(translate("Guardado", self.language), f"{translate('Prefixo SKU guardado para', self.language)} '{name}': '{prefix}'.", parent=self)
         else:
-            messagebox.showerror("Erro", "Não foi possível guardar o prefixo SKU.", parent=self)
+            messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar o prefixo SKU.", self.language), parent=self)
 
     def _build_tab_highlights_brands(self):
         """Constrói a aba 'Destaques e Marcas' — idêntica à aba Categorias."""
@@ -2851,18 +3272,18 @@ class App(Tk):
         subcat_in = self._hb_adv_subcat_var.get().strip()
         parent_cat = self._hb_pai_combo.get().strip()
         if not cat_in or not parent_cat:
-            messagebox.showwarning("Atenção", "Preencha a Categoria e selecione a Categoria Pai de destino.", parent=self)
+            messagebox.showwarning(translate("Atenção", self.language), translate("Preencha a Categoria e selecione a Categoria Pai de destino.", self.language), parent=self)
             return
         try:
             if add_highlights_brands_keyword_rule(cat_in, subcat_in, parent_cat, priority=10):
                 self._hb_adv_cat_var.set("")
                 self._hb_adv_subcat_var.set("")
                 self._refresh_hb_adv_rules_list()
-                messagebox.showinfo("Guardado", "Regra avançada adicionada com sucesso.", parent=self)
+                messagebox.showinfo(translate("Guardado", self.language), translate("Regra avançada adicionada com sucesso.", self.language), parent=self)
             else:
-                messagebox.showerror("Erro", "Não foi possível guardar a regra.", parent=self)
+                messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar a regra.", self.language), parent=self)
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao guardar regra: {e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
 
     def _refresh_hb_adv_rules_list(self):
         """Preenche a lista de regras avançadas de Destaques e Marcas (maior prioridade primeiro)."""
@@ -2890,7 +3311,7 @@ class App(Tk):
         """Remove a regra selecionada na lista de regras avançadas (aba Destaques e Marcas)."""
         rules = get_highlights_brands_keyword_rules()
         if not rules:
-            messagebox.showinfo("Informação", "Não há regras para remover.", parent=self)
+            messagebox.showinfo(translate("Informação", self.language), translate("Não há regras para remover.", self.language), parent=self)
             return
         sel = self._hb_adv_rules_listbox.curselection()
         if sel:
@@ -2906,7 +3327,56 @@ class App(Tk):
                     remove_highlights_brands_keyword_rule(index)
                     self._refresh_hb_adv_rules_list()
             return
-        messagebox.showwarning("Atenção", "Selecione uma regra na lista para remover.", parent=self)
+        messagebox.showwarning(translate("Atenção", self.language), translate("Selecione uma regra na lista para remover.", self.language), parent=self)
+
+    def _build_tab_configuracoes(self):
+        """Constrói a aba de definições gerais da aplicação."""
+        frm = ttk.Frame(self.tab_configuracoes, padding=12)
+        frm.pack(fill="both", expand=True)
+        ttk.Label(frm, text=translate("Configurações", self.language), font=("Segoe UI", 14, "bold")).pack(anchor="w", pady=(0, 10))
+        language_row = ttk.Frame(frm)
+        language_row.pack(anchor="w", fill="x")
+        ttk.Label(language_row, text=translate("Idioma da interface:", self.language), width=24).pack(side="left")
+        language_names = {
+            "pt-PT": translate("Português europeu", self.language),
+            "pt-BR": translate("Português brasileiro", self.language),
+            "en": translate("Inglês", self.language),
+        }
+        self._language_codes = list(language_names)
+        self._language_names = list(language_names.values())
+        self._language_var = tk.StringVar(value=language_names.get(self.language, self._language_names[0]))
+        self._language_combo = ttk.Combobox(
+            language_row, textvariable=self._language_var,
+            values=self._language_names, state="readonly", width=28,
+        )
+        self._language_combo.pack(side="left", padx=(0, 8))
+        ttk.Button(
+            language_row, text=translate("Guardar idioma", self.language),
+            command=self._save_language, width=18,
+        ).pack(side="left")
+        ttk.Label(
+            frm, text=translate("O idioma será aplicado ao reiniciar a aplicação.", self.language),
+            foreground=GRAY_600,
+        ).pack(anchor="w", pady=(8, 0))
+
+    def _save_language(self):
+        selected_name = self._language_var.get()
+        try:
+            language = self._language_codes[self._language_names.index(selected_name)]
+        except (ValueError, IndexError):
+            language = "pt-PT"
+        if set_language(language):
+            messagebox.showinfo(
+                translate("Idioma guardado", self.language),
+                translate("Reinicie a aplicação para aplicar o novo idioma.", self.language),
+                parent=self,
+            )
+        else:
+            messagebox.showerror(
+                translate("Erro", self.language),
+                translate("Não foi possível guardar o idioma.", self.language),
+                parent=self,
+            )
 
     def _build_tab_sobre(self):
         """Constrói a aba 'Sobre' com informações da aplicação."""
@@ -3293,7 +3763,7 @@ class App(Tk):
     def _merge(self):
         out_dir = self.out_dir_var.get().strip()
         if not out_dir or not os.path.isdir(out_dir):
-            messagebox.showerror("Erro", "Escolha uma pasta de destino valida.", parent=self)
+            messagebox.showerror(translate("Erro", self.language), translate("Escolha uma pasta de destino valida.", self.language), parent=self)
             return
         export_raw = self.export_var.get().strip().strip('"').strip("'")
         forn_raw = self.fornecedor_var.get().strip().strip('"').strip("'")
@@ -3303,10 +3773,10 @@ class App(Tk):
                                    parent=self)
             return
         if not os.path.isfile(export_raw):
-            messagebox.showerror("Erro", f"Export da loja nao encontrado:\n{export_raw}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Export da loja nao encontrado:', self.language)}\n{export_raw}", parent=self)
             return
         if not os.path.isfile(forn_raw):
-            messagebox.showerror("Erro", f"Ficheiro do fornecedor nao encontrado:\n{forn_raw}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Ficheiro do fornecedor nao encontrado:', self.language)}\n{forn_raw}", parent=self)
             return
 
         self.merge_btn.config(state="disabled")
@@ -3337,7 +3807,7 @@ class App(Tk):
                 err_msg = f"Erro inesperado: {exc}"
                 def on_err():
                     self._set_drop_text(err_msg, "#FFEBEE", "#C62828", widget=self.drop_text_update)
-                    messagebox.showerror("Erro", err_msg, parent=self)
+                    messagebox.showerror(translate("Erro", self.language), err_msg, parent=self)
                     self.merge_btn.config(state="normal")
                 self.after(0, on_err)
 
@@ -3539,11 +4009,11 @@ class App(Tk):
 
             from core.field_mapping import get_active_profile
             if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula="detailed", profile_name=get_active_profile()):
-                messagebox.showinfo("Guardado", "Configurações de preços guardadas para este perfil.", parent=self)
+                messagebox.showinfo(translate("Guardado", self.language), translate("Configurações de preços guardadas para este perfil.", self.language), parent=self)
             else:
-                messagebox.showerror("Erro", "Não foi possível guardar as configurações de preços.", parent=self)
+                messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar as configurações de preços.", self.language), parent=self)
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao guardar: {e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
 
     def _auto_save_price_settings(self):
         """Guarda automaticamente as configurações de preços da interface antes de converter."""
@@ -3593,13 +4063,11 @@ class App(Tk):
 
     def _open_stripe_checkout(self):
         """Botão 'Comprar Licença': abre a página de pagamento Stripe."""
-        from stripe_integration import open_stripe_checkout
-        open_stripe_checkout()
+        open_stripe_checkout(language=self.language)
 
     def _check_for_updates(self):
         """Botão 'Verificar Atualizações': verifica se há novas versões."""
-        from updater import check_for_updates, get_current_version
-        check_for_updates(show_message=True, parent=self)
+        check_for_updates(show_message=True, parent=self, language=self.language)
 
     def _on_auto_update_toggle(self):
         try:
@@ -3612,14 +4080,14 @@ class App(Tk):
             return
         def worker():
             try:
-                from updater import get_latest_version, _parse_version, get_current_version
+                from core.updater import get_latest_version, _parse_version, get_current_version
                 current = get_current_version()
                 latest = get_latest_version()
                 if latest and _parse_version(latest) > _parse_version(current):
                     def notify():
                         if messagebox.askyesno(
-                            "Atualização disponível",
-                            f"Nova versão disponível: {latest}\n\nPretende abrir a página de download?",
+                            translate("Atualização disponível", self.language),
+                            f"{translate('Nova versão disponível:', self.language)} {latest}\n\n{translate('Pretende abrir a página de download?', self.language)}",
                             parent=self
                         ):
                             import webbrowser
@@ -3667,9 +4135,9 @@ class App(Tk):
                     parent=self,
                 )
             else:
-                messagebox.showerror("Erro", "Nao foi possivel criar o perfil.", parent=self)
+                messagebox.showerror(translate("Erro", self.language), translate("Nao foi possivel criar o perfil.", self.language), parent=self)
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao criar perfil:\n{e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}:\n{e}", parent=self)
 
     def _delete_profile(self):
         """Apaga o perfil de fornedor atualmente selecionado."""
@@ -3679,14 +4147,14 @@ class App(Tk):
         try:
             if delete_profile(name):
                 self._refresh_profile_combo()
-                messagebox.showinfo("Fornedor apagado", f"Perfil '{name}' foi removido.", parent=self)
+                messagebox.showinfo(translate("Fornedor apagado", self.language), f"{translate('Perfil foi removido.', self.language)}: '{name}'", parent=self)
             else:
                 messagebox.showwarning(
                     "Nao foi possivel apagar",
                     "Nao e possivel apagar o unico perfil existente.", parent=self,
                 )
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao apagar perfil:\n{e}", parent=self)
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}:\n{e}", parent=self)
 
     def _open_field_mapping(self):
         """Botão 'Mapear Campos...': abre o diálogo de mapeamento de campos."""
@@ -3769,14 +4237,14 @@ class App(Tk):
                 err_msg = str(exc)
                 def on_err1():
                     self._set_drop_text(err_msg, ERROR_BG, ERROR_FG, widget=self._status_widget)
-                    messagebox.showerror("Erro", err_msg, parent=self)
+                    messagebox.showerror(translate("Erro", self.language), err_msg, parent=self)
                     self.convert_btn.config(state="normal")
                 self.after(0, on_err1)
             except Exception as exc:
                 err_msg = f"Erro inesperado: {exc}"
                 def on_err2():
                     self._set_drop_text(err_msg, ERROR_BG, ERROR_FG, widget=self._status_widget)
-                    messagebox.showerror("Erro", err_msg, parent=self)
+                    messagebox.showerror(translate("Erro", self.language), err_msg, parent=self)
                     self.convert_btn.config(state="normal")
                 self.after(0, on_err2)
 
