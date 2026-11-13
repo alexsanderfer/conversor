@@ -2009,13 +2009,14 @@ class App(Tk):
         ).pack(side="left")
         self._massive_source_listbox = tk.Listbox(
             source_row, height=10, relief="sunken", bg=GRAY_100,
-            font=("Consolas", 8), selectmode="extended", exportselection=False,
+            font=("Consolas", 8), selectmode="multiple", exportselection=False,
         )
         source_scroll = ttk.Scrollbar(source_row, orient="vertical", command=self._massive_source_listbox.yview)
         self._massive_source_listbox.configure(yscrollcommand=source_scroll.set)
         self._massive_source_listbox.pack(side="left", fill="both", expand=True)
         source_scroll.pack(side="right", fill="y")
         self._massive_source_listbox.bind("<<ListboxSelect>>", lambda _e: self._on_massive_source_listbox_selected())
+        self._massive_source_listbox.bind("<Double-Button-1>", lambda _e: self._open_massive_origem_selector_dialog())
         self._massive_rule_ids = {}
         self._massive_rule_list_indices = []
         self._massive_selected_rule_id = None
@@ -2355,21 +2356,25 @@ class App(Tk):
     def _on_massive_source_listbox_selected(self):
         """Sincroniza a seleção do listbox com o estado do diálogo modal."""
         if hasattr(self, "_massive_source_listbox") and hasattr(self, "_massive_source_list_values"):
-            self._massive_selected_source_indices = set(self._massive_source_listbox.curselection())
+            # Usar curselection() para obter os índices selecionados (retorna uma tupla)
+            selected_indices = self._massive_source_listbox.curselection()
+            if selected_indices:
+                self._massive_selected_source_indices = set(selected_indices)
         self._update_selected_source_count()
+
+    def _sync_source_listbox_selection(self):
+        """Sincroniza a seleção do listbox principal com o estado global."""
+        if hasattr(self, "_massive_source_listbox") and hasattr(self, "_massive_source_list_values"):
+            selected_indices = getattr(self, "_massive_selected_source_indices", set())
+            self._massive_source_listbox.selection_clear(0, tk.END)
+            for index in selected_indices:
+                if index < self._massive_source_listbox.size():
+                    self._massive_source_listbox.selection_set(index)
 
     def _update_selected_source_count(self):
         sources = self._get_selected_sources_from_indices()
         n = len(sources)
         self._massive_selected_origem_count_var.set(f"({n} selecionada(s))" if n > 0 else "")
-        # Reflete a seleção do dialog no listbox visível
-        if hasattr(self, "_massive_source_listbox") and hasattr(self, "_massive_source_list_values"):
-            source_values = self._massive_source_list_values
-            selected_names = {str(v).strip().casefold() for v in sources}
-            self._massive_source_listbox.selection_clear(0, tk.END)
-            for index, value in enumerate(source_values):
-                if str(value).strip().casefold() in selected_names:
-                    self._massive_source_listbox.selection_set(index)
         self._update_massive_preview()
 
     def _open_massive_origem_selector_dialog(self):
@@ -2441,7 +2446,9 @@ class App(Tk):
                 selected_state[index] = True
             else:
                 selected_state.pop(index, None)
+            # Atualiza o estado global
             self._massive_selected_source_indices = set(selected_state.keys())
+            # Atualiza o listbox principal para refletir a seleção
             self._update_selected_source_count()
 
         search_var.trace_add("write", lambda *args: refresh_list())
@@ -2451,8 +2458,12 @@ class App(Tk):
         btn_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=10)
 
         def _guardar_selecao():
+            # Atualiza o estado global com as seleções do dialog
             self._massive_selected_source_indices = set(selected_state.keys())
+            # Atualiza o listbox principal para refletir a seleção
             self._update_selected_source_count()
+            # Atualiza a visualização do listbox principal
+            self._sync_source_listbox_selection()
             dialog.destroy()
 
         ttk.Button(
