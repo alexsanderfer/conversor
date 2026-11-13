@@ -1050,15 +1050,10 @@ class App(Tk):
             self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
             self.bg_label.lower()
 
-        # container superior com logo, botão de compra e botão de atualização
+        # container superior com botão de compra e botão de atualização
         top_container = tk.Frame(self, bg=BG_WINDOW)
         top_container.pack(fill="x", pady=0)
         top_container.lift()  # garantir que fique acima do fundo
-
-        # logo (graceful: se o asset faltar, o label nao aparece)
-        self._logo_label = self._load_logo()
-        if self._logo_label:
-            self._logo_label.pack(in_=top_container, anchor="w", pady=2)
 
         # indicador do fornecedor ativo
         self._active_fornecedor_var = tk.StringVar(value=get_active_profile())
@@ -1872,12 +1867,12 @@ class App(Tk):
         # Coluna 2: Categorias e Subcategorias
         col2_frame = ttk.Frame(lists_container)
         col2_frame.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
-        self._cat_subcat_title_var = tk.StringVar(value="CATEGORIAS E SUBCATEGORIAS (0)")
+        self._cat_subcat_title_var = tk.StringVar(value="CATEGORIAS ÚNICAS COM SUBCATEGORIAS (0)")
         ttk.Label(col2_frame, textvariable=self._cat_subcat_title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
 
         c2_box = ttk.Frame(col2_frame)
         c2_box.pack(fill="both", expand=True)
-        self._cat_subcat_text = tk.Text(c2_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        self._cat_subcat_text = tk.Text(c2_box, height=12, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
         c2_scroll = ttk.Scrollbar(c2_box, orient="vertical", command=self._cat_subcat_text.yview)
         self._cat_subcat_text.configure(yscrollcommand=c2_scroll.set)
         self._cat_subcat_text.pack(side="left", fill="both", expand=True)
@@ -2313,8 +2308,9 @@ class App(Tk):
         subcat_all = getattr(self, "_subcat_categories", [])
         unique = [item for item in unique_all if not query or query in item.lower()]
         subcats = [item for item in subcat_all if not query or query in item.lower()]
+        subcats = [item for item in subcats if ">" in item]
         self._massive_unique_title_var.set(f"CATEGORIAS ÚNICAS ({len(unique)})")
-        self._massive_subcat_title_var.set(f"CATEGORIAS E SUBCATEGORIAS ({len(subcats)})")
+        self._massive_subcat_title_var.set(f"CATEGORIAS ÚNICAS COM SUBCATEGORIAS ({len(subcats)})")
         for widget, values, empty in (
             (self._massive_unique_text, unique, "(nenhuma categoria)"),
             (self._massive_subcat_text, subcats, "(nenhuma categoria)"),
@@ -2536,7 +2532,6 @@ class App(Tk):
 
                         if familia:
                             unique_cats_set.add(familia)
-                            subcat_cats_set.add(familia)
                         if sub_familia and familia:
                             subcat_cats_set.add(f"{familia} > {sub_familia}")
                         if sub_sub_familia and familia and sub_familia:
@@ -2588,11 +2583,13 @@ class App(Tk):
 
             filtered_unique = [c for c in unique_all if not q or q in c.lower()]
             filtered_subcat = [c for c in subcat_all if not q or q in c.lower()]
+            # Filtrar: manter apenas subcateogrias (que contêm '>')
+            filtered_subcat = [c for c in filtered_subcat if ">" in c]
 
             if hasattr(self, '_cat_unique_title_var'):
                 self._cat_unique_title_var.set(f"CATEGORIAS ÚNICAS ({len(filtered_unique)} de {len(unique_all)})" if q else f"CATEGORIAS ÚNICAS ({len(unique_all)})")
             if hasattr(self, '_cat_subcat_title_var'):
-                self._cat_subcat_title_var.set(f"CATEGORIAS E SUBCATEGORIAS ({len(filtered_subcat)} de {len(subcat_all)})" if q else f"CATEGORIAS E SUBCATEGORIAS ({len(subcat_all)})")
+                self._cat_subcat_title_var.set(f"CATEGORIAS ÚNICAS COM SUBCATEGORIAS ({len(filtered_subcat)} de {len(subcat_all)})" if q else f"CATEGORIAS ÚNICAS COM SUBCATEGORIAS ({len(subcat_all)})")
 
             if hasattr(self, '_cat_unique_text'):
                 self._cat_unique_text.config(state="normal")
@@ -2618,11 +2615,13 @@ class App(Tk):
 
             filtered_unique = [c for c in unique_all if not q or q in c.lower()]
             filtered_subcat = [c for c in subcat_all if not q or q in c.lower()]
+            # Filtrar: manter apenas subcateogrias (que contêm '>')
+            filtered_subcat = [c for c in filtered_subcat if ">" in c]
 
             if hasattr(self, '_hb_unique_title_var'):
                 self._hb_unique_title_var.set(f"CATEGORIAS ÚNICAS ({len(filtered_unique)} de {len(unique_all)})" if q else f"CATEGORIAS ÚNICAS ({len(unique_all)})")
             if hasattr(self, '_hb_subcat_title_var'):
-                self._hb_subcat_title_var.set(f"CATEGORIAS E SUBCATEGORIAS ({len(filtered_subcat)} de {len(subcat_all)})" if q else f"CATEGORIAS E SUBCATEGORIAS ({len(subcat_all)})")
+                self._hb_subcat_title_var.set(f"CATEGORIAS ÚNICAS COM SUBCATEGORIAS ({len(filtered_subcat)} de {len(subcat_all)})" if q else f"CATEGORIAS ÚNICAS COM SUBCATEGORIAS ({len(subcat_all)})")
 
             if hasattr(self, '_hb_unique_text'):
                 self._hb_unique_text.config(state="normal")
@@ -2987,7 +2986,7 @@ class App(Tk):
 
         hb_c1_box = ttk.Frame(hb_col1_frame)
         hb_c1_box.pack(fill="both", expand=True)
-        self._hb_unique_text = tk.Text(hb_c1_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        self._hb_unique_text = tk.Text(hb_c1_box, height=12, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
         hb_c1_scroll = ttk.Scrollbar(hb_c1_box, orient="vertical", command=self._hb_unique_text.yview)
         self._hb_unique_text.configure(yscrollcommand=hb_c1_scroll.set)
         self._hb_unique_text.pack(side="left", fill="both", expand=True)
@@ -3002,7 +3001,7 @@ class App(Tk):
 
         hb_c2_box = ttk.Frame(hb_col2_frame)
         hb_c2_box.pack(fill="both", expand=True)
-        self._hb_subcat_text = tk.Text(hb_c2_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        self._hb_subcat_text = tk.Text(hb_c2_box, height=12, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
         hb_c2_scroll = ttk.Scrollbar(hb_c2_box, orient="vertical", command=self._hb_subcat_text.yview)
         self._hb_subcat_text.configure(yscrollcommand=hb_c2_scroll.set)
         self._hb_subcat_text.pack(side="left", fill="both", expand=True)
@@ -3549,7 +3548,7 @@ class App(Tk):
 
         hb_c1_box = ttk.Frame(hb_col1_frame)
         hb_c1_box.pack(fill="both", expand=True)
-        self._hb_unique_text = tk.Text(hb_c1_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        self._hb_unique_text = tk.Text(hb_c1_box, height=12, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
         hb_c1_scroll = ttk.Scrollbar(hb_c1_box, orient="vertical", command=self._hb_unique_text.yview)
         self._hb_unique_text.configure(yscrollcommand=hb_c1_scroll.set)
         self._hb_unique_text.pack(side="left", fill="both", expand=True)
@@ -3564,7 +3563,7 @@ class App(Tk):
 
         hb_c2_box = ttk.Frame(hb_col2_frame)
         hb_c2_box.pack(fill="both", expand=True)
-        self._hb_subcat_text = tk.Text(hb_c2_box, height=5, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
+        self._hb_subcat_text = tk.Text(hb_c2_box, height=12, relief="sunken", bg=GRAY_100, font=("Consolas", 8), wrap="none")
         hb_c2_scroll = ttk.Scrollbar(hb_c2_box, orient="vertical", command=self._hb_subcat_text.yview)
         self._hb_subcat_text.configure(yscrollcommand=hb_c2_scroll.set)
         self._hb_subcat_text.pack(side="left", fill="both", expand=True)
