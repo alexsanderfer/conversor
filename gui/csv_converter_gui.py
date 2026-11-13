@@ -1906,6 +1906,7 @@ class App(Tk):
             text=translate("Agrupe uma categoria do fornecedor e todas as suas subcategorias numa Categoria Pai. As regras aplicam-se automaticamente na conversão e na atualização da loja.", self.language),
             font=("Segoe UI", 9), foreground=GRAY_600, wraplength=430, justify="left",
         ).pack(anchor="w", pady=(0, 6))
+        # Lista dinâmica de categorias pai (com campo único de entrada e botão Adicionar)
         self._massive_parent_listbox = self._build_dynamic_list(
             parent=left,
             label=translate("Categorias Pai", self.language),
@@ -1944,6 +1945,7 @@ class App(Tk):
             add_command=self._add_massive_rule_from_dynamic,
             remove_command=self._remove_massive_rule_from_dynamic,
         )
+        self._massive_rules_dyn_list._listbox.config(height=10)
 
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
         ttk.Label(
@@ -2006,7 +2008,7 @@ class App(Tk):
             foreground=GRAY_600,
         ).pack(side="left")
         self._massive_source_listbox = tk.Listbox(
-            source_row, height=5, relief="sunken", bg=GRAY_100,
+            source_row, height=10, relief="sunken", bg=GRAY_100,
             font=("Consolas", 8), selectmode="extended", exportselection=False,
         )
         source_scroll = ttk.Scrollbar(source_row, orient="vertical", command=self._massive_source_listbox.yview)
@@ -2025,7 +2027,7 @@ class App(Tk):
         rules_frame = ttk.Frame(frm)
         rules_frame.pack(fill="x", expand=False)
         self._massive_rules_listbox = tk.Listbox(
-            rules_frame, height=5, relief="sunken", bg=GRAY_100,
+            rules_frame, height=12, relief="sunken", bg=GRAY_100,
             font=("Consolas", 8), selectmode="single"
         )
         rules_scroll = ttk.Scrollbar(rules_frame, orient="vertical", command=self._massive_rules_listbox.yview)
@@ -2053,7 +2055,7 @@ class App(Tk):
         lists.columnconfigure(1, weight=1)
         lists.rowconfigure(0, weight=1)
         self._massive_unique_title_var = tk.StringVar(value="CATEGORIAS ÚNICAS (0)")
-        self._massive_subcat_title_var = tk.StringVar(value="CATEGORIAS E SUBCATEGORIAS (0)")
+        self._massive_subcat_title_var = tk.StringVar(value="CATEGORIAS ÚNICAS COM SUBCATEGORIAS (0)")
         self._massive_unique_text = self._create_category_text_panel(
             lists, self._massive_unique_title_var, 0
         )
