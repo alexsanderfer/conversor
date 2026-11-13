@@ -1892,6 +1892,7 @@ class App(Tk):
         frm = ttk.Frame(self.tab_caturas_massivas, padding=6)
         frm.pack(fill="both", expand=True)
 
+        # Top section with batch input
         top = ttk.Frame(frm)
         top.pack(fill="both", expand=False)
         top.columnconfigure(0, weight=1)
@@ -1947,83 +1948,83 @@ class App(Tk):
         )
         self._massive_rules_dyn_list._listbox.config(height=10)
 
-        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
+        # Batch input section
+        batch_frame = ttk.Frame(frm)
+        batch_frame.pack(fill="x", pady=(10, 10))
+
         ttk.Label(
-            frm,
-            text=translate("Escolha uma categoria principal da origem. Todas as respetivas subcategorias serão incluídas automaticamente.", self.language),
-            font=("Segoe UI", 8),
-            foreground=GRAY_600,
+            batch_frame,
+            text=translate("Adicionar Lista de Categorias Únicas", self.language),
+            font=("Segoe UI", 11, "bold")
         ).pack(anchor="w", pady=(0, 4))
 
-        rule_row = ttk.Frame(frm)
-        rule_row.pack(fill="x", pady=2)
-        ttk.Label(rule_row, text=translate("Nome da regra:", self.language)).pack(side="left", padx=(0, 4))
-        self._massive_description_var = tk.StringVar()
-        self._massive_description_combo = ttk.Combobox(
-            rule_row, textvariable=self._massive_description_var, state="normal", width=48
-        )
-        self._massive_description_combo.pack(side="left", fill="x", expand=True, padx=(0, 6))
-        self._massive_description_combo.bind("<<ComboboxSelected>>", self._on_massive_description_selected)
-        ttk.Label(rule_row, text=translate("Categoria pai:", self.language)).pack(side="left", padx=(0, 4))
-        self._massive_parent_var = tk.StringVar()
-        self._massive_parent_combo = ttk.Combobox(
-            rule_row, textvariable=self._massive_parent_var, state="readonly", width=28
-        )
-        self._massive_parent_combo.pack(side="left", fill="x", expand=True, padx=(0, 6))
-        ttk.Button(rule_row, text=translate("Adicionar Regra", self.language), command=self._add_massive_rule, width=15).pack(side="left", padx=(0, 4))
-        ttk.Button(rule_row, text=translate("Remover Regra", self.language), command=self._remove_massive_rule, width=15).pack(side="left")
-
-        # Instrução guiada para o usuário (ex: "Selecione categorias de origem e depois a Categoria Pai")
-        self._massive_instruction_var = tk.StringVar(
-            value=translate("Escolha uma regra na lista para editar, ou crie uma nova.", self.language)
-        )
-        self._massive_instruction_lbl = ttk.Label(
-            frm,
-            textvariable=self._massive_instruction_var,
-            font=("Segoe UI", 8),
+        ttk.Label(
+            batch_frame,
+            text=translate(
+                "1. Na IA ou no ChatGPT cole a lista de categorias únicas e identifique as que deseja agrupar em cada categoria pai.\n"
+                "2. Insira as listas obtidas na vertical ou separadas por vírgulas, escreva a categoria pai e clique ADICIONAR LISTA.",
+                self.language
+            ),
+            font=("Segoe UI", 9),
             foreground=GRAY_600,
             justify="left",
-        )
-        self._massive_instruction_lbl.pack(anchor="w", pady=(2, 2))
+            wraplength=800
+        ).pack(anchor="w", pady=(0, 8))
 
-        source_row = ttk.Frame(frm)
-        source_row.pack(fill="x", pady=(4, 2))
-        ttk.Label(source_row, text=translate("Categorias de origem (use a janela 'Selecionar' para marcar):", self.language)).pack(anchor="w")
-        sel_origem_frame = ttk.Frame(source_row)
-        sel_origem_frame.pack(fill="x", pady=(2, 0))
+        # Input for the list of categories
+        input_row = ttk.Frame(batch_frame)
+        input_row.pack(fill="x", pady=(4, 4))
+
+        ttk.Label(input_row, text=translate("LISTA:", self.language)).pack(side="left", padx=(0, 4))
+        self._massive_input_text = tk.Text(
+            input_row, height=4, width=60, wrap="word", font=("Consolas", 9)
+        )
+        self._massive_input_text.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        # Input for parent category
+        parent_row = ttk.Frame(batch_frame)
+        parent_row.pack(fill="x", pady=(4, 4))
+
+        ttk.Label(parent_row, text=translate("Categoria Pai:", self.language)).pack(side="left", padx=(0, 4))
+        self._massive_parent_entry = ttk.Entry(parent_row, width=40, font=("Segoe UI", 9))
+        self._massive_parent_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        # Add list button
         ttk.Button(
-            sel_origem_frame,
-            text=translate("Selecionar Categorias de Origem…", self.language),
-            command=self._open_massive_origem_selector_dialog,
-            width=30,
-        ).pack(side="left", padx=(0, 6))
-        self._massive_selected_origem_count_var = tk.StringVar(value="")
-        self._massive_selected_source_indices = set()
-        self._massive_origem_search_var = tk.StringVar()
+            parent_row,
+            text=translate("ADICIONAR LISTA", self.language),
+            command=self._add_massive_list_rules,
+            width=15
+        ).pack(side="left")
+
+        # Result preview
+        ttk.Label(
+            batch_frame,
+            text=translate("Ficheiro Convertido", self.language),
+            font=("Segoe UI", 10, "bold")
+        ).pack(anchor="w", pady=(8, 4))
 
         ttk.Label(
-            sel_origem_frame,
-            textvariable=self._massive_selected_origem_count_var,
-            font=("Segoe UI", 8),
+            batch_frame,
+            text=translate(
+                "Por cada lista adicionada vai construindo o seu ficheiro csv, finalmente pode fazer o download no separador NOVO FICHEIRO ou em ATUALIZAR LOJA.",
+                self.language
+            ),
+            font=("Segoe UI", 9),
             foreground=GRAY_600,
-        ).pack(side="left")
-        self._massive_source_listbox = tk.Listbox(
-            source_row, height=10, relief="sunken", bg=GRAY_100,
-            font=("Consolas", 8), selectmode="multiple", exportselection=False,
-        )
-        source_scroll = ttk.Scrollbar(source_row, orient="vertical", command=self._massive_source_listbox.yview)
-        self._massive_source_listbox.configure(yscrollcommand=source_scroll.set)
-        self._massive_source_listbox.pack(side="left", fill="both", expand=True)
-        source_scroll.pack(side="right", fill="y")
-        self._massive_source_listbox.bind("<<ListboxSelect>>", lambda _e: self._on_massive_source_listbox_selected())
-        self._massive_source_listbox.bind("<Double-Button-1>", lambda _e: self._open_massive_origem_selector_dialog())
-        self._massive_rule_ids = {}
-        self._massive_rule_list_indices = []
-        self._massive_selected_rule_id = None
-        self._refresh_massive_description_combo()
-        self._refresh_massive_parent_combo()
-        self._refresh_massive_source_list()
+            justify="left",
+            wraplength=800
+        ).pack(anchor="w", pady=(0, 4))
 
+        # Result preview text area
+        self._massive_result_preview = tk.Text(
+            batch_frame, height=8, width=80, wrap="word", font=("Consolas", 9),
+            state="disabled", bg=GRAY_100
+        )
+        self._massive_result_preview.pack(fill="x", pady=(4, 0))
+
+        # Keep existing rules list
+        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
         ttk.Label(frm, text=translate("Regras configuradas (as mais recentes têm prioridade):", self.language), font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(6, 2))
         rules_frame = ttk.Frame(frm)
         rules_frame.pack(fill="x", expand=False)
@@ -2038,38 +2039,100 @@ class App(Tk):
         self._refresh_massive_rules_list()
         self._massive_rules_listbox.bind("<<ListboxSelect>>", self._on_massive_rule_list_selected)
 
-        # Preview dinâmico do resultado da regra
-        self._massive_preview_var = tk.StringVar(value="")
-        self._massive_preview_lbl = ttk.Label(
-            frm,
-            textvariable=self._massive_preview_var,
-            font=("Segoe UI", 8, "italic"),
-            foreground="#0055AA",
-            justify="left",
-        )
-        self._massive_preview_lbl.pack(anchor="w", pady=(4, 2))
+        self._massive_rule_ids = {}
+        self._massive_rule_list_indices = []
+        self._massive_selected_rule_id = None
+        self._refresh_massive_description_combo()
+        self._refresh_massive_parent_combo()
+        self._refresh_massive_source_list()
 
-        ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
-        lists = ttk.Frame(frm)
-        lists.pack(fill="both", expand=True)
-        lists.columnconfigure(0, weight=1)
-        lists.columnconfigure(1, weight=1)
-        lists.rowconfigure(0, weight=1)
-        self._massive_unique_title_var = tk.StringVar(value="CATEGORIAS ÚNICAS (0)")
-        self._massive_subcat_title_var = tk.StringVar(value="CATEGORIAS ÚNICAS COM SUBCATEGORIAS (0)")
-        self._massive_unique_text = self._create_category_text_panel(
-            lists, self._massive_unique_title_var, 0
+        # Initialize variables for backward compatibility
+        self._massive_selected_origem_count_var = tk.StringVar(value="")
+        self._massive_selected_source_indices = set()
+        self._massive_origem_search_var = tk.StringVar()
+        self._massive_source_listbox = None
+        self._massive_source_list_values = []
+
+
+    def _add_massive_list_rules(self):
+        """Processa a lista de categorias coladas e cria regras em lote."""
+        # Obter o texto da lista
+        list_text = self._massive_input_text.get("1.0", tk.END).strip()
+        parent_category = self._massive_parent_entry.get().strip()
+
+        if not list_text:
+            messagebox.showwarning(
+                translate("Atenção", self.language),
+                translate("Insira a lista de categorias.", self.language),
+                parent=self
+            )
+            return
+
+        if not parent_category:
+            messagebox.showwarning(
+                translate("Atenção", self.language),
+                translate("Insira a categoria pai.", self.language),
+                parent=self
+            )
+            return
+
+        # Parsear a lista (separada por vírgula, ponto e vírgula ou nova linha)
+        import re
+        categories = re.split(r'[,\n;]', list_text)
+        categories = [cat.strip() for cat in categories if cat.strip()]
+
+        if not categories:
+            messagebox.showwarning(
+                translate("Atenção", self.language),
+                translate("Nenhuma categoria válida encontrada na lista.", self.language),
+                parent=self
+            )
+            return
+
+        # Criar uma regra para cada categoria
+        formulas = []
+        for category in categories:
+            # Criar a regra
+            rule_description = f"{parent_category} - {category}"
+
+            # Chamar a função para adicionar a regra
+            if save_massive_category_rule(rule_description, [category], parent_category):
+                # Gerar a fórmula de visualização
+                formula = f"{parent_category}/{category}"
+                formulas.append(formula)
+
+        # Atualizar a visualização
+        self._update_result_preview(formulas)
+
+        # Atualizar a lista de regras
+        self._refresh_massive_rules_list()
+        self._refresh_massive_description_combo()
+
+        # Limpar os campos
+        self._massive_input_text.delete("1.0", tk.END)
+
+        # Mostrar mensagem de sucesso
+        messagebox.showinfo(
+            translate("Sucesso", self.language),
+            translate(f"Foram criadas {len(formulas)} regras para a categoria pai '{parent_category}'.", self.language),
+            parent=self
         )
-        self._massive_subcat_text = self._create_category_text_panel(
-            lists, self._massive_subcat_title_var, 1
-        )
-        search = ttk.Frame(frm)
-        search.pack(fill="x", pady=(6, 0))
-        ttk.Label(search, text="Pesquisar:").pack(side="left", padx=(0, 4))
-        self._massive_search_var = tk.StringVar()
-        self._massive_search_var.trace_add("write", lambda *_: self._filter_massive_categories())
-        ttk.Entry(search, textvariable=self._massive_search_var, width=28).pack(side="left", padx=(0, 8))
-        ttk.Button(search, text="Recarregar", command=self._reload_categories, width=14).pack(side="left")
+
+    def _update_result_preview(self, formulas):
+        """Atualiza a área de visualização com as fórmulas geradas."""
+        self._massive_result_preview.config(state="normal")
+        self._massive_result_preview.delete("1.0", tk.END)
+
+        if formulas:
+            # Adicionar a categoria pai sozinha
+            parent = formulas[0].split("/")[0]
+            self._massive_result_preview.insert(tk.END, f"{parent}\n")
+
+            # Adicionar as fórmulas
+            for formula in formulas:
+                self._massive_result_preview.insert(tk.END, f"{formula}\n")
+
+        self._massive_result_preview.config(state="disabled")
 
     def _create_category_text_panel(self, parent, title_var, column):
         panel = ttk.Frame(parent)
