@@ -2058,15 +2058,27 @@ class App(Tk):
 
         # Criar uma regra para cada categoria
         formulas = []
+        # Buscar todas as subcategorias existentes no CSV carregado
+        all_subcats = getattr(self, "_subcat_categories", [])
+
         for category in categories:
-            # Criar a regra
+            # Encontrar subcategorias que começam com a categoria dada
+            relevant_subcats = [sc for sc in all_subcats if sc.startswith(category)]
+
+            # As categorias de origem para a regra incluem a categoria principal e as suas subcategorias
+            sources = [category] + relevant_subcats
+
+            # Criar a regra com todas as origens
             rule_description = f"{parent_category} - {category}"
 
             # Chamar a função para adicionar a regra
-            if save_massive_category_rule(rule_description, [category], parent_category):
-                # Gerar a fórmula de visualização
-                formula = f"{parent_category}/{category}"
-                formulas.append(formula)
+            if save_massive_category_rule(rule_description, sources, parent_category):
+                # Gerar as fórmulas de visualização para a categoria pai e todas as subcategorias
+                formulas.append(f"{parent_category}/{category}")
+                for sc in relevant_subcats:
+                    # Formatar como Pai/Subcategoria
+                    formula = f"{parent_category}/{sc.replace(' > ', '/')}"
+                    formulas.append(formula)
 
         # Atualizar a visualização
         self._update_result_preview(formulas)
@@ -3892,6 +3904,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.4.3 (2026-11-14)
+        - CATEGORIAS M: ao adicionar uma categoria única na lista, a aplicação inclui automaticamente todas as subcategorias existentes no CSV carregado (ex.: "Ferramentas Elétricas" inclui "Ferramentas Elétricas > Acessórios > Brocas").
+        - CATEGORIAS M: a lista de regras configuradas mostra agora o caminho completo com subcategorias.
         v0.4.2 (2026-11-14)
         - Correção: categorias pai adicionadas na aba "Categorias I" aparecem agora automaticamente no dropdown "Categoria Pai" da aba "Categorias M".
         - Correção: adicionar categoria pai na aba "Categorias I" não falhava mais (sobreescrita de referência entre abas).
