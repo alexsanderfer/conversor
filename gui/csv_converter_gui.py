@@ -2897,6 +2897,8 @@ class App(Tk):
             pass
         self._refresh_cat_pai_combo()
         self._refresh_cat_fornecedor_combo()
+        # Atualizar o dropdown da aba CATEGORIAS M com as novas categorias pai
+        self._refresh_massive_parent_combo()
 
     def _refresh_cat_pai_combo(self):
         """Preenche o dropdown com as categorias pai já configuradas."""
@@ -3890,6 +3892,19 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.4.2 (2026-11-14)
+        - Correção: categorias pai adicionadas na aba "Categorias I" aparecem agora automaticamente no dropdown "Categoria Pai" da aba "Categorias M".
+        - Correção: adicionar categoria pai na aba "Categorias I" não falhava mais (sobreescrita de referência entre abas).
+        - CATEGORIAS M: removido o botão "Selecionar Categorias de Origem..." e a lista de origens antiga.
+        - CATEGORIAS M: campo "Categoria Pai" passou a ser um dropdown populado com as categorias criadas na aba "Categorias I".
+        - CATEGORIAS M: adicionados botões "Apagar Selecionados" e "Apagar Tudo" para gerir as regras massivas.
+        - Correção: a aplicação não carrega mais automaticamente o último ficheiro CSV ao iniciar.
+        - Novo: botão "Limpar" no separador "Novo Ficheiro" para remover o ficheiro CSV carregado e limpar o preview.
+        v0.4.1 (2026-11-13)
+        - CATEGORIAS M: substituída a seleção manual de categorias por agrupamento em lote via lista colada.
+        - CATEGORIAS M: entrada de lista de categorias únicas, categoria pai e botão "ADICIONAR LISTA".
+        - CATEGORIAS M: visualização das fórmulas geradas (ex.: Loja INFORMÁTICA/Portáteis).
+        - CATEGORIAS M: seleção múltipla com cliques simples nas listas de categorias.
         v0.4.0 (2026-11-12)
         - Versionamento semântico: funcionalidades novas elevam a versão de 0.3.x para 0.4.0.
         - Listas dinâmicas: Categorias Pai, Destaques, Marcas e regras de mapeamento passam a aceitar itens ilimitados com um único campo e botões Adicionar/Remover.
