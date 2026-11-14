@@ -1688,7 +1688,6 @@ class App(Tk):
         frame.pack(fill="both", expand=True)
 
         entry_var = tk.StringVar()
-        self._cat_new_listbox = frame
 
         entry_row = ttk.Frame(frame)
         entry_row.pack(fill="x", pady=(0, 4))
@@ -1892,63 +1891,9 @@ class App(Tk):
         frm = ttk.Frame(self.tab_caturas_massivas, padding=6)
         frm.pack(fill="both", expand=True)
 
-        # Top section with batch input
-        top = ttk.Frame(frm)
-        top.pack(fill="both", expand=False)
-        top.columnconfigure(0, weight=1)
-        top.columnconfigure(1, weight=1)
-
-        # Cada coluna mantém o seu cabeçalho e descrição, sem deslocar a outra coluna.
-        left = ttk.Frame(top, padding=(0, 0, 5, 0))
-        left.grid(row=0, column=0, sticky="nsew")
-        ttk.Label(left, text=translate("Mapeamento Massivo", self.language), font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 4))
-        ttk.Label(
-            left,
-            text=translate("Agrupe uma categoria do fornecedor e todas as suas subcategorias numa Categoria Pai. As regras aplicam-se automaticamente na conversão e na atualização da loja.", self.language),
-            font=("Segoe UI", 9), foreground=GRAY_600, wraplength=430, justify="left",
-        ).pack(anchor="w", pady=(0, 6))
-        # Lista dinâmica de categorias pai (com campo único de entrada e botão Adicionar)
-        self._massive_parent_listbox = self._build_dynamic_list(
-            parent=left,
-            label=translate("Categorias Pai", self.language),
-            values=get_category_settings().get("new_categories", []),
-            add_command=self._add_massive_parent_item,
-            remove_command=self._remove_massive_parent_item,
-        )
-        ttk.Button(
-            left,
-            text="Guardar categorias pai",
-            command=self._save_massive_parents,
-            width=26,
-        ).pack(anchor="w", pady=(5, 0))
-
-        right = ttk.Frame(top, padding=(5, 0, 0, 0))
-        right.grid(row=0, column=1, sticky="nsew")
-        ttk.Label(right, text=translate("Lista de Regras", self.language), font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 4))
-        ttk.Label(
-            right,
-            text=(
-                translate("Insira as regras para associar grupos de categorias e as subcategorias a uma categoria pai.", self.language) + "\n"
-                + translate("Ex: Todas as linhas das categorias de artigos para o lar e casa enviar para...", self.language)
-            ),
-            font=("Segoe UI", 8), foreground=GRAY_600, wraplength=430, justify="left",
-        ).pack(anchor="w", pady=(0, 6))
-        right_body = ttk.Frame(right, padding=6)
-        right_body.pack(fill="both", expand=True)
-        right = right_body
-
-        # Lista dinâmica de regras (campo único + Adicionar/Remover, sem limite)
-        self._massive_rules_dyn_list = self._build_dynamic_list(
-            parent=right,
-            label=translate("Regras", self.language),
-            values=[str(r.get("description", "")).strip() or str(r.get("category_group", "")).strip()
-                    for r in get_massive_category_rules()],
-            add_command=self._add_massive_rule_from_dynamic,
-            remove_command=self._remove_massive_rule_from_dynamic,
-        )
-        self._massive_rules_dyn_list._listbox.config(height=10)
-
-        # Batch input section
+        # -----------------------------------------------------------
+        # Secção de agrupamento em lote (nova funcionalidade)
+        # -----------------------------------------------------------
         batch_frame = ttk.Frame(frm)
         batch_frame.pack(fill="x", pady=(10, 10))
 
@@ -1962,7 +1907,7 @@ class App(Tk):
             batch_frame,
             text=translate(
                 "1. Na IA ou no ChatGPT cole a lista de categorias únicas e identifique as que deseja agrupar em cada categoria pai.\n"
-                "2. Insira as listas obtidas na vertical ou separadas por vírgulas, escreva a categoria pai e clique ADICIONAR LISTA.",
+                "2. Insira as listas obtidas na vertical ou separadas por vírgulas, selecione a categoria pai e clique ADICIONAR LISTA.",
                 self.language
             ),
             font=("Segoe UI", 9),
@@ -1981,13 +1926,14 @@ class App(Tk):
         )
         self._massive_input_text.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
-        # Input for parent category
+        # Dropdown Categoria Pai (populado com categorias da aba I)
         parent_row = ttk.Frame(batch_frame)
         parent_row.pack(fill="x", pady=(4, 4))
 
         ttk.Label(parent_row, text=translate("Categoria Pai:", self.language)).pack(side="left", padx=(0, 4))
-        self._massive_parent_entry = ttk.Entry(parent_row, width=40, font=("Segoe UI", 9))
-        self._massive_parent_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self._massive_parent_combo = ttk.Combobox(parent_row, width=45, font=("Segoe UI", 9), state="readonly")
+        self._massive_parent_combo.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self._refresh_massive_parent_combo()
 
         # Add list button
         ttk.Button(
@@ -1995,6 +1941,23 @@ class App(Tk):
             text=translate("ADICIONAR LISTA", self.language),
             command=self._add_massive_list_rules,
             width=15
+        ).pack(side="left")
+
+        # Apagar selecionados e Apagar tudo
+        btn_rem_row = ttk.Frame(batch_frame)
+        btn_rem_row.pack(fill="x", pady=(4, 4))
+
+        ttk.Button(
+            btn_rem_row,
+            text=translate("Apagar Selecionados", self.language),
+            command=self._remove_massive_selected,
+            width=18
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            btn_rem_row,
+            text=translate("Apagar Tudo", self.language),
+            command=self._remove_massive_all,
+            width=18
         ).pack(side="left")
 
         # Result preview
@@ -2023,7 +1986,9 @@ class App(Tk):
         )
         self._massive_result_preview.pack(fill="x", pady=(4, 0))
 
-        # Keep existing rules list
+        # -----------------------------------------------------------
+        # Regras configuradas
+        # -----------------------------------------------------------
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(8, 6))
         ttk.Label(frm, text=translate("Regras configuradas (as mais recentes têm prioridade):", self.language), font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(6, 2))
         rules_frame = ttk.Frame(frm)
@@ -2044,7 +2009,6 @@ class App(Tk):
         self._massive_selected_rule_id = None
         self._refresh_massive_description_combo()
         self._refresh_massive_parent_combo()
-        self._refresh_massive_source_list()
 
         # Initialize variables for backward compatibility
         self._massive_selected_origem_count_var = tk.StringVar(value="")
@@ -2058,7 +2022,7 @@ class App(Tk):
         """Processa a lista de categorias coladas e cria regras em lote."""
         # Obter o texto da lista
         list_text = self._massive_input_text.get("1.0", tk.END).strip()
-        parent_category = self._massive_parent_entry.get().strip()
+        parent_category = self._massive_parent_combo.get().strip()
 
         if not list_text:
             messagebox.showwarning(
@@ -2134,6 +2098,51 @@ class App(Tk):
 
         self._massive_result_preview.config(state="disabled")
 
+    def _remove_massive_selected(self):
+        """Remove a regra selecionada na lista de regras massivas."""
+        selection = self._massive_rules_listbox.curselection()
+        if not selection:
+            messagebox.showwarning(
+                translate("Atenção", self.language),
+                translate("Selecione uma regra na lista para remover.", self.language),
+                parent=self,
+            )
+            return
+        rule_index = self._massive_rule_list_indices[selection[0]]
+        rules = get_massive_category_rules()
+        rule = rules[rule_index] if rule_index < len(rules) else None
+        if rule:
+            description = str(rule.get("description", "")).strip() or str(rule.get("category_group", "")).strip()
+            parent = str(rule.get("parent_category", "")).strip()
+            msg = f"Remover a regra:\n'{description} -> {parent}'?"
+            if messagebox.askyesno(translate("Remover Regra", self.language), msg, parent=self):
+                if remove_massive_category_rule(rule_index):
+                    self._refresh_massive_rules_list()
+                    self._refresh_massive_description_combo()
+
+    def _remove_massive_all(self):
+        """Remove todas as regras massivas configuradas."""
+        rules = get_massive_category_rules()
+        if not rules:
+            messagebox.showinfo(
+                translate("Informação", self.language),
+                translate("Não há regras massivas configuradas.", self.language),
+                parent=self,
+            )
+            return
+        if messagebox.askyesno(
+            translate("Apagar Tudo", self.language),
+            translate("Tem a certeza que deseja apagar TODAS as regras massivas?", self.language),
+            parent=self,
+        ):
+            for i in range(len(rules) - 1, -1, -1):
+                remove_massive_category_rule(i)
+            self._refresh_massive_rules_list()
+            self._refresh_massive_description_combo()
+            self._massive_result_preview.config(state="normal")
+            self._massive_result_preview.delete("1.0", tk.END)
+            self._massive_result_preview.config(state="disabled")
+
     def _create_category_text_panel(self, parent, title_var, column):
         panel = ttk.Frame(parent)
         panel.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else 4, 4 if column == 0 else 0))
@@ -2197,10 +2206,12 @@ class App(Tk):
         self._refresh_cat_pai_combo()
 
     def _refresh_massive_parent_combo(self):
+        settings = get_category_settings()
+        values = [value.strip() for value in settings.get("new_categories", []) if value.strip()]
         if hasattr(self, "_massive_parent_combo"):
-            settings = get_category_settings()
-            values = [value.strip() for value in settings.get("new_categories", []) if value.strip()]
             self._massive_parent_combo["values"] = values
+        if hasattr(self, "_massive_parent_var"):
+            self._massive_parent_var.set("")
 
     def _refresh_massive_description_combo(self):
         if not hasattr(self, "_massive_description_combo"):
