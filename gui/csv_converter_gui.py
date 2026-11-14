@@ -1135,14 +1135,14 @@ class App(Tk):
         self._build_footer()
         self._translate_static_widgets()
 
-        try:
-            last_file = get_last_input_file()
-            if last_file and os.path.isfile(last_file):
-                self.path_var.set(last_file)
-                self._update_drop_text(last_file)
-                self._extract_categories_from_file(last_file)
-        except Exception:
-            pass
+        # try:
+        #     last_file = get_last_input_file()
+        #     if last_file and os.path.isfile(last_file):
+        #         self.path_var.set(last_file)
+        #         self._update_drop_text(last_file)
+        #         self._extract_categories_from_file(last_file)
+        # except Exception:
+        #     pass
 
     # -- ícone da janela --------------------------------------------------
 
@@ -1281,6 +1281,9 @@ class App(Tk):
         frm_top.columnconfigure(1, weight=1)
         ttk.Button(frm_top, text="Escolher arquivo…", command=self._browse).grid(
             row=0, column=2, sticky="e"
+        )
+        ttk.Button(frm_top, text="Limpar", command=self._clear_input_file).grid(
+            row=0, column=3, sticky="e", padx=(8, 0)
         )
 
         # Spreadsheet Preview Container (Lado a Lado: Original vs Convertido)
@@ -4219,6 +4222,17 @@ class App(Tk):
             set_last_input_file(path)
             self._update_drop_text(path)
             self._extract_categories_from_file(path)
+
+    def _clear_input_file(self):
+        """Limpa o campo de seleção de ficheiro e reseta o preview."""
+        self.path_var.set("")
+        self.out_dir_var.set(str(Path.home() / "Downloads"))
+        self._update_drop_text("")
+        self._preview_orig_tree.delete(*self._preview_orig_tree.get_children())
+        self._preview_conv_tree.delete(*self._preview_conv_tree.get_children())
+        self._orig_preview_title_var.set("📄 CSV ORIGINAL (Nenhum ficheiro carregado)")
+        self._conv_preview_title_var.set("✨ PREVIEW CONVERTIDO (Nenhum ficheiro carregado)")
+        self.open_folder_btn.config(state="disabled")
 
     def _browse_export(self):
         path = filedialog.askopenfilename(
