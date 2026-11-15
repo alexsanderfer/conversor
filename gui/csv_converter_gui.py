@@ -2200,6 +2200,12 @@ class App(Tk):
             self._massive_result_preview.delete("1.0", tk.END)
             self._massive_result_preview.config(state="disabled")
 
+    def _load_massive_category_columns(self):
+        """Carrega as três colunas de categorias para o agrupamento em lote."""
+        self._load_unique_categories_list()
+        self._load_unique_with_subcats_list()
+        self._load_unique_with_subsubcats_list()
+
     def _load_unique_categories_list(self):
         """Carrega a lista de categorias únicas na coluna 1."""
         text = self._massive_col1_text
