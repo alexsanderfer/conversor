@@ -224,8 +224,8 @@
     <div class="card">
         <div class="actions" id="download-actions">
             <a class="btn" id="main-download-btn"
-               href="https://github.com/alexsanderfer/conversor/releases/latest/download/CsvFast-FileConverter-v0.3.80-x64.exe"
-               download>Descarregar para Windows (v0.3.80)</a>
+               href="https://github.com/alexsanderfer/conversor/releases/latest/download/CsvFast-FileConverter-v0.4.4-x64.exe"
+               download>Descarregar para Windows (v0.4.4)</a>
             <a class="btn"
                href="https://buy.stripe.com/test_your-checkout-link-here"
                target="_blank" rel="noopener"
@@ -249,16 +249,16 @@
             const baseTag = "https://github.com/alexsanderfer/conversor/releases/latest/download/";
 
             if (ua.includes("mac")) {
-                btn.href = baseTag + "CsvFast-FileConverter-v0.3.80-mac.zip";
-                btn.textContent = "Descarregar para macOS (v0.3.80)";
+                btn.href = baseTag + "CsvFast-FileConverter-v0.4.4-mac.zip";
+                btn.textContent = "Descarregar para macOS (v0.4.4)";
                 note.textContent = "Detetado macOS. Descarregue o arquivo .zip e descompacte a aplicação.";
             } else if (ua.includes("linux")) {
-                btn.href = baseTag + "CsvFast-FileConverter-v0.3.80-linux";
-                btn.textContent = "Descarregar para Linux (v0.3.80)";
+                btn.href = baseTag + "CsvFast-FileConverter-v0.4.4-linux";
+                btn.textContent = "Descarregar para Linux (v0.4.4)";
                 note.textContent = "Detetado Linux. Veja as instruções de execução abaixo.";
             } else {
-                btn.href = baseTag + "CsvFast-FileConverter-v0.3.80-x64.exe";
-                btn.textContent = "Descarregar para Windows (v0.3.80)";
+                btn.href = baseTag + "CsvFast-FileConverter-v0.4.4-x64.exe";
+                btn.textContent = "Descarregar para Windows (v0.4.4)";
                 note.textContent = "Detetado Windows. Descarregue, faça duplo clique e execute.";
             }
         });
@@ -280,10 +280,10 @@
                     <code>pip install -r requirements.txt</code>
                 </li>
                 <li>Dê permissão de execução ao binário descarregado:
-                    <code>chmod +x CsvFast-FileConverter-v0.3.80-linux</code>
+                    <code>chmod +x CsvFast-FileConverter-v0.4.4-linux</code>
                 </li>
                 <li>Execute o programa a partir do terminal ou gestor de ficheiros:
-                    <code>./CsvFast-FileConverter-v0.3.80-linux</code> ou <code>python3 main.py</code>
+                    <code>./CsvFast-FileConverter-v0.4.4-linux</code> ou <code>python3 main.py</code>
                 </li>
             </ol>
         </div>
@@ -330,6 +330,18 @@
     </div>
 
         <h2>Notas de Versão</h2>
+    <details class="accordion" open>
+        <summary>v0.4.4 (2026-11-15)</summary>
+        <div class="acc-body">
+            <ul>
+                <li><strong>CATEGORIAS M</strong> — interface reescrita para mapeamento hierárquico completo (Categoria Pai → Área de Atividade → Coluna).</li>
+                <li><strong>Três colunas de listas</strong>: Categorias Únicas | + Subcategorias | + Sub-subcategorias.</li>
+                <li><strong>Formato de saída Jumpseller</strong>: Nível1,Nível1/Nível2,Nível1/Nível2/Nível3,Nível1/Nível2/Nível3/Nível4.</li>
+                <li><strong>Dropdown de Categoria Pai</strong> populado automaticamente com as categorias da aba Categorias I.</li>
+            </ul>
+        </div>
+    </details>
+
     <details class="accordion" open>
         <summary>v0.3.80 (2026-11-11)</summary>
         <div class="acc-body">
