@@ -2053,6 +2053,9 @@ class App(Tk):
         self._massive_rule_ids = {}
         self._massive_rule_list_indices = []
         self._massive_selected_rule_id = None
+        self._massive_unique_categories = []
+        self._massive_unique_with_subcats = []
+        self._massive_unique_with_subsubcats = []
 
         # Popular dropdowns
         self._refresh_massive_cat_pai_combo()
