@@ -1936,6 +1936,7 @@ class App(Tk):
             ]
         )
         self._massive_coluna_combo.pack(side="left", padx=(0, 10))
+        self._massive_coluna_combo.bind("<<ComboboxSelected>>", self._on_massive_column_level_changed)
 
         btn_sel_row = ttk.Frame(frm)
         btn_sel_row.pack(fill="x", pady=(0, 10))
@@ -2056,6 +2057,7 @@ class App(Tk):
         self._massive_unique_categories = []
         self._massive_unique_with_subcats = []
         self._massive_unique_with_subsubcats = []
+        self._massive_column_level = tk.StringVar(value="unique")
 
         # Popular dropdowns
         self._refresh_massive_cat_pai_combo()
