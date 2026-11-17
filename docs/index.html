@@ -224,8 +224,8 @@
     <div class="card">
         <div class="actions" id="download-actions">
             <a class="btn" id="main-download-btn"
-               href="https://github.com/alexsanderfer/conversor/releases/latest/download/CsvFast-FileConverter-v0.4.4-x64.exe"
-               download>Descarregar para Windows (v0.4.4)</a>
+               href="https://shopsyncpt.vercel.app/api/download/windows"
+               download>Descarregar para Windows</a>
             <a class="btn"
                href="https://buy.stripe.com/test_your-checkout-link-here"
                target="_blank" rel="noopener"
@@ -237,7 +237,7 @@
         </p>
         <div style="margin-top: 16px; font-size: 0.9rem; border-top: 1px solid #cfe6d2; padding-top: 12px;">
             <strong>Outras plataformas:</strong>
-            <a href="https://github.com/alexsanderfer/conversor/releases/latest" target="_blank" rel="noopener">Ver releases para macOS e Linux</a>
+            <a href="https://shopsyncpt.vercel.app" target="_blank" rel="noopener">Ver releases para macOS e Linux</a>
         </div>
     </div>
 
@@ -246,21 +246,36 @@
             const ua = navigator.userAgent.toLowerCase();
             const btn = document.getElementById("main-download-btn");
             const note = document.getElementById("download-note");
-            const baseTag = "https://github.com/alexsanderfer/conversor/releases/latest/download/";
 
-            if (ua.includes("mac")) {
-                btn.href = baseTag + "CsvFast-FileConverter-v0.4.4-mac.zip";
-                btn.textContent = "Descarregar para macOS (v0.4.4)";
-                note.textContent = "Detetado macOS. Descarregue o arquivo .zip e descompacte a aplicação.";
-            } else if (ua.includes("linux")) {
-                btn.href = baseTag + "CsvFast-FileConverter-v0.4.4-linux";
-                btn.textContent = "Descarregar para Linux (v0.4.4)";
-                note.textContent = "Detetado Linux. Veja as instruções de execução abaixo.";
-            } else {
-                btn.href = baseTag + "CsvFast-FileConverter-v0.4.4-x64.exe";
-                btn.textContent = "Descarregar para Windows (v0.4.4)";
-                note.textContent = "Detetado Windows. Descarregue, faça duplo clique e execute.";
+            async function carregarVersao() {
+                try {
+                    const res = await fetch('https://shopsyncpt.vercel.app/api/version');
+                    const data = await res.json();
+
+                    const version = data.version;
+                    const os = ua.includes("mac") ? "mac" : ua.includes("linux") ? "linux" : "windows";
+                    const url = data[os] || data.windows;
+
+                    btn.href = url;
+                    btn.download = "";
+                    btn.textContent = `Descarregar para ${os.charAt(0).toUpperCase() + os.slice(1)} (${version})`;
+
+                    const msgOS = {
+                        "windows": "Detetado Windows. Descarregue, faça duplo clique e execute. Não precisa de instalar nada.",
+                        "mac": "Detetado macOS. Descarregue o arquivo .zip e descompacte a aplicação.",
+                        "linux": "Detetado Linux. Veja as instruções de execução abaixo."
+                    };
+                    note.textContent = msgOS[os] || msgOS.windows;
+
+                } catch (e) {
+                    console.error("Erro ao carregar versão:", e);
+                    btn.href = "https://shopsyncpt.vercel.app";
+                    btn.textContent = "Descarregar via SaaS";
+                    note.textContent = "Erro ao carregar última versão. Use o botão abaixo para aceder ao SaaS.";
+                }
             }
+
+            carregarVersao();
         });
     </script>
 
@@ -280,10 +295,10 @@
                     <code>pip install -r requirements.txt</code>
                 </li>
                 <li>Dê permissão de execução ao binário descarregado:
-                    <code>chmod +x CsvFast-FileConverter-v0.4.4-linux</code>
+                    <code>chmod +x CsvFast-FileConverter-*-linux</code>
                 </li>
                 <li>Execute o programa a partir do terminal ou gestor de ficheiros:
-                    <code>./CsvFast-FileConverter-v0.4.4-linux</code> ou <code>python3 main.py</code>
+                    <code>./CsvFast-FileConverter-*-linux</code> ou <code>python3 main.py</code>
                 </li>
             </ol>
         </div>
