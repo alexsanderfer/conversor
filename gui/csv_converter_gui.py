@@ -2227,6 +2227,16 @@ class App(Tk):
             self._massive_result_preview.delete("1.0", tk.END)
             self._massive_result_preview.config(state="disabled")
 
+    def _on_massive_column_level_changed(self, event=None):
+        """Atualiza o nível de coluna selecionado na aba CATEGORIAS M."""
+        coluna = self._massive_coluna_var.get().strip()
+        if "Sub-sub" in coluna:
+            self._massive_column_level.set("unique+subcats+subsubcats")
+        elif "Sub" in coluna:
+            self._massive_column_level.set("unique+subcats")
+        else:
+            self._massive_column_level.set("unique")
+
     def _load_massive_category_columns(self):
         """Carrega as três colunas de categorias para o agrupamento em lote."""
         self._load_unique_categories_list()
@@ -4109,6 +4119,8 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.4.7 (2026-11-17)
+        - Correção: método _on_massive_column_level_changed ausente causava erro ao abrir a aba CATEGORIAS M.
         v0.4.6 (2026-11-17)
         - Correção: substituir vírgulas por " e " nas categorias do fornecedor (ex: "consolas, brinquedos" → "consolas e brinquedos").
         - CATEGORIAS M: opção "Apenas converter produtos com categorias mapeadas" para filtrar o ficheiro de saída.
