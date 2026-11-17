@@ -289,6 +289,19 @@ def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> st
     sub_familia = get_mapped_value(row, "sub_familia", mapping)
     sub_sub_familia = get_mapped_value(row, "sub_sub_familia", mapping)
 
+    # Normalizar vírgulas para " e " nas categorias do fornecedor
+    # (ex: "consolas, brinquedos" → "consolas e brinquedos")
+    def _normalize_category_commas(text: str) -> str:
+        if not text:
+            return text
+        # Substituir vírgulas por " e " (com espaços)
+        import re
+        return re.sub(r'\s*,\s*', ' e ', text)
+
+    familia = _normalize_category_commas(familia)
+    sub_familia = _normalize_category_commas(sub_familia)
+    sub_sub_familia = _normalize_category_commas(sub_sub_familia)
+
     # Classificação automática se categoria estiver vazia
     if not familia:
         try:
@@ -536,7 +549,7 @@ def get_output_path(input_path: str, output_dir: str = None) -> str:
     return os.path.join(output_dir, output_name)
 
 
-def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bool = False):
+def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bool = False, filter_mapped_only: bool = False):
     """
     Converte um CSV para o formato Jumpseller.
 
@@ -544,9 +557,10 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
         input_path: Caminho do ficheiro de entrada
         output_dir: Pasta de destino (opcional)
         exclude_unavailable: Se True, ignora produtos com stock <= 0 / Status not-available
+        filter_mapped_only: Se True, ignora produtos cuja categoria não foi mapeada
 
     Returns:
-        (linhas_escritas, output_path, linhas_removidas_indisponiveis)
+        (linhas_escritas, output_path, linhas_removidas_indisponiveis, linhas_removidas_nao_mapeadas)
     """
     if not os.path.isfile(input_path):
         raise FileNotFoundError(f"Arquivo nao encontrado: '{input_path}'")
@@ -554,6 +568,7 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
     mapping = load_field_mapping()
     compiled_rules = get_compiled_keyword_rules()
     removed_unavailable = 0
+    removed_not_mapped = 0
     with open(input_path, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f, delimiter=";")
         rows = []
@@ -576,6 +591,14 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
                 if stock_num <= 0 or status == "not-available":
                     removed_unavailable += 1
                     continue
+            if filter_mapped_only:
+                categories = (converted.get("Categories") or "").strip()
+                # Verificar se a categoria contém alguma das categorias pai mapeadas
+                # (ex: "Loja INFORMÁTICA/Portáteis" contém "Loja INFORMÁTICA")
+                mapped_parents = {str(rule.get("parent_category", "")).strip() for rule in get_massive_category_rules()}
+                if not any(parent and parent in categories for parent in mapped_parents):
+                    removed_not_mapped += 1
+                    continue
             rows.append(converted)
     with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(
@@ -583,7 +606,7 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
         )
         writer.writeheader()
         writer.writerows(rows)
-    return len(rows), output_path, removed_unavailable
+    return len(rows), output_path, removed_unavailable, removed_not_mapped
 
 
 # ---------------------------------------------------------------------------
@@ -1951,14 +1974,13 @@ class App(Tk):
         ).pack(side="left")
 
         # Instrução
-        ttk.Label(
+        # Checkbox para filtrar apenas categorias mapeadas
+        self._filter_mapped_only_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
             frm,
-            text=translate(
-                "Para remover uma regra selecione a regra e clique em REMOVER.",
-                self.language
-            ),
-            font=("Segoe UI", 8), foreground=GRAY_600, justify="left",
-        ).pack(anchor="w", pady=(0, 6))
+            text=translate("Apenas converter produtos com categorias mapeadas", self.language),
+            variable=self._filter_mapped_only_var,
+        ).pack(anchor="w", pady=(5, 0))
 
         # -----------------------------------------------------------
         # Regras configuradas
@@ -4087,6 +4109,15 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.4.6 (2026-11-17)
+        - Correção: substituir vírgulas por " e " nas categorias do fornecedor (ex: "consolas, brinquedos" → "consolas e brinquedos").
+        - CATEGORIAS M: opção "Apenas converter produtos com categorias mapeadas" para filtrar o ficheiro de saída.
+        - Correção: filtro de categorias mapeadas verifica as categorias pai em vez de apenas a presença de "/".
+        v0.4.5 (2026-11-16)
+        - CATEGORIAS M: interface reescrita para mapeamento hierárquico completo (Categoria Pai → Área de Atividade → Coluna).
+        - Três colunas de listas: Categorias Únicas | + Subcategorias | + Sub-subcategorias.
+        - Formato de saída Jumpseller: Nível1,Nível1/Nível2,Nível1/Nível2/Nível3,Nível1/Nível2/Nível3/Nível4.
+        - Dropdown de Categoria Pai populado automaticamente com as categorias da aba Categorias I.
         v0.4.4 (2026-11-15)
         - CATEGORIAS M: interface reescrita para mapeamento hierárquico completo (Categoria Pai → Área de Atividade → Coluna).
         - Três colunas de listas: Categorias Únicas | + Subcategorias | + Sub-subcategorias.
@@ -4915,7 +4946,8 @@ class App(Tk):
                 start_time = time.time()
                 out_dir = self.out_dir_var.get()
                 exclude_unavailable = bool(getattr(self, "exclude_unavailable_var", None) and self.exclude_unavailable_var.get())
-                n, out, removed = process_csv(raw, out_dir, exclude_unavailable=exclude_unavailable)
+                filter_mapped_only = bool(getattr(self, "_filter_mapped_only_var", None) and self._filter_mapped_only_var.get())
+                n, out, removed, removed_not_mapped = process_csv(raw, out_dir, exclude_unavailable=exclude_unavailable, filter_mapped_only=filter_mapped_only)
                 elapsed = time.time() - start_time
                 if elapsed < 60:
                     time_str = f"{elapsed:.1f} segundos"
@@ -4926,6 +4958,8 @@ class App(Tk):
 
                 self.last_output = Path(out)
                 status_msg = f"Concluído: {n} linha(s) em {time_str} -> {self.last_output.name}"
+                if removed_not_mapped > 0:
+                    status_msg += f" (ignorado(s) não mapeado(s): {removed_not_mapped})"
                 if exclude_unavailable and removed:
                     status_msg += f" | Removidos indisponíveis: {removed}"
 
