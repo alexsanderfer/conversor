@@ -291,16 +291,20 @@ def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> st
 
     # Normalizar vírgulas e barras nas categorias do fornecedor
     # (ex: "consolas, brinquedos" → "consolas e brinquedos")
-    # (ex: "MICROFONES S/ FIOS" → "MICROFONES SE FIOS")
+    # (ex: "MICROFONES S/ FIOS" → "MICROFONES SEM FIOS"  [S/ = SEM])
+    # (ex: "RECETORES / TRANSMISSORES" → "RECETORES E TRANSMISSORES")
     def _normalize_category_text(text: str) -> str:
         if not text:
             return text
         import re
         # Substituir vírgulas por " e " (com espaços)
         text = re.sub(r'\s*,\s*', ' e ', text)
-        # Substituir barras por "E" para não criar níveis adicionais
-        # ex: "S/ FIOS" → "SE FIOS", "A / B" → "A E B"
-        text = text.replace('/', 'E')
+        # Substituir abreviatura "S/" por "SEM" (sem espaço extra após a vírgula)
+        text = re.sub(r'S/\s*', 'SEM ', text)
+        # Substituir barras restantes por " e " (com espaços)
+        text = re.sub(r'/\s*', ' e ', text)
+        # Colapsar espaços múltiplos em um único
+        text = re.sub(r'\s+', ' ', text).strip()
         return text
 
     familia = _normalize_category_text(familia)
@@ -4124,10 +4128,11 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
-        v0.4.8 (2026-11-18)
-        - Correção: substituir barras "/" por "E" nas categorias do fornecedor (ex: "MICROFONES S/ FIOS" → "MICROFONES SE FIOS").
+        v0.4.9 (2026-11-18)
+        - Correção: substituir abreviatura "S/" por "SEM" nas categorias (ex: "MICROFONES S/ FIOS" → "MICROFONES SEM FIOS").
+        - Correção: substituir barras "/" restantes por " e " nas categorias (ex: "RECETORES / TRANSMISSORES" → "RECETORES e TRANSMISSORES").
         - Correção: listar categorias, subcategorias e sub-subcategorias por ordem alfabética no ficheiro convertido.
-        v0.4.7 (2026-11-17)
+        v0.4.8 (2026-11-18)
         - Correção: método _on_massive_column_level_changed ausente causava erro ao abrir a aba CATEGORIAS M.
         v0.4.6 (2026-11-17)
         - Correção: substituir vírgulas por " e " nas categorias do fornecedor (ex: "consolas, brinquedos" → "consolas e brinquedos").
