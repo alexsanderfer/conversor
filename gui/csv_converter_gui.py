@@ -289,18 +289,23 @@ def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> st
     sub_familia = get_mapped_value(row, "sub_familia", mapping)
     sub_sub_familia = get_mapped_value(row, "sub_sub_familia", mapping)
 
-    # Normalizar vírgulas para " e " nas categorias do fornecedor
+    # Normalizar vírgulas e barras nas categorias do fornecedor
     # (ex: "consolas, brinquedos" → "consolas e brinquedos")
-    def _normalize_category_commas(text: str) -> str:
+    # (ex: "MICROFONES S/ FIOS" → "MICROFONES SE FIOS")
+    def _normalize_category_text(text: str) -> str:
         if not text:
             return text
-        # Substituir vírgulas por " e " (com espaços)
         import re
-        return re.sub(r'\s*,\s*', ' e ', text)
+        # Substituir vírgulas por " e " (com espaços)
+        text = re.sub(r'\s*,\s*', ' e ', text)
+        # Substituir barras por "E" para não criar níveis adicionais
+        # ex: "S/ FIOS" → "SE FIOS", "A / B" → "A E B"
+        text = text.replace('/', 'E')
+        return text
 
-    familia = _normalize_category_commas(familia)
-    sub_familia = _normalize_category_commas(sub_familia)
-    sub_sub_familia = _normalize_category_commas(sub_sub_familia)
+    familia = _normalize_category_text(familia)
+    sub_familia = _normalize_category_text(sub_familia)
+    sub_sub_familia = _normalize_category_text(sub_sub_familia)
 
     # Classificação automática se categoria estiver vazia
     if not familia:
@@ -340,7 +345,7 @@ def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> st
                     cat3 = '/'.join(parts[:4])
                 if cat3 not in result:
                     result.append(cat3)
-            return ",".join(result)
+            return ",".join(sorted(result))
     except Exception:
         pass
 
@@ -382,7 +387,7 @@ def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> st
                         prefixed = f"{parent_cat}/{cp}"
                         if prefixed not in result:
                             result.append(prefixed)
-                    return ",".join(result)
+                    return ",".join(sorted(result))
                 else:
                     return parent_cat
 
@@ -422,7 +427,7 @@ def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> st
                             upc = (up or "").strip()
                             if upc and upc not in result:
                                 result.append(upc)
-                    return ",".join(result)
+                    return ",".join(sorted(result))
                 # No matches: fall through to original categories
     except Exception:
         pass
@@ -476,13 +481,13 @@ def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> st
                     prefixed = f"{kw_parent}/{cp}"
                     if prefixed not in result:
                         result.append(prefixed)
-                return ",".join(result)
+                return ",".join(sorted(result))
             else:
                 return kw_parent
     except Exception:
         pass
 
-    return ",".join(categories)
+    return ",".join(sorted(categories))
 
 
 def convert_row(row: dict, mapping: dict = None, compiled_rules=None) -> dict:
@@ -4119,6 +4124,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.4.8 (2026-11-18)
+        - Correção: substituir barras "/" por "E" nas categorias do fornecedor (ex: "MICROFONES S/ FIOS" → "MICROFONES SE FIOS").
+        - Correção: listar categorias, subcategorias e sub-subcategorias por ordem alfabética no ficheiro convertido.
         v0.4.7 (2026-11-17)
         - Correção: método _on_massive_column_level_changed ausente causava erro ao abrir a aba CATEGORIAS M.
         v0.4.6 (2026-11-17)
