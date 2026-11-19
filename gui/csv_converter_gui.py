@@ -3066,7 +3066,7 @@ class App(Tk):
         ttk.Label(
             dialog,
             text=translate(
-                "Sugestões aproximadas — revise e retire o que não se aplicar.",
+                "Sugestões aproximadas — nada vem selecionado; selecione as categorias a aprovar.",
                 self.language,
             ),
             font=("Segoe UI", 9), foreground=GRAY_600, wraplength=480, justify="left",
@@ -3112,20 +3112,34 @@ class App(Tk):
             )
             for categoria in categorias:
                 listbox.insert(tk.END, categoria)
-            listbox.select_set(0, tk.END)
+            # Nada vem selecionado: a aprovação tem de ser explícita, uma vez
+            # que aprovar grava regras que reescrevem categorias no CSV final.
             listbox.pack(fill="x")
+            listbox.bind(
+                "<<ListboxSelect>>",
+                lambda _e: _atualizar_contagem(),
+            )
             areas[pai] = (listbox, categorias)
 
-        # Rodapé com a coluna usada como fonte das sugestões
+        # Contador de seleções, atualizado a cada mudança de seleção
+        contagem_var = tk.StringVar()
         ttk.Label(
             dialog,
-            text=f"{translate('Fonte: ', self.language)}{fonte_rotulo}",
-            font=("Segoe UI", 8), foreground=GRAY_600,
-        ).grid(row=3, column=0, sticky="w", padx=10, pady=(0, 4))
+            textvariable=contagem_var,
+            font=("Segoe UI", 9, "bold"), foreground=GRAY_800,
+        ).grid(row=3, column=0, sticky="e", padx=10, pady=(0, 4))
+
+        def _atualizar_contagem():
+            total = sum(len(lb.curselection()) for lb, _ in areas.values())
+            contagem_var.set(
+                f"{translate('Selecionadas:', self.language)} {total}"
+            )
+
+        _atualizar_contagem()
 
         # Barra de botões fixa na parte inferior (sempre visível)
         btn_frame = ttk.Frame(dialog)
-        btn_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 10))
+        btn_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 6))
 
         def _aprovar():
             aprovadas = {}
