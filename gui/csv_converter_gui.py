@@ -69,6 +69,7 @@ from core.field_mapping import (
     apply_massive_category_rules,
 )
 from core.category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
+from core.category_grouping import suggest_groupings
 from core.i18n import translate, TRANSLATABLE_STRINGS
 
 # Cache for category settings
@@ -2060,9 +2061,14 @@ class App(Tk):
         btn_sel_row.pack(fill="x", pady=(0, 10))
 
         ttk.Button(
+            btn_sel_row, text=translate("Analisar Sugestões", self.language),
+            command=self._open_grouping_suggestions_dialog, width=18
+        ).pack(side="left")
+
+        ttk.Button(
             btn_sel_row, text=translate("Adicionar Regra", self.language),
             command=self._add_massive_rule_from_ui, width=14
-        ).pack(side="left", padx=(0, 8))
+        ).pack(side="left", padx=(8, 8))
         ttk.Button(
             btn_sel_row, text=translate("Apagar Tudo", self.language),
             command=self._remove_massive_all, width=14
@@ -2917,6 +2923,186 @@ class App(Tk):
         ).pack(side="right")
 
         refresh_list()
+        dialog.wait_window()
+
+    def _open_grouping_suggestions_dialog(self):
+        """Abre um dialog modal com as sugestoes de agrupamento por area.
+
+        A selecao em cada listbox e a aprovacao: as categorias selecionadas
+        entram na regra do respetivo pai; as restantes ficam de fora.
+        """
+        if not hasattr(self, "language"):
+            return
+
+        unique_categories = list(getattr(self, "_unique_categories", []) or [])
+        if not unique_categories:
+            messagebox.showinfo(
+                translate("Informação", self.language),
+                translate("Carregue um ficheiro CSV primeiro para analisar sugestões.", self.language),
+                parent=self,
+            )
+            return
+
+        try:
+            sugestoes = suggest_groupings(unique_categories)
+        except Exception:
+            sugestoes = {}
+
+        if not sugestoes:
+            messagebox.showinfo(
+                translate("Informação", self.language),
+                translate(
+                    "Não foram encontradas sugestões para as categorias carregadas.",
+                    self.language,
+                ),
+                parent=self,
+            )
+            return
+
+        dialog = tk.Toplevel(self)
+        dialog.title(translate("Sugestões de Agrupamento", self.language))
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.geometry("520x560")
+        dialog.minsize(420, 400)
+
+        dialog.columnconfigure(0, weight=1)
+        dialog.rowconfigure(0, weight=0)  # aviso
+        dialog.rowconfigure(1, weight=1)  # área rolável expande
+        dialog.rowconfigure(2, weight=0)  # botões fixos
+
+        ttk.Label(
+            dialog,
+            text=translate(
+                "Sugestões aproximadas — revise e retire o que não se aplicar.",
+                self.language,
+            ),
+            font=("Segoe UI", 9), foreground=GRAY_600, wraplength=480, justify="left",
+        ).grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 4))
+
+        # Área rolável com uma secção por área sugerida
+        canvas_frame = ttk.Frame(dialog)
+        canvas_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 8))
+        canvas_frame.columnconfigure(0, weight=1)
+        canvas_frame.rowconfigure(0, weight=1)
+
+        canvas = tk.Canvas(canvas_frame, bg=WHITE, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
+        scroll_frame = ttk.Frame(canvas)
+        scroll_frame.columnconfigure(0, weight=1)
+
+        scroll_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all")),
+        )
+        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+
+        # {pai: (listbox, [categorias])}
+        areas = {}
+        for pai, categorias in sugestoes.items():
+            categorias = [str(c).strip() for c in categorias if str(c).strip()]
+            if not pai or not categorias:
+                continue
+            area_frame = ttk.LabelFrame(
+                scroll_frame, text=str(pai), padding=(8, 4)
+            )
+            area_frame.pack(fill="x", pady=(0, 8))
+            area_frame.columnconfigure(0, weight=1)
+
+            listbox = tk.Listbox(
+                area_frame, height=min(8, max(2, len(categorias))),
+                selectmode="extended", relief="sunken", bg=GRAY_100,
+                font=("Segoe UI", 9), exportselection=False,
+            )
+            for categoria in categorias:
+                listbox.insert(tk.END, categoria)
+            listbox.select_set(0, tk.END)
+            listbox.pack(fill="x")
+            areas[pai] = (listbox, categorias)
+
+        if not areas:
+            messagebox.showinfo(
+                translate("Informação", self.language),
+                translate(
+                    "Não foram encontradas sugestões para as categorias carregadas.",
+                    self.language,
+                ),
+                parent=self,
+            )
+            dialog.destroy()
+            return
+
+        # Barra de botões fixa na parte inferior (sempre visível)
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 10))
+
+        def _aprovar():
+            aprovadas = {}
+            for pai, (listbox, categorias) in areas.items():
+                selecionadas = [
+                    categorias[i]
+                    for i in listbox.curselection()
+                    if 0 <= i < len(categorias)
+                ]
+                if selecionadas:
+                    aprovadas[pai] = selecionadas
+
+            if not aprovadas:
+                messagebox.showwarning(
+                    translate("Atenção", self.language),
+                    translate(
+                        "Selecione pelo menos uma categoria para aprovar.",
+                        self.language,
+                    ),
+                    parent=dialog,
+                )
+                return
+
+            if not hasattr(self, "_apply_grouping_suggestions"):
+                messagebox.showerror(
+                    translate("Erro", self.language),
+                    translate(
+                        "A gravação de sugestões ainda não está disponível. Atualize a aplicação.",
+                        self.language,
+                    ),
+                    parent=dialog,
+                )
+                return
+
+            gravadas = self._apply_grouping_suggestions(aprovadas)
+            dialog.destroy()
+
+            if gravadas > 0:
+                messagebox.showinfo(
+                    translate("Sucesso", self.language),
+                    translate(
+                        f"Foram gravadas {gravadas} regras de agrupamento.",
+                        self.language,
+                    ),
+                    parent=self,
+                )
+            else:
+                messagebox.showwarning(
+                    translate("Atenção", self.language),
+                    translate(
+                        "Não foi possível gravar nenhuma regra de agrupamento.",
+                        self.language,
+                    ),
+                    parent=self,
+                )
+
+        ttk.Button(
+            btn_frame, text=translate("Fechar", self.language), command=dialog.destroy
+        ).pack(side="left")
+        ttk.Button(
+            btn_frame, text=translate("Aprovar Selecionadas", self.language),
+            command=_aprovar,
+        ).pack(side="right")
+
         dialog.wait_window()
 
     def _extract_categories_from_file(self, filepath):

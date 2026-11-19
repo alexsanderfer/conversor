@@ -74,6 +74,14 @@ TRANSLATABLE_STRINGS = (
     "Concluído", "Nao foi possivel criar o perfil.",
     "O idioma será aplicado ao reiniciar a aplicação.",
     "Reinicie a aplicação para aplicar o novo idioma.",
+    "Analisar Sugestões", "Sugestões de Agrupamento",
+    "Sugestões aproximadas — revise e retire o que não se aplicar.",
+    "Aprovar Selecionadas", "Fechar",
+    "Carregue um ficheiro CSV primeiro para analisar sugestões.",
+    "Não foram encontradas sugestões para as categorias carregadas.",
+    "Selecione pelo menos uma categoria para aprovar.",
+    "A gravação de sugestões ainda não está disponível. Atualize a aplicação.",
+    "Não foi possível gravar nenhuma regra de agrupamento.",
 )
 
 _TRANSLATIONS = {
@@ -262,6 +270,16 @@ _TRANSLATIONS = {
         "Nao foi possivel criar o perfil.": "Não foi possível criar o perfil.",
         "O idioma será aplicado ao reiniciar a aplicação.": "O idioma será aplicado ao reiniciar a aplicação.",
         "Reinicie a aplicação para aplicar o novo idioma.": "Reinicie o aplicativo para aplicar o novo idioma.",
+        "Analisar Sugestões": "Analisar sugestões",
+        "Sugestões de Agrupamento": "Sugestões de agrupamento",
+        "Sugestões aproximadas — revise e retire o que não se aplicar.": "Sugestões aproximadas — revise e retire o que não se aplicar.",
+        "Aprovar Selecionadas": "Aprovar selecionadas",
+        "Fechar": "Fechar",
+        "Carregue um ficheiro CSV primeiro para analisar sugestões.": "Carregue um arquivo CSV primeiro para analisar sugestões.",
+        "Não foram encontradas sugestões para as categorias carregadas.": "Não foram encontradas sugestões para as categorias carregadas.",
+        "Selecione pelo menos uma categoria para aprovar.": "Selecione pelo menos uma categoria para aprovar.",
+        "A gravação de sugestões ainda não está disponível. Atualize a aplicação.": "A gravação de sugestões ainda não está disponível. Atualize o aplicativo.",
+        "Não foi possível gravar nenhuma regra de agrupamento.": "Não foi possível gravar nenhuma regra de agrupamento.",
     },
     "en": {
         "Fornecedores": "Suppliers", "Novo Ficheiro": "New File", "Atualizar Loja": "Update Store", "Lucro e Taxas": "Profit and Taxes",
@@ -359,6 +377,16 @@ _TRANSLATIONS = {
         "Nao foi possivel criar o perfil.": "Could not create the profile.",
         "O idioma será aplicado ao reiniciar a aplicação.": "The language will be applied when restarting the application.",
         "Reinicie a aplicação para aplicar o novo idioma.": "Restart the application to apply the new language.",
+        "Analisar Sugestões": "Analyze Suggestions",
+        "Sugestões de Agrupamento": "Grouping Suggestions",
+        "Sugestões aproximadas — revise e retire o que não se aplicar.": "Approximate suggestions — review and clear whatever does not apply.",
+        "Aprovar Selecionadas": "Approve Selected",
+        "Fechar": "Close",
+        "Carregue um ficheiro CSV primeiro para analisar sugestões.": "Load a CSV file first to analyze suggestions.",
+        "Não foram encontradas sugestões para as categorias carregadas.": "No suggestions were found for the loaded categories.",
+        "Selecione pelo menos uma categoria para aprovar.": "Select at least one category to approve.",
+        "A gravação de sugestões ainda não está disponível. Atualize a aplicação.": "Saving suggestions is not available yet. Update the application.",
+        "Não foi possível gravar nenhuma regra de agrupamento.": "Could not save any grouping rule.",
     },
 }
 
