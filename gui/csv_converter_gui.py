@@ -327,45 +327,70 @@ def build_description(row: dict, mapping: dict = None) -> str:
     return ". ".join(parts)
 
 
-def _massive_column_level() -> str:
-    """Devolve o nível de coluna em que as regras massivas devem aplicar.
+def _read_massive_column_level() -> str:
+    """Lê o nível de coluna da aba CATEGORIAS M sem tocar em Tkinter na thread.
 
-    As regras gravadas pelo agrupamento automático usam como origens categorias
-    da coluna escolhida na aba CATEGORIAS M (por ex. "Informática > Portáteis"),
-    que são caminhos de hierarquia e não a familia isolada. Com o nível
-    "unique" (o valor por omissão de ``apply_massive_category_rules``) essas
-    origens nunca casariam, porque a correspondência só compara a familia.
+    Devolve ``""`` quando não existe GUI (CLI, testes fora da janela) ou quando
+    o ``StringVar`` ainda não existe. Quem chama decide o valor por omissão:
+    ``build_categories`` usa o nível mais lato e ``convert_row`` aceita uma
+    sobrescrita explícita do chamador.
 
-    A aba mantém o nível no StringVar ``_massive_column_level`` (atualizado por
-    ``_on_massive_column_level_changed``). Este módulo não pode importar a classe
-    ``App`` ao nível global sem criar import circular (``core.field_mapping``
-    já importa ``gui.csv_converter_gui`` dentro de função), por isso lê-se o
-    estado da instância viva. Sem GUI (CLI/testes) devolve
-    "unique+subcats+subsubcats": é o nível mais lato e cobre qualquer origem
-    gravada, incluindo as da coluna 1 ("unique"), porque a correspondência em
-    qualquer nível inclui a familia. Assim as regras ficam sempre aplicadas,
-    mesmo que o utilizador nunca tenha aberto a aba.
+    A leitura é feita aqui, na thread principal, e não dentro de
+    ``build_categories``: o preview do CSV corre dentro de
+    ``threading.Thread`` e ``StringVar.get()`` fora da thread principal não é
+    seguro — na thread devolveria sempre o valor por omissão.
     """
     try:
         from tkinter import _default_root  # type: ignore[attr-defined]
 
         var = getattr(_default_root, "_massive_column_level", None)
-        if var is not None:
-            level = str(var.get() or "").strip()
-            if level in ("unique", "unique+subcats", "unique+subcats+subsubcats"):
-                return level
+        if var is None:
+            return ""
+        return str(var.get() or "").strip()
     except Exception:
-        pass
-    return "unique+subcats+subsubcats"
+        return ""
 
 
-def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> str:
+# Níveis de coluna reconhecidos na aba CATEGORIAS M.
+MASSIVE_COLUMN_LEVELS = (
+    "unique",
+    "unique+subcats",
+    "unique+subcats+subsubcats",
+)
+_MASSIVE_COLUMN_LEVEL_WIDEST = "unique+subcats+subsubcats"
+
+
+def _resolve_massive_column_level(column_level: str = None) -> str:
+    """Normaliza o nível de coluna: valor válido > aba > nível mais lato.
+
+    O nível mais lato inclui sempre os mais restritos, por isso é o valor por
+    omissão fora da GUI: garante que as regras gravadas a partir de qualquer
+    coluna (1, 2 ou 3) são aplicadas mesmo sem janela aberta.
+    """
+    level = str(column_level or "").strip()
+    if level in MASSIVE_COLUMN_LEVELS:
+        return level
+    level = _read_massive_column_level()
+    if level in MASSIVE_COLUMN_LEVELS:
+        return level
+    return _MASSIVE_COLUMN_LEVEL_WIDEST
+
+
+def build_categories(
+    row: dict,
+    mapping: dict = None,
+    compiled_rules=None,
+    column_level: str = None,
+) -> str:
     """
     Build category hierarchy using field mapping.
 
     Args:
         row: Dictionary with CSV column names as keys
         mapping: Optional field mapping dictionary
+        column_level: Nível de coluna das regras massivas. Aceita os valores da
+            aba CATEGORIAS M; por omissão lê o estado da aba e, sem GUI, usa o
+            nível mais lato.
 
     Returns:
         str: Comma-separated category paths
@@ -419,7 +444,7 @@ def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> st
             familia,
             sub_familia,
             sub_sub_familia,
-            column_level=_massive_column_level(),
+            column_level=_resolve_massive_column_level(column_level),
         )
         if massive_parent:
             # Constrói a hierarquia sob a nova categoria pai
@@ -587,13 +612,21 @@ def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> st
     return ",".join(sorted(categories))
 
 
-def convert_row(row: dict, mapping: dict = None, compiled_rules=None) -> dict:
+def convert_row(
+    row: dict,
+    mapping: dict = None,
+    compiled_rules=None,
+    column_level: str = None,
+) -> dict:
     """
     Convert a CSV row to Jumpseller format using field mapping.
 
     Args:
         row: Dictionary with CSV column names as keys
         mapping: Optional field mapping dictionary (uses default if None)
+        column_level: Nível de coluna das regras massivas. Deve ser lido na
+            thread principal (``_read_massive_column_level``) antes de chamar
+            este método a partir de uma thread.
 
     Returns:
         dict: Row in Jumpseller format
@@ -621,7 +654,9 @@ def convert_row(row: dict, mapping: dict = None, compiled_rules=None) -> dict:
     dest_row["Height"] = height
     dest_row["Brand"] = get_mapped_value(row, "marca", mapping)
     dest_row["Barcode"] = get_mapped_value(row, "codigo", mapping)
-    dest_row["Categories"] = build_categories(row, mapping, compiled_rules=compiled_rules)
+    dest_row["Categories"] = build_categories(
+        row, mapping, compiled_rules=compiled_rules, column_level=column_level
+    )
     dest_row["Images"] = get_mapped_value(row, "imagem", mapping)
     dest_row["Digital"] = "NO"
     dest_row["Featured"] = "NO"
@@ -3225,6 +3260,9 @@ class App(Tk):
                     return
                 mapping = load_field_mapping()
                 compiled_rules = get_compiled_keyword_rules()
+                # Nivel de coluna lido na thread principal (StringVar nao e seguro
+                # fora dela); e repassado explicitamente a cada conversao.
+                column_level = _read_massive_column_level()
 
                 # Preencher Treeview de Preview Lado a Lado na main thread
                 def update_trees():
@@ -3252,7 +3290,11 @@ class App(Tk):
                             orig_values = [str(row.get(c, "")) for c in orig_cols]
                             self._preview_orig_tree.insert("", "end", values=orig_values)
                             try:
-                                conv = convert_row(row, mapping, compiled_rules=compiled_rules)
+                                conv = convert_row(
+                                    row, mapping,
+                                    compiled_rules=compiled_rules,
+                                    column_level=column_level,
+                                )
                                 conv_values = [str(conv.get(c, "")) for c in conv_cols]
                                 self._preview_conv_tree.insert("", "end", values=conv_values)
                             except Exception:

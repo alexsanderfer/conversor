@@ -1183,21 +1183,56 @@ def _normalize_massive_category(value: str) -> str:
     return " ".join(text.casefold().split())
 
 
+def _massive_path_matches(path: str, src: str) -> bool:
+    """Indica se a origem ``src`` casa com o caminho hierárquico ``path``.
+
+    A correspondência é por níveis inteiros do caminho, nunca por substring
+    dentro de um nível:
+
+    - o caminho completo é exatamente a origem (ex.: ``"a > b"`` == ``"a > b"``);
+    - ou a origem é prefixo do caminho por níveis inteiros, ou seja, o caminho
+      começa em ``src`` e o que se segue é sempre um separador ``" > "`` que
+      abre um nível novo (ex.: ``"a"`` casa em ``"a > b"``).
+
+    Por omissão ``"a"`` **não** casa em ``"ab > c"``: o prefixo por níveis é
+    mais estrito que ``str.startswith`` puro, que confundiria o início de um
+    nível com um nível. É o mesmo critério usado em ``apply_keyword_rules`` para
+    ``sub_c in sub_norm``.
+    """
+    if not path or not src:
+        return False
+    if path == src:
+        return True
+    return path.startswith(src + " > ")
+
+
 def apply_massive_category_rules(
     familia: str, sub_familia: str = "", sub_sub_familia: str = "",
     column_level: str = "unique",
 ) -> str:
     """Aplica regras massivas por categorias de origem selecionadas.
 
-    Regras novas usam ``source_categories`` e fazem correspondência exata
-    normalizada com qualquer nível da linha, validando a hierarquia completa.
-    ``column_level`` controla em qual nível da hierarquia a regra se aplica:
-      - "unique": apenas a categoria principal (familia)
-      - "unique+subcats": categoria principal ou subcategoria
-      - "unique+subcats+subsubcats": qualquer nível da hierarquia
+    Regras novas usam ``source_categories``. A origem é comparada por níveis
+    inteiros contra o caminho hierárquico do produto (``"familia > sub >
+    subsub"``): a origem casa quando é o caminho completo ou um prefixo dele
+    por níveis inteiros (ver ``_massive_path_matches``). Isto cobre os três
+    formatos de origem gravados pela interface:
+      - coluna 1 (categorias únicas): ``"Informática"``;
+      - coluna 2 (únicas + subcategorias): ``"Informática > Computadores"``;
+      - coluna 3 (únicas + sub + sub-sub): ``"Informática > Computadores > Acer"``.
+
+    ``column_level`` já **não** limita a correspondência: com a comparação por
+    caminho, a própria origem delimita os níveis (o caminho só casa se começar
+    exatamente nela), por isso restringir por nível seria redundante e,
+    pior, faria depender o resultado de um estado de interface que não viaja
+    com a configuração (o parâmetro só é atualizado pelo dropdown da aba). O
+    parâmetro mantém-se na assinatura por compatibilidade com as chamadas
+    existentes e é ignorado na correspondência por caminho.
 
     Regras antigas que só possuem ``category_group`` continuam a usar
-    correspondência parcial para preservar a compatibilidade com configurações existentes.
+    correspondência parcial (``group in value``) para preservar a
+    compatibilidade com configurações existentes; origens simples (coluna 1)
+    casam pelo mesmo mecanismo.
     """
     familia_norm = _normalize_massive_category(familia)
     sub_familia_norm = _normalize_massive_category(sub_familia)
@@ -1228,34 +1263,17 @@ def apply_massive_category_rules(
                 if _normalize_massive_category(value)
             }
 
-            matched = False
-            for src in normalized_sources:
-                if column_level == "unique":
-                    # Apenas categoria principal corresponde exatamente à origem.
-                    if familia_norm == src:
-                        matched = True
-                        break
-                elif column_level == "unique+subcats":
-                    # Categoria principal ou subcategoria correspondem à origem.
-                    if familia_norm == src or sub_familia_norm == src:
-                        matched = True
-                        break
-                else:  # "unique+subcats+subsubcats"
-                    # Qualquer nível da hierarquia corresponde à origem.
-                    if familia_norm == src or sub_familia_norm == src or sub_sub_familia_norm == src:
-                        matched = True
-                        break
-                # Verificar se a categoria de origem é um prefixo do caminho completo
-                # (ex: origem "informática" corresponde a "informática > portáteis > acer")
-                if not matched and hierarchy_path.startswith(src + " > "):
-                    matched = True
-                    break
+            # Compatibilidade com regras legadas com category_group (sem
+            # source_categories): mantém o comportamento atual.
+            legacy_group = _normalize_massive_category(rule.get("category_group", ""))
+            if legacy_group:
+                normalized_sources.add(legacy_group)
 
-            if matched:
+            if any(_massive_path_matches(hierarchy_path, src) for src in normalized_sources):
                 return parent
             continue
 
-        # Compatibilidade com regras antigas guardadas como category_group.
+        # Compatibilidade com regras antigas guardadas apenas como category_group.
         group = _normalize_massive_category(rule.get("category_group", ""))
         if group and any(group in value for value in source_values):
             return parent

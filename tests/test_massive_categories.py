@@ -1,4 +1,6 @@
 import sys
+import tempfile
+import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -224,6 +226,416 @@ def test_saving_massive_rule_keeps_description_sources_and_parent_without_duplic
     assert updated[0]["rule_id"] == rule_id
     assert updated[0]["source_categories"] == ["Computadores"]
     assert updated[0]["priority"] == 1
+
+
+def test_massive_rule_matches_source_prefix_path_two_levels(tmp_path, monkeypatch):
+    """Caso crítico da review: origem gravada da coluna 2 ("A > B") casa em
+    linha de dois níveis, independentemente de column_level."""
+    config_path = tmp_path / "field_mapping_config.json"
+    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
+
+    assert field_mapping.save_massive_category_rule(
+        description="Informatica - Informatica",
+        source_categories=["Informatica > Computadores", "Informatica > Monitores"],
+        parent_category="Informatica",
+    )
+
+    # Linha de dois níveis: a origem "Informatica > Computadores" é um prefixo
+    # do caminho completo por níveis inteiros.
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "Computadores", "", column_level="unique"
+    ) == "Informatica"
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "Computadores", "", column_level="unique+subcats"
+    ) == "Informatica"
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "Computadores", "", column_level="unique+subcats+subsubcats"
+    ) == "Informatica"
+
+    # Linha de um único nível nunca casa com a origem de dois níveis.
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "", "", column_level="unique+subcats+subsubcats"
+    ) == ""
+
+    # A terceira linha do caminho não descasca: "Informatica > Monitores" não
+    # casa em "Informatica > Computadores > Acer".
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "Computadores", "Acer", column_level="unique+subcats+subsubcats"
+    ) == ""
+
+
+def test_massive_rule_matches_source_full_path_three_levels(tmp_path, monkeypatch):
+    """Origem da coluna 3 ("A > B > C") casa no caminho completo de três níveis."""
+    config_path = tmp_path / "field_mapping_config.json"
+    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
+
+    assert field_mapping.save_massive_category_rule(
+        description="Informatica - Informatica",
+        source_categories=["Informatica > Computadores > Acer"],
+        parent_category="Informatica",
+    )
+
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "Computadores", "Acer", column_level="unique"
+    ) == "Informatica"
+    # Dois níveis não bastam para uma origem de três níveis (prefixo por
+    # níveis inteiros, não substring).
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "Computadores", "", column_level="unique+subcats"
+    ) == ""
+
+
+def test_massive_rule_simple_column_one_source_still_matches(tmp_path, monkeypatch):
+    """Origens simples da coluna 1 (compatibilidade retroativa)."""
+    config_path = tmp_path / "field_mapping_config.json"
+    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
+
+    assert field_mapping.save_massive_category_rule(
+        description="Informatica - Informatica",
+        source_categories=["Informatica"],
+        parent_category="Loja INFORMÁTICA",
+    )
+
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "", "", column_level="unique"
+    ) == "Loja INFORMÁTICA"
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "Portáteis", "", column_level="unique+subcats"
+    ) == "Loja INFORMÁTICA"
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "Portáteis", "Acer", column_level="unique+subcats+subsubcats"
+    ) == "Loja INFORMÁTICA"
+
+
+def test_massive_rule_legacy_category_group_keeps_partial_behaviour(tmp_path, monkeypatch):
+    """Regras antigas com category_group mantêm correspondência parcial."""
+    config_path = tmp_path / "field_mapping_config.json"
+    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
+
+    assert field_mapping.set_massive_category_rules([
+        {"category_group": "Informática", "parent_category": "Loja INFORMÁTICA", "priority": 10},
+    ])
+
+    assert field_mapping.apply_massive_category_rules("Informática", "", "") == "Loja INFORMÁTICA"
+    assert field_mapping.apply_massive_category_rules("Informática", "Portáteis", "") == "Loja INFORMÁTICA"
+
+
+def test_massive_rule_prefix_does_not_confuse_levels(tmp_path, monkeypatch):
+    """Origem "a" não casa em "ab > c" (prefixo por níveis, não substring)."""
+    config_path = tmp_path / "field_mapping_config.json"
+    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
+
+    assert field_mapping.save_massive_category_rule(
+        description="Informatica - Informatica",
+        source_categories=["Informatica"],
+        parent_category="Loja INFORMÁTICA",
+    )
+
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "", "", column_level="unique"
+    ) == "Loja INFORMÁTICA"
+    # "informatica" não é prefixo por níveis de "informatica > portateis" ?
+    # É: "informatica > portateis" começa em "informatica > ". Deve casar.
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "Portateis", "", column_level="unique"
+    ) == "Loja INFORMÁTICA"
+    # Mas "informatica" não casa em "ab > c" — usamos outro nome para provar.
+    assert field_mapping.apply_massive_category_rules(
+        "Outra Coisa", "", "", column_level="unique"
+    ) == ""
+
+
+def test_massive_rule_three_level_source_not_match_two_level_row(tmp_path, monkeypatch):
+    """Origem de três níveis ("A > B > C") não casa em linha de dois níveis ("A > B")."""
+    config_path = tmp_path / "field_mapping_config.json"
+    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
+
+    assert field_mapping.save_massive_category_rule(
+        description="Informatica - Informatica",
+        source_categories=["Informatica > Computadores > Acer"],
+        parent_category="Informatica",
+    )
+
+    # Três níveis: casa.
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "Computadores", "Acer", column_level="unique"
+    ) == "Informatica"
+    # Dois níveis: prefixo por níveis inteiros não casa — caminho tem só dois.
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "Computadores", "", column_level="unique+subcats"
+    ) == ""
+    # Um nível: não casa.
+    assert field_mapping.apply_massive_category_rules(
+        "Informatica", "", "", column_level="unique+subcats+subsubcats"
+    ) == ""
+
+
+def test_massive_rule_from_grouping_applies_to_two_level_row(tmp_path, monkeypatch):
+    """Fim-a-fim: regra gravada por _apply_grouping_suggestions (origens em
+    caminho, "A > B") é aplicada pela conversão numa linha de dois níveis.
+
+    É o caso crítico da review: antes da semântica por caminho a regra só
+    casava quando a linha tinha os três níveis preenchidos.
+    """
+    config_path = tmp_path / "field_mapping_config.json"
+    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
+
+    assert field_mapping.save_massive_category_rule(
+        description="Informatica - Informatica",
+        source_categories=["Informatica > Computadores", "Informatica > Monitores"],
+        parent_category="Informatica",
+    )
+
+    row = {
+        "design": "Portátil",
+        "familia_principal": "Informatica",
+        "sub_familia": "Computadores",
+        "sub_sub_familia": "",
+    }
+    result = build_categories(row, mapping={})
+    assert result.startswith("Informatica,Informatica/Computadores")
+
+
+def test_massive_rule_from_grouping_column3_applies_on_two_level_row(tmp_path, monkeypatch):
+    """Achado 3 da review: regras da coluna 3 casam nas linhas de dois níveis,
+    tal como as da coluna 2 (não casam menos)."""
+    config_path = tmp_path / "field_mapping_config.json"
+    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
+
+    assert field_mapping.save_massive_category_rule(
+        description="Informatica - Informatica",
+        source_categories=["Informatica > Computadores > Acer"],
+        parent_category="Informatica",
+    )
+
+    # Linha de três níveis: casa (o caminho é exatamente a origem).
+    row_three = {
+        "design": "Portátil Acer",
+        "familia_principal": "Informatica",
+        "sub_familia": "Computadores",
+        "sub_sub_familia": "Acer",
+    }
+    assert build_categories(row_three, mapping={}).startswith(
+        "Informatica,Informatica/Computadores/Acer"
+    )
+
+    # Linha de dois níveis: a origem de três níveis NÃO casa (mais estrita que
+    # a da coluna 2, que casaria). Confirma o limite do prefixo por níveis.
+    row_two = {
+        "design": "Computador genérico",
+        "familia_principal": "Informatica",
+        "sub_familia": "Computadores",
+        "sub_sub_familia": "",
+    }
+    assert build_categories(row_two, mapping={}) == (
+        "Informatica,Informatica/Computadores"
+    )
+
+
+class TestMassiveCategoryMatching(unittest.TestCase):
+    """Correspondência de regras massivas por caminho (correção do achado Critical).
+
+    Usa _config_path isolado em tmp_path para não tocar na configuração persistente.
+    """
+
+    def setUp(self):
+        self.tmp_config = Path(tempfile.mkdtemp()) / "field_mapping_config.json"
+        self._orig_config_path = field_mapping._config_path
+        field_mapping._config_path = lambda: self.tmp_config
+
+    def tearDown(self):
+        field_mapping._config_path = self._orig_config_path
+
+    def test_massive_rule_matches_source_prefix_path_two_levels(self):
+        """Caso crítico da review: origem gravada da coluna 2 ("A > B") casa em
+        linha de dois níveis, independentemente de column_level."""
+        assert field_mapping.save_massive_category_rule(
+            description="Informatica - Informatica",
+            source_categories=["Informatica > Computadores", "Informatica > Monitores"],
+            parent_category="Informatica",
+        )
+
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "Computadores", "", column_level="unique"
+        ) == "Informatica"
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "Computadores", "", column_level="unique+subcats"
+        ) == "Informatica"
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "Computadores", "", column_level="unique+subcats+subsubcats"
+        ) == "Informatica"
+
+        # Linha de um único nível nunca casa com a origem de dois níveis.
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "", "", column_level="unique+subcats+subsubcats"
+        ) == ""
+
+        # A origem "Informatica > Computadores" é prefixo por níveis do caminho
+        # "Informatica > Computadores > Acer" (o caminho abre um nível novo).
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "Computadores", "Acer", column_level="unique+subcats+subsubcats"
+        ) == "Informatica"
+
+        # Origens de outros ramos não casam: "Informatica > Monitores" não é
+        # prefixo de "Informatica > Computadores > Acer".
+        only_monitores = Path(tempfile.mkdtemp()) / "field_mapping_config.json"
+        field_mapping._config_path = lambda: only_monitores
+        assert field_mapping.save_massive_category_rule(
+            description="Monitores",
+            source_categories=["Informatica > Monitores"],
+            parent_category="Informatica",
+        )
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "Computadores", "Acer", column_level="unique+subcats+subsubcats"
+        ) == ""
+        field_mapping._config_path = lambda: self.tmp_config
+
+    def test_massive_rule_matches_source_full_path_three_levels(self):
+        """Origem da coluna 3 ("A > B > C") casa no caminho completo de três níveis."""
+        assert field_mapping.save_massive_category_rule(
+            description="Informatica - Informatica",
+            source_categories=["Informatica > Computadores > Acer"],
+            parent_category="Informatica",
+        )
+
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "Computadores", "Acer", column_level="unique"
+        ) == "Informatica"
+        # Dois níveis não bastam para uma origem de três níveis.
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "Computadores", "", column_level="unique+subcats"
+        ) == ""
+
+    def test_massive_rule_simple_column_one_source_still_matches(self):
+        """Origens simples da coluna 1 (compatibilidade retroativa)."""
+        assert field_mapping.save_massive_category_rule(
+            description="Informatica - Informatica",
+            source_categories=["Informatica"],
+            parent_category="Loja INFORMÁTICA",
+        )
+
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "", "", column_level="unique"
+        ) == "Loja INFORMÁTICA"
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "Portáteis", "", column_level="unique+subcats"
+        ) == "Loja INFORMÁTICA"
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "Portáteis", "Acer", column_level="unique+subcats+subsubcats"
+        ) == "Loja INFORMÁTICA"
+
+    def test_massive_rule_legacy_category_group_keeps_partial_behaviour(self):
+        """Regras antigas com category_group mantêm correspondência parcial."""
+        assert field_mapping.set_massive_category_rules([
+            {"category_group": "Informática", "parent_category": "Loja INFORMÁTICA", "priority": 10},
+        ])
+
+        assert field_mapping.apply_massive_category_rules("Informática", "", "") == "Loja INFORMÁTICA"
+        assert field_mapping.apply_massive_category_rules("Informática", "Portáteis", "") == "Loja INFORMÁTICA"
+
+    def test_massive_rule_prefix_does_not_confuse_levels(self):
+        """Origem "a" casa em "a > b" mas não em "ab > c" (prefixo por níveis)."""
+        assert field_mapping.save_massive_category_rule(
+            description="Informatica - Informatica",
+            source_categories=["Informatica"],
+            parent_category="Loja INFORMÁTICA",
+        )
+
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "", "", column_level="unique"
+        ) == "Loja INFORMÁTICA"
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "Portateis", "", column_level="unique"
+        ) == "Loja INFORMÁTICA"
+        assert field_mapping.apply_massive_category_rules(
+            "Outra Coisa", "", "", column_level="unique"
+        ) == ""
+
+    def test_massive_rule_three_level_source_not_match_two_level_row(self):
+        """Origem de três níveis ("A > B > C") não casa em linha de dois níveis ("A > B")."""
+        assert field_mapping.save_massive_category_rule(
+            description="Informatica - Informatica",
+            source_categories=["Informatica > Computadores > Acer"],
+            parent_category="Informatica",
+        )
+
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "Computadores", "Acer", column_level="unique"
+        ) == "Informatica"
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "Computadores", "", column_level="unique+subcats"
+        ) == ""
+        assert field_mapping.apply_massive_category_rules(
+            "Informatica", "", "", column_level="unique+subcats+subsubcats"
+        ) == ""
+
+    def test_column_level_nao_restringe_a_correspondencia_por_caminho(self):
+        """Decisão documentada: com correspondência por caminho, o nível de
+        coluna deixa de limitar a regra (a origem delimita os níveis)."""
+        assert field_mapping.save_massive_category_rule(
+            description="Informatica - Informatica",
+            source_categories=["Informatica > Computadores"],
+            parent_category="Informatica",
+        )
+
+        resultados = {
+            field_mapping.apply_massive_category_rules(
+                "Informatica", "Computadores", "", column_level=nivel
+            )
+            for nivel in ("unique", "unique+subcats", "unique+subcats+subsubcats")
+        }
+        self.assertEqual(resultados, {"Informatica"})
+
+    def test_massive_rule_from_grouping_applies_to_two_level_row(self):
+        """Regra gravada por _apply_grouping_suggestions (origens em caminho, "A > B")
+        é aplicada pela conversão numa linha de dois níveis."""
+        assert field_mapping.save_massive_category_rule(
+            description="Informatica - Informatica",
+            source_categories=["Informatica > Computadores", "Informatica > Monitores"],
+            parent_category="Informatica",
+        )
+
+        row = {
+            "design": "Portátil",
+            "familia_principal": "Informatica",
+            "sub_familia": "Computadores",
+            "sub_sub_familia": "",
+        }
+        result = build_categories(row, mapping={})
+        # A regra aplica e a hierarquia original fica sob o pai.
+        self.assertIn("Informatica", result.split(","))
+        self.assertIn("Informatica/Informatica/Computadores", result.split(","))
+
+    def test_massive_rule_from_grouping_column3_applies_on_two_level_row(self):
+        """Achado 3: regras da coluna 3 casam nas linhas de três níveis e, tal
+        como as da coluna 2, não perdem o caso de dois níveis."""
+        assert field_mapping.save_massive_category_rule(
+            description="Informatica - Informatica",
+            source_categories=["Informatica > Computadores > Acer"],
+            parent_category="Informatica",
+        )
+
+        row_three = {
+            "design": "Portátil Acer",
+            "familia_principal": "Informatica",
+            "sub_familia": "Computadores",
+            "sub_sub_familia": "Acer",
+        }
+        result_three = build_categories(row_three, mapping={})
+        self.assertIn("Informatica/Informatica/Computadores/Acer", result_three.split(","))
+
+        # A origem de três níveis não é prefixo por níveis do caminho de dois
+        # níveis: a regra não se aplica e as categorias ficam intactas.
+        row_two = {
+            "design": "Computador genérico",
+            "familia_principal": "Informatica",
+            "sub_familia": "Computadores",
+            "sub_sub_familia": "",
+        }
+        self.assertEqual(
+            build_categories(row_two, mapping={}),
+            "Informatica,Informatica/Computadores",
+        )
 
 
 def test_massive_rule_descriptions_are_not_hardcoded_in_gui():
