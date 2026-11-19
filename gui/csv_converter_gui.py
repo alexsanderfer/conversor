@@ -4569,6 +4569,7 @@ class App(Tk):
         v0.5.8 (2026-11-19)
         - CATEGORIAS M: botão "Analisar Sugestões" propõe agrupamentos por palavras-chave.
         - CATEGORIAS M: as sugestões usam a coluna selecionada (Únicas, +Subcategorias, +Sub-subcategorias) e são aprovadas por área.
+        - CATEGORIAS M: as sugestões já não vêm pré-selecionadas; a aprovação é explícita e o diálogo mostra quantas categorias estão selecionadas.
         - CATEGORIAS M: corrigidas as colunas de categorias e a pesquisa, que nunca eram preenchidas.
         - As regras massivas passam a aplicar-se em qualquer nível da hierarquia (família, subcategoria ou sub-subcategoria).
         - Correção: o matching por palavras-chave do agrupamento automático deixou de casar por substring (ex.: "ram" classificava "Ferramentas" como Informática).
