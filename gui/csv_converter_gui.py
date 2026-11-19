@@ -1581,23 +1581,36 @@ class App(Tk):
 
         ttk.Label(frm, text="Configuração de Preços (por perfil)", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
 
+        # Carregar configurações existentes para preencher os campos
+        from core.field_mapping import get_price_settings, get_active_profile
+        settings = get_price_settings(get_active_profile())
+        price_lines = settings.get("price_lines", [])
+        line1_data = {}
+        line2_data = {}
+        for line in price_lines:
+            if line.get("price_formula") == "Lucro, IVA, Portes":
+                line1_data = line
+            elif line.get("price_formula") == "IVA, Portes, Lucro":
+                line2_data = line
+
         # Linha 1: Lucro → IVA → Portes
         ttk.Label(frm, text="Linha 1: Lucro → IVA → Portes", font=("Segoe UI", 9, "bold"), foreground=GRAY_600).pack(anchor="w", pady=(4, 2))
         line1_frame = ttk.Frame(frm)
         line1_frame.pack(fill="x", pady=(0, 8))
 
         ttk.Label(line1_frame, text="Lucro %:").grid(row=0, column=0, sticky="w", padx=(0, 4))
-        self._price_line1_profit_var = tk.StringVar(value="")
+        self._price_line1_profit_var = tk.StringVar(value=str(line1_data.get("profit_percentage", "")))
         ttk.Entry(line1_frame, textvariable=self._price_line1_profit_var, width=8).grid(row=0, column=1, sticky="w", padx=(0, 8))
         ttk.Label(line1_frame, text="IVA %:").grid(row=0, column=2, sticky="w", padx=(0, 4))
-        self._price_line1_iva_var = tk.StringVar(value="")
+        self._price_line1_iva_var = tk.StringVar(value=str(line1_data.get("iva_percentage", "")))
         ttk.Entry(line1_frame, textvariable=self._price_line1_iva_var, width=8).grid(row=0, column=3, sticky="w", padx=(0, 8))
         ttk.Label(line1_frame, text="Portes (€):").grid(row=0, column=4, sticky="w", padx=(0, 4))
-        self._price_line1_shipping_var = tk.StringVar(value="")
+        self._price_line1_shipping_var = tk.StringVar(value=str(line1_data.get("shipping_cost", "")))
         ttk.Entry(line1_frame, textvariable=self._price_line1_shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(0, 8))
         ttk.Button(line1_frame, text="Guardar", command=lambda: self._save_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
-        self._price_line1_active_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(line1_frame, text="Ativo", variable=self._price_line1_active_var).grid(row=0, column=7, sticky="w", padx=(0, 4))
+        self._price_line1_active_var = tk.BooleanVar(value=line1_data.get("active", False))
+        ttk.Checkbutton(line1_frame, text="Ativo", variable=self._price_line1_active_var,
+                        command=lambda: self._save_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var)).grid(row=0, column=7, sticky="w", padx=(0, 4))
 
         # Linha 2: IVA → Portes → Lucro
         ttk.Label(frm, text="Linha 2: IVA → Portes → Lucro", font=("Segoe UI", 9, "bold"), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
@@ -1605,17 +1618,18 @@ class App(Tk):
         line2_frame.pack(fill="x", pady=(0, 8))
 
         ttk.Label(line2_frame, text="Lucro %:").grid(row=0, column=0, sticky="w", padx=(0, 4))
-        self._price_line2_profit_var = tk.StringVar(value="")
+        self._price_line2_profit_var = tk.StringVar(value=str(line2_data.get("profit_percentage", "")))
         ttk.Entry(line2_frame, textvariable=self._price_line2_profit_var, width=8).grid(row=0, column=1, sticky="w", padx=(0, 8))
         ttk.Label(line2_frame, text="IVA %:").grid(row=0, column=2, sticky="w", padx=(0, 4))
-        self._price_line2_iva_var = tk.StringVar(value="")
+        self._price_line2_iva_var = tk.StringVar(value=str(line2_data.get("iva_percentage", "")))
         ttk.Entry(line2_frame, textvariable=self._price_line2_iva_var, width=8).grid(row=0, column=3, sticky="w", padx=(0, 8))
         ttk.Label(line2_frame, text="Portes (€):").grid(row=0, column=4, sticky="w", padx=(0, 4))
-        self._price_line2_shipping_var = tk.StringVar(value="")
+        self._price_line2_shipping_var = tk.StringVar(value=str(line2_data.get("shipping_cost", "")))
         ttk.Entry(line2_frame, textvariable=self._price_line2_shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(0, 8))
         ttk.Button(line2_frame, text="Guardar", command=lambda: self._save_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
-        self._price_line2_active_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(line2_frame, text="Ativo", variable=self._price_line2_active_var).grid(row=0, column=7, sticky="w", padx=(0, 4))
+        self._price_line2_active_var = tk.BooleanVar(value=line2_data.get("active", False))
+        ttk.Checkbutton(line2_frame, text="Ativo", variable=self._price_line2_active_var,
+                        command=lambda: self._save_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var)).grid(row=0, column=7, sticky="w", padx=(0, 4))
 
         ttk.Label(frm, text="As configurações são guardadas por perfil e aplicadas apenas quando definidas.\nValores vazios ou zero (IVA/Portes) não são aplicados.\nLinha 1 aplica: Lucro → IVA → Portes.\nLinha 2 aplica: IVA → Portes → Lucro.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
 
@@ -4200,6 +4214,8 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.5.5 (2026-11-19)
+        - Lucro e Taxas: as caixas de seleção "Ativo" agora mantêm o estado ao fechar e reabrir o programa.
         v0.5.4 (2026-11-19)
         - Lucro e Taxas: cada linha tem caixa de seleção "Ativo" para ligar/desligar a regra de preço (inicialmente desmarcada).
         - Cada linha é aplicada apenas quando sua caixa "Ativo" está selecionada.
@@ -4863,13 +4879,17 @@ class App(Tk):
             from core.field_mapping import get_active_profile
             order = "Lucro, IVA, Portes" if line_key == "line1" else "IVA, Portes, Lucro"
 
+            # Ler estado ativo da checkbox correspondente
+            active_var = self._price_line1_active_var if line_key == "line1" else self._price_line2_active_var
+            is_active = active_var.get()
+
             # Construir dicionário da linha com estado ativo
             price_line = {
                 "profit_percentage": profit_pct,
                 "iva_percentage": iva_pct,
                 "shipping_cost": shipping,
                 "price_formula": order,
-                "active": True  # Sempre salva como ativo quando guarda
+                "active": is_active
             }
 
             if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula=order, profile_name=get_active_profile(), price_line=price_line):
