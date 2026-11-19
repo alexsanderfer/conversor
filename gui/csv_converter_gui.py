@@ -1525,25 +1525,24 @@ class App(Tk):
         frm.pack(fill="both", expand=True)
 
         ttk.Label(frm, text="Configuração de Preços (por perfil)", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
-        frm_preco = ttk.Frame(frm)
-        frm_preco.pack(fill="x", pady=(0, 8))
 
-        try:
-            from core.field_mapping import get_active_profile
-            price_settings = get_price_settings(get_active_profile())
-        except Exception:
-            price_settings = get_price_settings()
-        self._price_profit_var = tk.StringVar(value=str(price_settings.get("profit_percentage", 40.0)))
-        self._price_iva_var = tk.StringVar(value=str(price_settings.get("iva_percentage", 0.0)))
-        self._price_shipping_var = tk.StringVar(value=str(price_settings.get("shipping_cost", 0.0)))
+        # Preços por perfil — permite configurar múltiplas linhas
+        ttk.Label(frm, text="Defina as regras de preço por perfil. Cada linha é aplicada independientemente.", font=("Segoe UI", 8), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(0, 8))
 
-        ttk.Label(frm_preco, text="Lucro %:").grid(row=0, column=0, sticky="w")
-        ttk.Entry(frm_preco, textvariable=self._price_profit_var, width=8).grid(row=0, column=1, sticky="w", padx=(4, 10))
-        ttk.Label(frm_preco, text="IVA %:").grid(row=0, column=2, sticky="w")
-        ttk.Entry(frm_preco, textvariable=self._price_iva_var, width=8).grid(row=0, column=3, sticky="w", padx=(4, 10))
-        ttk.Label(frm_preco, text="Portes (€):").grid(row=0, column=4, sticky="w")
-        ttk.Entry(frm_preco, textvariable=self._price_shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(4, 10))
-        ttk.Button(frm_preco, text="Guardar", command=self._save_price_settings, width=10).grid(row=0, column=6, sticky="w", padx=(4, 0))
+        # Contêiner das linhas de preço
+        self._price_lines_frame = ttk.Frame(frm)
+        self._price_lines_frame.pack(fill="x", pady=(0, 8))
+
+        # Primeira linha
+        self._price_lines = []
+        self._add_price_line()
+
+        ttk.Button(
+            frm,
+            text="Adicionar linha de preço",
+            command=self._add_price_line,
+            width=20
+        ).pack(anchor="w", pady=(6, 0))
 
         ttk.Label(frm, text="As configurações são guardadas por perfil e aplicadas apenas quando definidas.\nValores vazios ou zero (IVA/Portes) não são aplicados.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
 
@@ -4128,6 +4127,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.5.0 (2026-11-19)
+        - Lucro e Taxas: múltiplas linhas de configuração de preço por perfil (Lucro %, IVA %, Portes €) com botão Guardar individual e botão × para remover linha.
+        - Lucro e Taxas: cada linha é aplicada independientemente ao preço do fornecedor.
         v0.4.9 (2026-11-18)
         - Correção: substituir abreviatura "S/" por "SEM" nas categorias (ex: "MICROFONES S/ FIOS" → "MICROFONES SEM FIOS").
         - Correção: substituir barras "/" restantes por " e " nas categorias (ex: "RECETORES / TRANSMISSORES" → "RECETORES e TRANSMISSORES").
@@ -4739,6 +4741,77 @@ class App(Tk):
             )
             self.wait_window(dialog.win)
 
+    def _add_price_line(self):
+        """Adiciona uma nova linha de configuração de preço."""
+        line_frame = ttk.Frame(self._price_lines_frame)
+        line_frame.pack(fill="x", pady=(4, 0))
+
+        profit_var = tk.StringVar(value="")
+        iva_var = tk.StringVar(value="")
+        shipping_var = tk.StringVar(value="")
+
+        ttk.Label(line_frame, text="Lucro %:").grid(row=0, column=0, sticky="w", padx=(0, 4))
+        ttk.Entry(line_frame, textvariable=profit_var, width=8).grid(row=0, column=1, sticky="w", padx=(0, 8))
+        ttk.Label(line_frame, text="IVA %:").grid(row=0, column=2, sticky="w", padx=(0, 4))
+        ttk.Entry(line_frame, textvariable=iva_var, width=8).grid(row=0, column=3, sticky="w", padx=(0, 8))
+        ttk.Label(line_frame, text="Portes (€):").grid(row=0, column=4, sticky="w", padx=(0, 4))
+        ttk.Entry(line_frame, textvariable=shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(0, 8))
+        ttk.Button(line_frame, text="Guardar", command=lambda: self._save_price_line(profit_var, iva_var, shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
+        ttk.Button(line_frame, text="×", command=lambda f=line_frame: self._remove_price_line(f), width=3).grid(row=0, column=7, sticky="w", padx=(0, 4))
+
+        self._price_lines.append({
+            "frame": line_frame,
+            "profit_var": profit_var,
+            "iva_var": iva_var,
+            "shipping_var": shipping_var,
+        })
+
+    def _remove_price_line(self, line_frame):
+        """Remove uma linha de configuração de preço."""
+        line_frame.destroy()
+        self._price_lines = [l for l in self._price_lines if l["frame"] is not line_frame]
+
+    def _save_price_line(self, profit_var, iva_var, shipping_var):
+        """Guarda uma linha individual de configuração de preço."""
+        try:
+            profit_str = profit_var.get().strip().replace(",", ".")
+            iva_str = iva_var.get().strip().replace(",", ".")
+            shipping_str = shipping_var.get().strip().replace(",", ".")
+
+            profit_pct = None
+            iva_pct = None
+            shipping = None
+
+            if profit_str:
+                try:
+                    p = float(profit_str)
+                    if p > 0:
+                        profit_pct = p
+                except ValueError:
+                    pass
+            if iva_str:
+                try:
+                    p = float(iva_str)
+                    if p >= 0:
+                        iva_pct = p
+                except ValueError:
+                    pass
+            if shipping_str:
+                try:
+                    p = float(shipping_str)
+                    if p >= 0:
+                        shipping = p
+                except ValueError:
+                    pass
+
+            from core.field_mapping import get_active_profile
+            if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula="detailed", profile_name=get_active_profile()):
+                messagebox.showinfo(translate("Guardado", self.language), translate("Configurações de preço guardadas.", self.language), parent=self)
+            else:
+                messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar as configurações de preço.", self.language), parent=self)
+        except Exception as e:
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
+
     def _save_price_settings(self):
         """Guarda as configurações de preços."""
         try:
@@ -4783,46 +4856,47 @@ class App(Tk):
     def _auto_save_price_settings(self):
         """Guarda automaticamente as configurações de preços da interface antes de converter."""
         try:
-            if not hasattr(self, "_price_profit_var"):
+            if not hasattr(self, "_price_lines"):
                 return
-            profit_str = self._price_profit_var.get().strip().replace(",", ".")
-            iva_str = self._price_iva_var.get().strip().replace(",", ".")
-            shipping_str = self._price_shipping_var.get().strip().replace(",", ".")
+            for line in self._price_lines:
+                profit_str = line["profit_var"].get().strip().replace(",", ".")
+                iva_str = line["iva_var"].get().strip().replace(",", ".")
+                shipping_str = line["shipping_var"].get().strip().replace(",", ".")
 
-            profit_pct = None
-            iva_pct = None
-            shipping = None
+                profit_pct = None
+                iva_pct = None
+                shipping = None
 
-            if profit_str:
-                try:
-                    p = float(profit_str)
-                    if p > 0:
-                        profit_pct = p
-                except ValueError:
-                    pass
-            if iva_str:
-                try:
-                    p = float(iva_str)
-                    if p >= 0:
-                        iva_pct = p
-                except ValueError:
-                    pass
-            if shipping_str:
-                try:
-                    p = float(shipping_str)
-                    if p >= 0:
-                        shipping = p
-                except ValueError:
-                    pass
+                if profit_str:
+                    try:
+                        p = float(profit_str)
+                        if p > 0:
+                            profit_pct = p
+                    except ValueError:
+                        pass
+                if iva_str:
+                    try:
+                        p = float(iva_str)
+                        if p >= 0:
+                            iva_pct = p
+                    except ValueError:
+                        pass
+                if shipping_str:
+                    try:
+                        p = float(shipping_str)
+                        if p >= 0:
+                            shipping = p
+                    except ValueError:
+                        pass
 
-            from core.field_mapping import get_active_profile, set_price_settings
-            set_price_settings(
-                profit_percentage=profit_pct,
-                iva_percentage=iva_pct,
-                shipping_cost=shipping,
-                price_formula="detailed",
-                profile_name=get_active_profile()
-            )
+                from core.field_mapping import get_active_profile, set_price_settings
+                set_price_settings(
+                    profit_percentage=profit_pct,
+                    iva_percentage=iva_pct,
+                    shipping_cost=shipping,
+                    price_formula="detailed",
+                    profile_name=get_active_profile()
+                )
         except Exception:
             pass
 
