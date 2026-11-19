@@ -327,6 +327,38 @@ def build_description(row: dict, mapping: dict = None) -> str:
     return ". ".join(parts)
 
 
+def _massive_column_level() -> str:
+    """Devolve o nível de coluna em que as regras massivas devem aplicar.
+
+    As regras gravadas pelo agrupamento automático usam como origens categorias
+    da coluna escolhida na aba CATEGORIAS M (por ex. "Informática > Portáteis"),
+    que são caminhos de hierarquia e não a familia isolada. Com o nível
+    "unique" (o valor por omissão de ``apply_massive_category_rules``) essas
+    origens nunca casariam, porque a correspondência só compara a familia.
+
+    A aba mantém o nível no StringVar ``_massive_column_level`` (atualizado por
+    ``_on_massive_column_level_changed``). Este módulo não pode importar a classe
+    ``App`` ao nível global sem criar import circular (``core.field_mapping``
+    já importa ``gui.csv_converter_gui`` dentro de função), por isso lê-se o
+    estado da instância viva. Sem GUI (CLI/testes) devolve
+    "unique+subcats+subsubcats": é o nível mais lato e cobre qualquer origem
+    gravada, incluindo as da coluna 1 ("unique"), porque a correspondência em
+    qualquer nível inclui a familia. Assim as regras ficam sempre aplicadas,
+    mesmo que o utilizador nunca tenha aberto a aba.
+    """
+    try:
+        from tkinter import _default_root  # type: ignore[attr-defined]
+
+        var = getattr(_default_root, "_massive_column_level", None)
+        if var is not None:
+            level = str(var.get() or "").strip()
+            if level in ("unique", "unique+subcats", "unique+subcats+subsubcats"):
+                return level
+    except Exception:
+        pass
+    return "unique+subcats+subsubcats"
+
+
 def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> str:
     """
     Build category hierarchy using field mapping.
@@ -383,7 +415,12 @@ def build_categories(row: dict, mapping: dict = None, compiled_rules=None) -> st
     # Se houver correspondência, a categoria pai definida na regra substitui
     # toda a hierarquia, mantendo as subcategoria originais abaixo dela.
     try:
-        massive_parent = apply_massive_category_rules(familia, sub_familia, sub_sub_familia)
+        massive_parent = apply_massive_category_rules(
+            familia,
+            sub_familia,
+            sub_sub_familia,
+            column_level=_massive_column_level(),
+        )
         if massive_parent:
             # Constrói a hierarquia sob a nova categoria pai
             result = [massive_parent]
@@ -2466,6 +2503,37 @@ class App(Tk):
                 parent=self,
             )
 
+    def _apply_grouping_suggestions(self, suggestions_aprovadas: dict) -> int:
+        """Grava regras massivas a partir das sugestões aprovadas na UI.
+
+        `suggestions_aprovadas` = {categoria_pai: [categorias de origem]}.
+        Devolve o número de regras gravadas com sucesso.
+        Áreas sem categorias válidas são ignoradas.
+        """
+        gravadas = 0
+        for pai, categorias in (suggestions_aprovadas or {}).items():
+            pai = str(pai or "").strip()
+            if not pai:
+                continue
+            fontes = [
+                str(categoria).strip()
+                for categoria in (categorias or [])
+                if str(categoria or "").strip()
+            ]
+            if not fontes:
+                continue
+            # Mesmo padrao de descricao de _add_massive_rule_from_ui
+            # (f"{cat_pai} - {area}"); a chave das sugestoes e o proprio pai,
+            # por isso a area coincide com o pai.
+            descricao = f"{pai} - {pai}"
+            if save_massive_category_rule(descricao, fontes, pai):
+                gravadas += 1
+
+        # Refrescar a lista de regras visivel na aba.
+        if hasattr(self, "_refresh_massive_rules_list"):
+            self._refresh_massive_rules_list()
+        return gravadas
+
     def _save_massive_config(self):
         """Guarda todas as configurações de categorias da aba M."""
         set_category_settings(
@@ -2970,6 +3038,11 @@ class App(Tk):
                 parent=self,
             )
             return
+
+        # Grava o nivel de coluna selecionado: e ele que define de onde vem as
+        # origens das regras que vamos aprovar, e a conversao usa-o para aplicar
+        # as regras em qualquer nivel da hierarquia.
+        self._on_massive_column_level_changed()
 
         try:
             sugestoes = suggest_groupings(unique_categories)
