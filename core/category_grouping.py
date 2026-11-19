@@ -8,6 +8,44 @@ Função pura: não escreve em ficheiros nem tem estado.
 from core.category_classifier import DEFAULT_RULES, _normalize
 
 
+def _texto_para_tokens(texto: str) -> list:
+    """Divide o texto normalizado em tokens (letras/dígitos).
+
+    O separador hierárquico ``>`` e a pontuação já foram convertidos em espaço
+    por ``_normalize``, por isso basta dividir pelo que não é letra/dígito.
+    """
+    return [token for token in _normalize(texto).split() if token]
+
+
+def _palavra_casa(palavra: str, tokens: list) -> bool:
+    """Indica se a keyword (já normalizada) casa como palavra inteira.
+
+    A keyword pode ter várias palavras ("cabo rede", "cadeira gamer"); nesse
+    caso só casa se aparecer a sequência completa de palavras. Palavras
+    simples aceitam plural flexionado ("computador" casa em "computadores",
+    "chave" em "chaves") mas nunca substring de outra palavra ("ram" não casa
+    em "ferramentas").
+    """
+    if " " not in palavra:
+        for token in tokens:
+            if token == palavra:
+                return True
+            if (
+                len(palavra) >= 3
+                and len(token) > len(palavra)
+                and token.startswith(palavra)
+                and token[len(palavra):] in ("s", "es")
+            ):
+                return True
+        return False
+
+    partes = palavra.split()
+    return any(
+        tokens[i:i + len(partes)] == partes
+        for i in range(len(tokens) - len(partes) + 1)
+    )
+
+
 def suggest_groupings(unique_categories: list) -> dict:
     """Agrupa categorias únicas sob categorias pai sugeridas.
 
@@ -23,11 +61,11 @@ def suggest_groupings(unique_categories: list) -> dict:
         categoria_pai = (regra.get("category") or "").strip()
         if not categoria_pai:
             continue
-        palavras_chave = []
-        for kw in regra.get("keywords", []):
-            normalizada = _normalize(kw)
-            if normalizada:
-                palavras_chave.append(normalizada)
+        palavras_chave = [
+            _normalize(kw)
+            for kw in regra.get("keywords", [])
+            if _normalize(kw)
+        ]
         if palavras_chave:
             regras.append((categoria_pai, palavras_chave))
 
@@ -35,8 +73,8 @@ def suggest_groupings(unique_categories: list) -> dict:
     for categoria in unique_categories or []:
         if not isinstance(categoria, str) or not categoria.strip():
             continue
-        texto = _normalize(categoria)
-        if not texto:
+        tokens = _texto_para_tokens(categoria)
+        if not tokens:
             continue
 
         # Em empate de pontuação, a regra que aparece primeiro em
@@ -44,10 +82,11 @@ def suggest_groupings(unique_categories: list) -> dict:
         melhor_categoria = None
         melhor_pontuacao = 0
         for categoria_pai, palavras_chave in regras:
-            pontuacao = 0
-            for kw in palavras_chave:
-                if kw in texto:
-                    pontuacao += len(kw)
+            pontuacao = sum(
+                len(kw)
+                for kw in palavras_chave
+                if _palavra_casa(kw, tokens)
+            )
             if pontuacao > melhor_pontuacao:
                 melhor_categoria = categoria_pai
                 melhor_pontuacao = pontuacao

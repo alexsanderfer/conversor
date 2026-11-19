@@ -2,6 +2,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -228,210 +229,6 @@ def test_saving_massive_rule_keeps_description_sources_and_parent_without_duplic
     assert updated[0]["priority"] == 1
 
 
-def test_massive_rule_matches_source_prefix_path_two_levels(tmp_path, monkeypatch):
-    """Caso crítico da review: origem gravada da coluna 2 ("A > B") casa em
-    linha de dois níveis, independentemente de column_level."""
-    config_path = tmp_path / "field_mapping_config.json"
-    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
-
-    assert field_mapping.save_massive_category_rule(
-        description="Informatica - Informatica",
-        source_categories=["Informatica > Computadores", "Informatica > Monitores"],
-        parent_category="Informatica",
-    )
-
-    # Linha de dois níveis: a origem "Informatica > Computadores" é um prefixo
-    # do caminho completo por níveis inteiros.
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "Computadores", "", column_level="unique"
-    ) == "Informatica"
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "Computadores", "", column_level="unique+subcats"
-    ) == "Informatica"
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "Computadores", "", column_level="unique+subcats+subsubcats"
-    ) == "Informatica"
-
-    # Linha de um único nível nunca casa com a origem de dois níveis.
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "", "", column_level="unique+subcats+subsubcats"
-    ) == ""
-
-    # A terceira linha do caminho não descasca: "Informatica > Monitores" não
-    # casa em "Informatica > Computadores > Acer".
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "Computadores", "Acer", column_level="unique+subcats+subsubcats"
-    ) == ""
-
-
-def test_massive_rule_matches_source_full_path_three_levels(tmp_path, monkeypatch):
-    """Origem da coluna 3 ("A > B > C") casa no caminho completo de três níveis."""
-    config_path = tmp_path / "field_mapping_config.json"
-    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
-
-    assert field_mapping.save_massive_category_rule(
-        description="Informatica - Informatica",
-        source_categories=["Informatica > Computadores > Acer"],
-        parent_category="Informatica",
-    )
-
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "Computadores", "Acer", column_level="unique"
-    ) == "Informatica"
-    # Dois níveis não bastam para uma origem de três níveis (prefixo por
-    # níveis inteiros, não substring).
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "Computadores", "", column_level="unique+subcats"
-    ) == ""
-
-
-def test_massive_rule_simple_column_one_source_still_matches(tmp_path, monkeypatch):
-    """Origens simples da coluna 1 (compatibilidade retroativa)."""
-    config_path = tmp_path / "field_mapping_config.json"
-    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
-
-    assert field_mapping.save_massive_category_rule(
-        description="Informatica - Informatica",
-        source_categories=["Informatica"],
-        parent_category="Loja INFORMÁTICA",
-    )
-
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "", "", column_level="unique"
-    ) == "Loja INFORMÁTICA"
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "Portáteis", "", column_level="unique+subcats"
-    ) == "Loja INFORMÁTICA"
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "Portáteis", "Acer", column_level="unique+subcats+subsubcats"
-    ) == "Loja INFORMÁTICA"
-
-
-def test_massive_rule_legacy_category_group_keeps_partial_behaviour(tmp_path, monkeypatch):
-    """Regras antigas com category_group mantêm correspondência parcial."""
-    config_path = tmp_path / "field_mapping_config.json"
-    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
-
-    assert field_mapping.set_massive_category_rules([
-        {"category_group": "Informática", "parent_category": "Loja INFORMÁTICA", "priority": 10},
-    ])
-
-    assert field_mapping.apply_massive_category_rules("Informática", "", "") == "Loja INFORMÁTICA"
-    assert field_mapping.apply_massive_category_rules("Informática", "Portáteis", "") == "Loja INFORMÁTICA"
-
-
-def test_massive_rule_prefix_does_not_confuse_levels(tmp_path, monkeypatch):
-    """Origem "a" não casa em "ab > c" (prefixo por níveis, não substring)."""
-    config_path = tmp_path / "field_mapping_config.json"
-    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
-
-    assert field_mapping.save_massive_category_rule(
-        description="Informatica - Informatica",
-        source_categories=["Informatica"],
-        parent_category="Loja INFORMÁTICA",
-    )
-
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "", "", column_level="unique"
-    ) == "Loja INFORMÁTICA"
-    # "informatica" não é prefixo por níveis de "informatica > portateis" ?
-    # É: "informatica > portateis" começa em "informatica > ". Deve casar.
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "Portateis", "", column_level="unique"
-    ) == "Loja INFORMÁTICA"
-    # Mas "informatica" não casa em "ab > c" — usamos outro nome para provar.
-    assert field_mapping.apply_massive_category_rules(
-        "Outra Coisa", "", "", column_level="unique"
-    ) == ""
-
-
-def test_massive_rule_three_level_source_not_match_two_level_row(tmp_path, monkeypatch):
-    """Origem de três níveis ("A > B > C") não casa em linha de dois níveis ("A > B")."""
-    config_path = tmp_path / "field_mapping_config.json"
-    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
-
-    assert field_mapping.save_massive_category_rule(
-        description="Informatica - Informatica",
-        source_categories=["Informatica > Computadores > Acer"],
-        parent_category="Informatica",
-    )
-
-    # Três níveis: casa.
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "Computadores", "Acer", column_level="unique"
-    ) == "Informatica"
-    # Dois níveis: prefixo por níveis inteiros não casa — caminho tem só dois.
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "Computadores", "", column_level="unique+subcats"
-    ) == ""
-    # Um nível: não casa.
-    assert field_mapping.apply_massive_category_rules(
-        "Informatica", "", "", column_level="unique+subcats+subsubcats"
-    ) == ""
-
-
-def test_massive_rule_from_grouping_applies_to_two_level_row(tmp_path, monkeypatch):
-    """Fim-a-fim: regra gravada por _apply_grouping_suggestions (origens em
-    caminho, "A > B") é aplicada pela conversão numa linha de dois níveis.
-
-    É o caso crítico da review: antes da semântica por caminho a regra só
-    casava quando a linha tinha os três níveis preenchidos.
-    """
-    config_path = tmp_path / "field_mapping_config.json"
-    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
-
-    assert field_mapping.save_massive_category_rule(
-        description="Informatica - Informatica",
-        source_categories=["Informatica > Computadores", "Informatica > Monitores"],
-        parent_category="Informatica",
-    )
-
-    row = {
-        "design": "Portátil",
-        "familia_principal": "Informatica",
-        "sub_familia": "Computadores",
-        "sub_sub_familia": "",
-    }
-    result = build_categories(row, mapping={})
-    assert result.startswith("Informatica,Informatica/Computadores")
-
-
-def test_massive_rule_from_grouping_column3_applies_on_two_level_row(tmp_path, monkeypatch):
-    """Achado 3 da review: regras da coluna 3 casam nas linhas de dois níveis,
-    tal como as da coluna 2 (não casam menos)."""
-    config_path = tmp_path / "field_mapping_config.json"
-    monkeypatch.setattr(field_mapping, "_config_path", lambda: config_path)
-
-    assert field_mapping.save_massive_category_rule(
-        description="Informatica - Informatica",
-        source_categories=["Informatica > Computadores > Acer"],
-        parent_category="Informatica",
-    )
-
-    # Linha de três níveis: casa (o caminho é exatamente a origem).
-    row_three = {
-        "design": "Portátil Acer",
-        "familia_principal": "Informatica",
-        "sub_familia": "Computadores",
-        "sub_sub_familia": "Acer",
-    }
-    assert build_categories(row_three, mapping={}).startswith(
-        "Informatica,Informatica/Computadores/Acer"
-    )
-
-    # Linha de dois níveis: a origem de três níveis NÃO casa (mais estrita que
-    # a da coluna 2, que casaria). Confirma o limite do prefixo por níveis.
-    row_two = {
-        "design": "Computador genérico",
-        "familia_principal": "Informatica",
-        "sub_familia": "Computadores",
-        "sub_sub_familia": "",
-    }
-    assert build_categories(row_two, mapping={}) == (
-        "Informatica,Informatica/Computadores"
-    )
-
-
 class TestMassiveCategoryMatching(unittest.TestCase):
     """Correspondência de regras massivas por caminho (correção do achado Critical).
 
@@ -655,6 +452,84 @@ def test_massive_rules_column_explains_rule_purpose_in_european_portuguese():
     assert "Ex: Todas as linhas das categorias de artigos para o lar e casa enviar para..." in source
 
 
+class TestGroupingSuggestionCoverage(unittest.TestCase):
+    """Cobertura dos achados 3 e 4 da revisão final."""
+
+    class _FakeGroupingApp:
+        """Stand-in mínimo da App para testar `_apply_grouping_suggestions`."""
+
+        def _refresh_massive_rules_list(self):
+            pass
+
+    def setUp(self):
+        self.tmp_config = Path(tempfile.mkdtemp()) / "field_mapping_config.json"
+        self._orig_config_path = field_mapping._config_path
+        field_mapping._config_path = lambda: self.tmp_config
+
+    def tearDown(self):
+        field_mapping._config_path = self._orig_config_path
+
+    def _apply(self, sugestoes):
+        import gui.csv_converter_gui as gui
+
+        app = self._FakeGroupingApp()
+        return gui.App._apply_grouping_suggestions(app, sugestoes)
+
+    def test_apply_grouping_suggestions_inclui_familia_para_cobrir_a_area(self):
+        """Achado 3: com a fonte na coluna 2, gravar só "A > B" deixava fora os
+        produtos da mesma família (ex.: "A > Monitores"). A regra gravada passa
+        a incluir também a família."""
+        gravadas = self._apply({"Informatica": ["Informatica > Computadores"]})
+
+        self.assertEqual(gravadas, 1)
+        regras = field_mapping.get_massive_category_rules()
+        self.assertEqual(len(regras), 1)
+        self.assertEqual(
+            regras[0]["source_categories"],
+            ["Informatica > Computadores", "Informatica"],
+        )
+        # O produto da mesma área que não está na origem fica coberto pela família.
+        self.assertEqual(
+            field_mapping.apply_massive_category_rules("Informatica", "Monitores"),
+            "Informatica",
+        )
+
+    def test_apply_grouping_suggestions_nao_duplica_familia_quando_ja_presente(self):
+        self._apply({"Informatica": ["Informatica"]})
+
+        regras = field_mapping.get_massive_category_rules()
+        self.assertEqual(regras[0]["source_categories"], ["Informatica"])
+
+    def test_sugestoes_falhadas_mostram_erro_distinto(self):
+        """Achado 4: uma exceção do motor não pode aparecer como "não foram
+        encontradas sugestões"."""
+        import gui.csv_converter_gui as gui
+
+        # Sem Tkinter: um objeto simples com os atributos que o diálogo usa.
+        app = SimpleNamespace(language="pt-PT")
+        app._grouping_source_column = lambda: (["Informatica"], "Categorias únicas")
+
+        def explode(_categorias):
+            raise RuntimeError("motor avariado")
+
+        self._orig_suggest = gui.suggest_groupings
+        self._orig_showerror = gui.messagebox.showerror
+        gui.suggest_groupings = explode
+        chamadas = []
+        gui.messagebox.showerror = (
+            lambda titulo, texto, parent=None: chamadas.append((titulo, texto))
+        )
+        try:
+            gui.App._open_grouping_suggestions_dialog(app)
+        finally:
+            gui.suggest_groupings = self._orig_suggest
+            gui.messagebox.showerror = self._orig_showerror
+
+        self.assertEqual(len(chamadas), 1)
+        self.assertEqual(chamadas[0][0], "Erro")
+        self.assertIn("erro ao gerar as sugestões", chamadas[0][1])
+
+
 def test_i18n_catalog_contains_all_supported_languages():
     from core.i18n import translate
 
@@ -673,15 +548,6 @@ def test_language_setting_supports_european_brazilian_portuguese_and_english(tmp
     assert field_mapping.get_language() == "en"
     assert field_mapping.set_language("invalid")
     assert field_mapping.get_language() == "pt-PT"
-
-
-def test_massive_rules_column_explains_rule_purpose_in_european_portuguese():
-    gui_path = Path(__file__).parent.parent / "gui" / "csv_converter_gui.py"
-    source = gui_path.read_text(encoding="utf-8")
-
-    assert 'translate("Lista de Regras", self.language)' in source
-    assert "Insira as regras para associar grupos de categorias e as subcategorias a uma categoria pai." in source
-    assert "Ex: Todas as linhas das categorias de artigos para o lar e casa enviar para..." in source
 
 
 def test_saving_same_legacy_description_updates_without_duplicate(tmp_path, monkeypatch):

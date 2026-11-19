@@ -84,6 +84,7 @@ TRANSLATABLE_STRINGS = (
     "Não foi possível gravar nenhuma regra de agrupamento.",
     "Regras gravadas:", "Fonte: ",
     "Não foi possível gravar as regras de agrupamento.",
+    "Ocorreu um erro ao gerar as sugestões de agrupamento. Consulte o registo para mais detalhes.",
 )
 
 _TRANSLATIONS = {
@@ -285,6 +286,7 @@ _TRANSLATIONS = {
         "Regras gravadas:": "Regras salvas:",
         "Fonte: ": "Fonte: ",
         "Não foi possível gravar as regras de agrupamento.": "Não foi possível gravar as regras de agrupamento.",
+        "Ocorreu um erro ao gerar as sugestões de agrupamento. Consulte o registo para mais detalhes.": "Ocorreu um erro ao gerar as sugestões de agrupamento. Consulte o registro para mais detalhes.",
     },
     "en": {
         "Fornecedores": "Suppliers", "Novo Ficheiro": "New File", "Atualizar Loja": "Update Store", "Lucro e Taxas": "Profit and Taxes",
@@ -395,6 +397,7 @@ _TRANSLATIONS = {
         "Regras gravadas:": "Rules saved:",
         "Fonte: ": "Source: ",
         "Não foi possível gravar as regras de agrupamento.": "Could not save the grouping rules.",
+        "Ocorreu um erro ao gerar as sugestões de agrupamento. Consulte o registo para mais detalhes.": "An error occurred while generating the grouping suggestions. Check the log for more details.",
     },
 }
 

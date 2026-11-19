@@ -1231,8 +1231,11 @@ def apply_massive_category_rules(
 
     Regras antigas que só possuem ``category_group`` continuam a usar
     correspondência parcial (``group in value``) para preservar a
-    compatibilidade com configurações existentes; origens simples (coluna 1)
-    casam pelo mesmo mecanismo.
+    compatibilidade com configurações existentes; quando uma regra tem ambos
+    (``source_categories`` e ``category_group``), o grupo legado é acrescentado
+    às origens e comparado pelo mesmo critério de caminho, que é mais estrito
+    que o ``in`` parcial. O ramo ``continue`` seguinte cobre as regras que só
+    têm ``category_group``, pelo que o comportamento dessas não muda.
     """
     familia_norm = _normalize_massive_category(familia)
     sub_familia_norm = _normalize_massive_category(sub_familia)
@@ -1263,8 +1266,9 @@ def apply_massive_category_rules(
                 if _normalize_massive_category(value)
             }
 
-            # Compatibilidade com regras legadas com category_group (sem
-            # source_categories): mantém o comportamento atual.
+            # Compatibilidade com regras legadas com category_group (com ou sem
+            # source_categories): o grupo legado entra nas origens e é comparado
+            # pelo mesmo critério de caminho.
             legacy_group = _normalize_massive_category(rule.get("category_group", ""))
             if legacy_group:
                 normalized_sources.add(legacy_group)

@@ -102,6 +102,21 @@ class TestSuggestGroupings(unittest.TestCase):
 
         self.assertEqual(resultado, {INFORMATICA: [entrada]})
 
+    def test_palavra_chave_nao_casa_como_substring(self):
+        # "ram" (Informática) é substring de "ferramentas": com correspondência
+        # por limites de palavra a categoria real fica de fora das sugestões,
+        # em vez de ser enviada para a área errada.
+        self.assertEqual(suggest_groupings(["Ferramentas"]), {})
+        self.assertEqual(suggest_groupings(["Ferramentas Elétricas"]), {})
+
+    def test_palavra_chave_com_espaco_continua_a_casar(self):
+        self.assertEqual(
+            suggest_groupings(["Cabo Rede"]), {INFORMATICA: ["Cabo Rede"]}
+        )
+        self.assertEqual(
+            suggest_groupings(["Cadeira Gamer"]), {INFORMATICA: ["Cadeira Gamer"]}
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

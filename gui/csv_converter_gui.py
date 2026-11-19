@@ -16,6 +16,7 @@ import re
 import subprocess
 import sys
 import threading
+import traceback
 import tkinter as tk
 import unicodedata
 import webbrowser
@@ -327,60 +328,10 @@ def build_description(row: dict, mapping: dict = None) -> str:
     return ". ".join(parts)
 
 
-def _read_massive_column_level() -> str:
-    """Lê o nível de coluna da aba CATEGORIAS M sem tocar em Tkinter na thread.
-
-    Devolve ``""`` quando não existe GUI (CLI, testes fora da janela) ou quando
-    o ``StringVar`` ainda não existe. Quem chama decide o valor por omissão:
-    ``build_categories`` usa o nível mais lato e ``convert_row`` aceita uma
-    sobrescrita explícita do chamador.
-
-    A leitura é feita aqui, na thread principal, e não dentro de
-    ``build_categories``: o preview do CSV corre dentro de
-    ``threading.Thread`` e ``StringVar.get()`` fora da thread principal não é
-    seguro — na thread devolveria sempre o valor por omissão.
-    """
-    try:
-        from tkinter import _default_root  # type: ignore[attr-defined]
-
-        var = getattr(_default_root, "_massive_column_level", None)
-        if var is None:
-            return ""
-        return str(var.get() or "").strip()
-    except Exception:
-        return ""
-
-
-# Níveis de coluna reconhecidos na aba CATEGORIAS M.
-MASSIVE_COLUMN_LEVELS = (
-    "unique",
-    "unique+subcats",
-    "unique+subcats+subsubcats",
-)
-_MASSIVE_COLUMN_LEVEL_WIDEST = "unique+subcats+subsubcats"
-
-
-def _resolve_massive_column_level(column_level: str = None) -> str:
-    """Normaliza o nível de coluna: valor válido > aba > nível mais lato.
-
-    O nível mais lato inclui sempre os mais restritos, por isso é o valor por
-    omissão fora da GUI: garante que as regras gravadas a partir de qualquer
-    coluna (1, 2 ou 3) são aplicadas mesmo sem janela aberta.
-    """
-    level = str(column_level or "").strip()
-    if level in MASSIVE_COLUMN_LEVELS:
-        return level
-    level = _read_massive_column_level()
-    if level in MASSIVE_COLUMN_LEVELS:
-        return level
-    return _MASSIVE_COLUMN_LEVEL_WIDEST
-
-
 def build_categories(
     row: dict,
     mapping: dict = None,
     compiled_rules=None,
-    column_level: str = None,
 ) -> str:
     """
     Build category hierarchy using field mapping.
@@ -388,9 +339,6 @@ def build_categories(
     Args:
         row: Dictionary with CSV column names as keys
         mapping: Optional field mapping dictionary
-        column_level: Nível de coluna das regras massivas. Aceita os valores da
-            aba CATEGORIAS M; por omissão lê o estado da aba e, sem GUI, usa o
-            nível mais lato.
 
     Returns:
         str: Comma-separated category paths
@@ -444,7 +392,6 @@ def build_categories(
             familia,
             sub_familia,
             sub_sub_familia,
-            column_level=_resolve_massive_column_level(column_level),
         )
         if massive_parent:
             # Constrói a hierarquia sob a nova categoria pai
@@ -616,7 +563,6 @@ def convert_row(
     row: dict,
     mapping: dict = None,
     compiled_rules=None,
-    column_level: str = None,
 ) -> dict:
     """
     Convert a CSV row to Jumpseller format using field mapping.
@@ -624,9 +570,6 @@ def convert_row(
     Args:
         row: Dictionary with CSV column names as keys
         mapping: Optional field mapping dictionary (uses default if None)
-        column_level: Nível de coluna das regras massivas. Deve ser lido na
-            thread principal (``_read_massive_column_level``) antes de chamar
-            este método a partir de uma thread.
 
     Returns:
         dict: Row in Jumpseller format
@@ -655,7 +598,7 @@ def convert_row(
     dest_row["Brand"] = get_mapped_value(row, "marca", mapping)
     dest_row["Barcode"] = get_mapped_value(row, "codigo", mapping)
     dest_row["Categories"] = build_categories(
-        row, mapping, compiled_rules=compiled_rules, column_level=column_level
+        row, mapping, compiled_rules=compiled_rules
     )
     dest_row["Images"] = get_mapped_value(row, "imagem", mapping)
     dest_row["Digital"] = "NO"
@@ -2127,7 +2070,6 @@ class App(Tk):
             ]
         )
         self._massive_coluna_combo.pack(side="left", padx=(0, 10))
-        self._massive_coluna_combo.bind("<<ComboboxSelected>>", self._on_massive_column_level_changed)
 
         btn_sel_row = ttk.Frame(frm)
         btn_sel_row.pack(fill="x", pady=(0, 10))
@@ -2261,7 +2203,6 @@ class App(Tk):
         self._massive_unique_with_subcats = []
         self._massive_unique_with_subsubcats = []
         self._massive_subsubcat_categories = []
-        self._massive_column_level = tk.StringVar(value="unique")
 
         # Popular dropdowns
         self._refresh_massive_cat_pai_combo()
@@ -2409,16 +2350,6 @@ class App(Tk):
             self._massive_result_preview.delete("1.0", tk.END)
             self._massive_result_preview.config(state="disabled")
 
-    def _on_massive_column_level_changed(self, event=None):
-        """Atualiza o nível de coluna selecionado na aba CATEGORIAS M."""
-        coluna = self._massive_coluna_var.get().strip()
-        if "Sub-sub" in coluna:
-            self._massive_column_level.set("unique+subcats+subsubcats")
-        elif "Sub" in coluna:
-            self._massive_column_level.set("unique+subcats")
-        else:
-            self._massive_column_level.set("unique")
-
     def _load_massive_category_columns(self):
         """Carrega as três colunas de categorias para o agrupamento em lote."""
         self._load_unique_categories_list()
@@ -2544,17 +2475,30 @@ class App(Tk):
         `suggestions_aprovadas` = {categoria_pai: [categorias de origem]}.
         Devolve o número de regras gravadas com sucesso.
         Áreas sem categorias válidas são ignoradas.
+
+        Quando a fonte das sugestões é a coluna 2 ou 3, as origens têm a forma
+        ``"A > B"`` (família > subcategoria) ou ``"A > B > C"``. Gravar apenas
+        esses caminhos deixava de fora os produtos da mesma área cujo caminho
+        não coincide (ex.: ``"Informatica > Monitores"`` não casava com a origem
+        ``"Informatica > Computadores"``). Para cobrir a área inteira, cada
+        origem em caminho acrescenta também a sua **família** (o primeiro
+        nível), sem duplicados.
         """
         gravadas = 0
         for pai, categorias in (suggestions_aprovadas or {}).items():
             pai = str(pai or "").strip()
             if not pai:
                 continue
-            fontes = [
-                str(categoria).strip()
-                for categoria in (categorias or [])
-                if str(categoria or "").strip()
-            ]
+            fontes = []
+            for categoria in (categorias or []):
+                fonte = str(categoria or "").strip()
+                if not fonte:
+                    continue
+                if fonte not in fontes:
+                    fontes.append(fonte)
+                familia = fonte.split(">")[0].strip()
+                if familia and familia != fonte and familia not in fontes:
+                    fontes.append(familia)
             if not fontes:
                 continue
             # Mesmo padrao de descricao de _add_massive_rule_from_ui
@@ -2869,7 +2813,11 @@ class App(Tk):
                 widget.insert("1.0", "\n".join(values) if values else empty)
                 widget.config(state="disabled")
         except Exception:
-            pass
+            # Não engolir: era este ``except`` que escondia o bug original do
+            # preenchimento das colunas. Os guards hasattr/getattr acima
+            # continuam a proteger contra widgets ainda não criados.
+            print("Erro ao filtrar as categorias da aba CATEGORIAS M:", file=sys.stderr)
+            traceback.print_exc()
 
     def _filter_massive_origens_search(self):
         """Mantido para compatibilidade: o filtro de pesquisa vive no diálogo modal."""
@@ -3041,16 +2989,16 @@ class App(Tk):
         if "Sub-sub" in coluna:
             return (
                 list(getattr(self, "_massive_unique_with_subsubcats", []) or []),
-                "Categorias únicas + Subcategorias + Sub-subcategorias",
+                translate("Categorias únicas + Subcategorias + Sub-subcategorias", self.language),
             )
         if "Sub" in coluna:
             return (
                 list(getattr(self, "_massive_unique_with_subcats", []) or []),
-                "Categorias únicas + Subcategorias",
+                translate("Categorias únicas + Subcategorias", self.language),
             )
         return (
             list(getattr(self, "_unique_categories", []) or []),
-            "Categorias únicas",
+            translate("Categorias únicas", self.language),
         )
 
     def _open_grouping_suggestions_dialog(self):
@@ -3074,15 +3022,22 @@ class App(Tk):
             )
             return
 
-        # Grava o nivel de coluna selecionado: e ele que define de onde vem as
-        # origens das regras que vamos aprovar, e a conversao usa-o para aplicar
-        # as regras em qualquer nivel da hierarquia.
-        self._on_massive_column_level_changed()
-
         try:
             sugestoes = suggest_groupings(unique_categories)
         except Exception:
-            sugestoes = {}
+            # Uma falha real do motor não pode ficar indistinguível de "nada
+            # casou": regista a exceção e avisa com um erro próprio.
+            print("Erro ao gerar sugestões de agrupamento:", file=sys.stderr)
+            traceback.print_exc()
+            messagebox.showerror(
+                translate("Erro", self.language),
+                translate(
+                    "Ocorreu um erro ao gerar as sugestões de agrupamento. Consulte o registo para mais detalhes.",
+                    self.language,
+                ),
+                parent=self,
+            )
+            return
 
         if not sugestoes:
             messagebox.showinfo(
@@ -3260,9 +3215,6 @@ class App(Tk):
                     return
                 mapping = load_field_mapping()
                 compiled_rules = get_compiled_keyword_rules()
-                # Nivel de coluna lido na thread principal (StringVar nao e seguro
-                # fora dela); e repassado explicitamente a cada conversao.
-                column_level = _read_massive_column_level()
 
                 # Preencher Treeview de Preview Lado a Lado na main thread
                 def update_trees():
@@ -3293,7 +3245,6 @@ class App(Tk):
                                 conv = convert_row(
                                     row, mapping,
                                     compiled_rules=compiled_rules,
-                                    column_level=column_level,
                                 )
                                 conv_values = [str(conv.get(c, "")) for c in conv_cols]
                                 self._preview_conv_tree.insert("", "end", values=conv_values)
@@ -4606,6 +4557,10 @@ class App(Tk):
         - CATEGORIAS M: as sugestões usam a coluna selecionada (Únicas, +Subcategorias, +Sub-subcategorias) e são aprovadas por área.
         - CATEGORIAS M: corrigidas as colunas de categorias e a pesquisa, que nunca eram preenchidas.
         - As regras massivas passam a aplicar-se em qualquer nível da hierarquia (família, subcategoria ou sub-subcategoria).
+        - Correção: o matching por palavras-chave do agrupamento automático deixou de casar por substring (ex.: "ram" classificava "Ferramentas" como Informática).
+        - Correção: as regras gravadas a partir das colunas 2/3 passam a incluir a família, cobrindo os produtos da mesma área.
+        - Correção: as falhas do motor de sugestões e do filtro de categorias passam a ser registadas em vez de serem ignoradas.
+        - Removida a maquinaria morta de ``column_level`` (o nível de coluna já não influencia a correspondência por caminho).
         v0.5.7 (2026-11-19)
         - Lucro e Taxas: apenas uma linha pode estar ativa por vez (mutuamente exclusiva).
         - Lucro e Taxas: caixas de seleção "Ativo" persistem entre sessões.
