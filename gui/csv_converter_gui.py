@@ -1596,7 +1596,7 @@ class App(Tk):
         self._price_line1_shipping_var = tk.StringVar(value="")
         ttk.Entry(line1_frame, textvariable=self._price_line1_shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(0, 8))
         ttk.Button(line1_frame, text="Guardar", command=lambda: self._save_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
-        self._price_line1_active_var = tk.BooleanVar(value=True)
+        self._price_line1_active_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(line1_frame, text="Ativo", variable=self._price_line1_active_var).grid(row=0, column=7, sticky="w", padx=(0, 4))
 
         # Linha 2: IVA → Portes → Lucro
@@ -1614,7 +1614,7 @@ class App(Tk):
         self._price_line2_shipping_var = tk.StringVar(value="")
         ttk.Entry(line2_frame, textvariable=self._price_line2_shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(0, 8))
         ttk.Button(line2_frame, text="Guardar", command=lambda: self._save_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
-        self._price_line2_active_var = tk.BooleanVar(value=True)
+        self._price_line2_active_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(line2_frame, text="Ativo", variable=self._price_line2_active_var).grid(row=0, column=7, sticky="w", padx=(0, 4))
 
         ttk.Label(frm, text="As configurações são guardadas por perfil e aplicadas apenas quando definidas.\nValores vazios ou zero (IVA/Portes) não são aplicados.\nLinha 1 aplica: Lucro → IVA → Portes.\nLinha 2 aplica: IVA → Portes → Lucro.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
@@ -4201,7 +4201,8 @@ class App(Tk):
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
         v0.5.4 (2026-11-19)
-        - Lucro e Taxas: cada linha tem caixa de seleção "Ativo" para ligar/desligar a regra de preço.
+        - Lucro e Taxas: cada linha tem caixa de seleção "Ativo" para ligar/desligar a regra de preço (inicialmente desmarcada).
+        - Cada linha é aplicada apenas quando sua caixa "Ativo" está selecionada.
         v0.5.3 (2026-11-19)
         - Lucro e Taxas: duas linhas fixas com caixas de seleção "Limpar" para cada linha.
         - Lucro e Taxas: ordem de aplicação por linha (Linha 1: Lucro → IVA → Portes / Linha 2: IVA → Portes → Lucro).
