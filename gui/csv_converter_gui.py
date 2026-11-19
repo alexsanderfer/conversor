@@ -1610,7 +1610,7 @@ class App(Tk):
         ttk.Button(line1_frame, text="Guardar", command=lambda: self._save_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
         self._price_line1_active_var = tk.BooleanVar(value=line1_data.get("active", False))
         ttk.Checkbutton(line1_frame, text="Ativo", variable=self._price_line1_active_var,
-                        command=lambda: self._save_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var)).grid(row=0, column=7, sticky="w", padx=(0, 4))
+                        command=self._toggle_line1_active).grid(row=0, column=7, sticky="w", padx=(0, 4))
 
         # Linha 2: IVA → Portes → Lucro
         ttk.Label(frm, text="Linha 2: IVA → Portes → Lucro", font=("Segoe UI", 9, "bold"), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
@@ -1629,9 +1629,9 @@ class App(Tk):
         ttk.Button(line2_frame, text="Guardar", command=lambda: self._save_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
         self._price_line2_active_var = tk.BooleanVar(value=line2_data.get("active", False))
         ttk.Checkbutton(line2_frame, text="Ativo", variable=self._price_line2_active_var,
-                        command=lambda: self._save_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var)).grid(row=0, column=7, sticky="w", padx=(0, 4))
+                        command=self._toggle_line2_active).grid(row=0, column=7, sticky="w", padx=(0, 4))
 
-        ttk.Label(frm, text="As configurações são guardadas por perfil e aplicadas apenas quando definidas.\nValores vazios ou zero (IVA/Portes) não são aplicados.\nLinha 1 aplica: Lucro → IVA → Portes.\nLinha 2 aplica: IVA → Portes → Lucro.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
+        ttk.Label(frm, text="As configurações são guardadas por perfil e aplicadas apenas quando definidas.\nValores vazios ou zero (IVA/Portes) não são aplicados.\nApenas uma linha pode estar ativa por vez.\nLinha 1 aplica: Lucro → IVA → Portes.\nLinha 2 aplica: IVA → Portes → Lucro.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
 
     def _build_tab_fornecedores(self):
         """Constrói a aba 'Fornecedores' para gerir e listar perfis."""
@@ -2167,6 +2167,14 @@ class App(Tk):
         self._massive_col3_text.pack(side="left", fill="both", expand=True)
         c3_scroll.pack(side="right", fill="y")
 
+        # Pesquisa das três colunas de categorias
+        massive_search_row = ttk.Frame(frm)
+        massive_search_row.pack(fill="x", pady=(8, 4))
+        ttk.Label(massive_search_row, text="🔍 Pesquisar:").pack(side="left", padx=(0, 4))
+        self._massive_search_var = tk.StringVar()
+        self._massive_search_var.trace_add("write", lambda *args: self._filter_massive_categories())
+        ttk.Entry(massive_search_row, textvariable=self._massive_search_var, width=28).pack(side="left", padx=(0, 8))
+
         # Estado interno
         self._massive_rule_ids = {}
         self._massive_rule_list_indices = []
@@ -2174,6 +2182,7 @@ class App(Tk):
         self._massive_unique_categories = []
         self._massive_unique_with_subcats = []
         self._massive_unique_with_subsubcats = []
+        self._massive_subsubcat_categories = []
         self._massive_column_level = tk.StringVar(value="unique")
 
         # Popular dropdowns
@@ -2571,6 +2580,8 @@ class App(Tk):
 
     def _update_massive_instruction(self):
         """Atualiza a instrução guiada conforme o estado da seleção."""
+        if not hasattr(self, "_massive_instruction_var"):
+            return
         if self._massive_selected_rule_id:
             msg = translate("Editando regra selecionada. Altere os campos e clique em 'Adicionar Regra' para guardar as alterações.", self.language)
         else:
@@ -2705,22 +2716,51 @@ class App(Tk):
                 self._update_massive_instruction()
 
     def _filter_massive_categories(self):
-        query = self._massive_search_var.get().strip().lower()
-        unique_all = getattr(self, "_unique_categories", [])
-        subcat_all = getattr(self, "_subcat_categories", [])
-        unique = [item for item in unique_all if not query or query in item.lower()]
-        subcats = [item for item in subcat_all if not query or query in item.lower()]
-        subcats = [item for item in subcats if ">" in item]
-        self._massive_unique_title_var.set(f"CATEGORIAS ÚNICAS ({len(unique)})")
-        self._massive_subcat_title_var.set(f"CATEGORIAS ÚNICAS COM SUBCATEGORIAS ({len(subcats)})")
-        for widget, values, empty in (
-            (self._massive_unique_text, unique, "(nenhuma categoria)"),
-            (self._massive_subcat_text, subcats, "(nenhuma categoria)"),
-        ):
-            widget.config(state="normal")
-            widget.delete("1.0", "end")
-            widget.insert("1.0", "\n".join(values) if values else empty)
-            widget.config(state="disabled")
+        try:
+            query = getattr(self, "_massive_search_var", None)
+            q = query.get().strip().lower() if query else ""
+
+            unique_all = getattr(self, "_unique_categories", [])
+            subcat_all = getattr(self, "_subcat_categories", [])
+            subsubcat_all = getattr(self, "_massive_subsubcat_categories", [])
+
+            filtered_unique = [item for item in unique_all if not q or q in item.lower()]
+            filtered_subcat = [item for item in subcat_all if not q or q in item.lower()]
+            filtered_subcat = [item for item in filtered_subcat if ">" in item]
+            filtered_subsubcat = [
+                item for item in subsubcat_all if not q or q in item.lower()
+            ]
+            filtered_subsubcat = [item for item in filtered_subsubcat if ">" in item]
+
+            if hasattr(self, "_massive_col1_title_var"):
+                self._massive_col1_title_var.set(
+                    f"CATEGORIAS ÚNICAS ({len(filtered_unique)} de {len(unique_all)})"
+                    if q else f"CATEGORIAS ÚNICAS ({len(unique_all)})"
+                )
+            if hasattr(self, "_massive_col2_title_var"):
+                self._massive_col2_title_var.set(
+                    f"CATEGORIAS ÚNICAS + SUBCATEGORIAS ({len(filtered_subcat)} de {len(subcat_all)})"
+                    if q else f"CATEGORIAS ÚNICAS + SUBCATEGORIAS ({len(subcat_all)})"
+                )
+            if hasattr(self, "_massive_col3_title_var"):
+                self._massive_col3_title_var.set(
+                    f"CATEGORIAS ÚNICAS + SUBCATEGORIAS + SUB-SUBCATEGORIAS ({len(filtered_subsubcat)} de {len(subsubcat_all)})"
+                    if q else f"CATEGORIAS ÚNICAS + SUBCATEGORIAS + SUB-SUBCATEGORIAS ({len(subsubcat_all)})"
+                )
+
+            for widget, values, empty in (
+                (getattr(self, "_massive_col1_text", None), filtered_unique, "(nenhuma categoria)"),
+                (getattr(self, "_massive_col2_text", None), filtered_subcat, "(nenhuma subcategoria)"),
+                (getattr(self, "_massive_col3_text", None), filtered_subsubcat, "(nenhuma sub-subcategoria)"),
+            ):
+                if widget is None:
+                    continue
+                widget.config(state="normal")
+                widget.delete("1.0", "end")
+                widget.insert("1.0", "\n".join(values) if values else empty)
+                widget.config(state="disabled")
+        except Exception:
+            pass
 
     def _filter_massive_origens_search(self):
         """Mantido para compatibilidade: o filtro de pesquisa vive no diálogo modal."""
@@ -2934,6 +2974,7 @@ class App(Tk):
 
                 unique_cats_set = set()
                 subcat_cats_set = set()
+                subsubcat_cats_set = set()
                 unique_brands_set = set()
                 brand_subcat_set = set()
                 for row in rows:
@@ -2947,7 +2988,7 @@ class App(Tk):
                         if sub_familia and familia:
                             subcat_cats_set.add(f"{familia} > {sub_familia}")
                         if sub_sub_familia and familia and sub_familia:
-                            subcat_cats_set.add(f"{familia} > {sub_familia} > {sub_sub_familia}")
+                            subsubcat_cats_set.add(f"{familia} > {sub_familia} > {sub_sub_familia}")
 
                         marca = str(get_mapped_value(row, "marca", mapping)).strip()
                         if not marca:
@@ -2970,6 +3011,15 @@ class App(Tk):
                     self._all_categories = self._subcat_categories
                     self._unique_brands = sorted(list(unique_brands_set)) if unique_brands_set else []
                     self._brand_subcat_categories = sorted(list(brand_subcat_set)) if brand_subcat_set else []
+
+                    # Alimentar as listas internas da aba CATEGORIAS M
+                    self._massive_unique_categories = list(self._unique_categories)
+                    self._massive_unique_with_subcats = list(self._subcat_categories)
+                    self._massive_unique_with_subsubcats = sorted(
+                        list(subsubcat_cats_set)
+                    ) if subsubcat_cats_set else []
+                    self._massive_subsubcat_categories = self._massive_unique_with_subsubcats
+
                     self._filter_categories()
                     self._hb_filter_categories()
                     self._brand_filter_categories()
@@ -4214,6 +4264,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.5.7 (2026-11-19)
+        - Lucro e Taxas: apenas uma linha pode estar ativa por vez (mutuamente exclusiva).
+        - Lucro e Taxas: caixas de seleção "Ativo" persistem entre sessões.
         v0.5.6 (2026-11-19)
         - Lucro e Taxas: campos em branco são tratados como 0 (não aplicado), não como não configurado.
         v0.5.5 (2026-11-19)
@@ -4904,6 +4957,20 @@ class App(Tk):
     def _toggle_price_line(self, line_key, active_var):
         """Alterna a linha de preço entre ativo e inativo."""
         active_var.set(not active_var.get())
+
+    def _toggle_line1_active(self):
+        """Alterna a linha 1 e desmarca a linha 2 (mutuamente exclusivo)."""
+        if self._price_line1_active_var.get():
+            self._price_line2_active_var.set(False)
+            self._save_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var)
+        self._save_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var)
+
+    def _toggle_line2_active(self):
+        """Alterna a linha 2 e desmarca a linha 1 (mutuamente exclusivo)."""
+        if self._price_line2_active_var.get():
+            self._price_line1_active_var.set(False)
+            self._save_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var)
+        self._save_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var)
 
     def _save_price_settings(self):
         """Guarda as configurações de preços."""
