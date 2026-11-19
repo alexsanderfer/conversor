@@ -2925,16 +2925,44 @@ class App(Tk):
         refresh_list()
         dialog.wait_window()
 
+    def _grouping_source_column(self):
+        """Devolve (lista de categorias, rotulo da coluna) conforme o dropdown Coluna.
+
+        As palavras-chave de produtos casam sobretudo nas subcategorias, por isso
+        a fonte e a coluna atualmente selecionada na aba CATEGORIAS M.
+        """
+        coluna = ""
+        if hasattr(self, "_massive_coluna_var"):
+            coluna = str(self._massive_coluna_var.get() or "").strip()
+
+        if "Sub-sub" in coluna:
+            return (
+                list(getattr(self, "_massive_unique_with_subsubcats", []) or []),
+                "Categorias únicas + Subcategorias + Sub-subcategorias",
+            )
+        if "Sub" in coluna:
+            return (
+                list(getattr(self, "_massive_unique_with_subcats", []) or []),
+                "Categorias únicas + Subcategorias",
+            )
+        return (
+            list(getattr(self, "_unique_categories", []) or []),
+            "Categorias únicas",
+        )
+
     def _open_grouping_suggestions_dialog(self):
         """Abre um dialog modal com as sugestoes de agrupamento por area.
 
         A selecao em cada listbox e a aprovacao: as categorias selecionadas
         entram na regra do respetivo pai; as restantes ficam de fora.
+        A fonte das sugestoes e a coluna selecionada no dropdown Coluna da aba
+        CATEGORIAS M (mantida no rodapes do dialogo).
         """
         if not hasattr(self, "language"):
             return
 
-        unique_categories = list(getattr(self, "_unique_categories", []) or [])
+        unique_categories, fonte_rotulo = self._grouping_source_column()
+        unique_categories = [c for c in unique_categories if str(c).strip()]
         if not unique_categories:
             messagebox.showinfo(
                 translate("Informação", self.language),
@@ -2970,6 +2998,7 @@ class App(Tk):
         dialog.rowconfigure(0, weight=0)  # aviso
         dialog.rowconfigure(1, weight=1)  # área rolável expande
         dialog.rowconfigure(2, weight=0)  # botões fixos
+        dialog.rowconfigure(3, weight=0)  # rodapé com a fonte
 
         ttk.Label(
             dialog,
@@ -3005,7 +3034,7 @@ class App(Tk):
         areas = {}
         for pai, categorias in sugestoes.items():
             categorias = [str(c).strip() for c in categorias if str(c).strip()]
-            if not pai or not categorias:
+            if not str(pai).strip() or not categorias:
                 continue
             area_frame = ttk.LabelFrame(
                 scroll_frame, text=str(pai), padding=(8, 4)
@@ -3024,17 +3053,12 @@ class App(Tk):
             listbox.pack(fill="x")
             areas[pai] = (listbox, categorias)
 
-        if not areas:
-            messagebox.showinfo(
-                translate("Informação", self.language),
-                translate(
-                    "Não foram encontradas sugestões para as categorias carregadas.",
-                    self.language,
-                ),
-                parent=self,
-            )
-            dialog.destroy()
-            return
+        # Rodapé com a coluna usada como fonte das sugestões
+        ttk.Label(
+            dialog,
+            text=f"{translate('Fonte: ', self.language)}{fonte_rotulo}",
+            font=("Segoe UI", 8), foreground=GRAY_600,
+        ).grid(row=3, column=0, sticky="w", padx=10, pady=(0, 4))
 
         # Barra de botões fixa na parte inferior (sempre visível)
         btn_frame = ttk.Frame(dialog)
@@ -3073,16 +3097,28 @@ class App(Tk):
                 )
                 return
 
-            gravadas = self._apply_grouping_suggestions(aprovadas)
+            erro_gravacao = None
+            try:
+                gravadas = self._apply_grouping_suggestions(aprovadas)
+            except Exception:
+                gravadas = 0
+                erro_gravacao = True
+
             dialog.destroy()
 
-            if gravadas > 0:
-                messagebox.showinfo(
-                    translate("Sucesso", self.language),
+            if erro_gravacao:
+                messagebox.showerror(
+                    translate("Erro", self.language),
                     translate(
-                        f"Foram gravadas {gravadas} regras de agrupamento.",
+                        "Não foi possível gravar as regras de agrupamento.",
                         self.language,
                     ),
+                    parent=self,
+                )
+            elif gravadas > 0:
+                messagebox.showinfo(
+                    translate("Sucesso", self.language),
+                    f"{translate('Regras gravadas:', self.language)} {gravadas}",
                     parent=self,
                 )
             else:

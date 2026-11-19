@@ -82,6 +82,8 @@ TRANSLATABLE_STRINGS = (
     "Selecione pelo menos uma categoria para aprovar.",
     "A gravação de sugestões ainda não está disponível. Atualize a aplicação.",
     "Não foi possível gravar nenhuma regra de agrupamento.",
+    "Regras gravadas:", "Fonte: ",
+    "Não foi possível gravar as regras de agrupamento.",
 )
 
 _TRANSLATIONS = {
@@ -280,6 +282,9 @@ _TRANSLATIONS = {
         "Selecione pelo menos uma categoria para aprovar.": "Selecione pelo menos uma categoria para aprovar.",
         "A gravação de sugestões ainda não está disponível. Atualize a aplicação.": "A gravação de sugestões ainda não está disponível. Atualize o aplicativo.",
         "Não foi possível gravar nenhuma regra de agrupamento.": "Não foi possível gravar nenhuma regra de agrupamento.",
+        "Regras gravadas:": "Regras salvas:",
+        "Fonte: ": "Fonte: ",
+        "Não foi possível gravar as regras de agrupamento.": "Não foi possível gravar as regras de agrupamento.",
     },
     "en": {
         "Fornecedores": "Suppliers", "Novo Ficheiro": "New File", "Atualizar Loja": "Update Store", "Lucro e Taxas": "Profit and Taxes",
@@ -387,6 +392,9 @@ _TRANSLATIONS = {
         "Selecione pelo menos uma categoria para aprovar.": "Select at least one category to approve.",
         "A gravação de sugestões ainda não está disponível. Atualize a aplicação.": "Saving suggestions is not available yet. Update the application.",
         "Não foi possível gravar nenhuma regra de agrupamento.": "Could not save any grouping rule.",
+        "Regras gravadas:": "Rules saved:",
+        "Fonte: ": "Source: ",
+        "Não foi possível gravar as regras de agrupamento.": "Could not save the grouping rules.",
     },
 }
 
