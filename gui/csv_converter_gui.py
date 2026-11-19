@@ -167,18 +167,70 @@ def _calc_price(raw_preco: str) -> str:
     if preco is None:
         return ""
     try:
-        from core.field_mapping import get_active_profile
+        from core.field_mapping import get_active_profile, get_price_settings
         settings = get_price_settings(get_active_profile())
-        profit_pct = float(settings.get("profit_percentage", 40.0))
-        iva_pct = float(settings.get("iva_percentage", 0.0))
-        shipping = float(settings.get("shipping_cost", 0.0))
+        price_lines = settings.get("price_lines", [])
 
-        # Fórmula detalhada ajustada: ((Custo * (1 + lucro%)) * (1 + iva%)) + portes
-        price = preco * (1.0 + profit_pct / 100.0)
-        if iva_pct and iva_pct > 0:
-            price = price * (1.0 + iva_pct / 100.0)
-        if shipping and shipping > 0:
-            price += shipping
+        # Se não há price_lines, usar valores únicos (compatibilidade com versões antigas)
+        if not price_lines:
+            profit_pct = float(settings.get("profit_percentage", 40.0))
+            iva_pct = float(settings.get("iva_percentage", 0.0))
+            shipping = float(settings.get("shipping_cost", 0.0))
+            order = settings.get("price_formula", "Lucro, IVA, Portes")
+
+            price = preco
+            if order == "Lucro, IVA, Portes":
+                if profit_pct and profit_pct > 0:
+                    price = price * (1.0 + profit_pct / 100.0)
+                if iva_pct and iva_pct > 0:
+                    price = price * (1.0 + iva_pct / 100.0)
+                if shipping and shipping > 0:
+                    price += shipping
+            elif order == "IVA, Portes, Lucro":
+                if iva_pct and iva_pct > 0:
+                    price = price * (1.0 + iva_pct / 100.0)
+                if shipping and shipping > 0:
+                    price += shipping
+                if profit_pct and profit_pct > 0:
+                    price = price * (1.0 + profit_pct / 100.0)
+            else:
+                if profit_pct and profit_pct > 0:
+                    price = price * (1.0 + profit_pct / 100.0)
+                if iva_pct and iva_pct > 0:
+                    price = price * (1.0 + iva_pct / 100.0)
+                if shipping and shipping > 0:
+                    price += shipping
+            return str(round(price, 2))
+
+        # Aplicar múltiplas linhas de preço em sequência
+        price = preco
+        for line in price_lines:
+            profit_pct = float(line.get("profit_percentage", 0.0))
+            iva_pct = float(line.get("iva_percentage", 0.0))
+            shipping = float(line.get("shipping_cost", 0.0))
+            order = line.get("price_formula", "Lucro, IVA, Portes")
+
+            if order == "Lucro, IVA, Portes":
+                if profit_pct and profit_pct > 0:
+                    price = price * (1.0 + profit_pct / 100.0)
+                if iva_pct and iva_pct > 0:
+                    price = price * (1.0 + iva_pct / 100.0)
+                if shipping and shipping > 0:
+                    price += shipping
+            elif order == "IVA, Portes, Lucro":
+                if iva_pct and iva_pct > 0:
+                    price = price * (1.0 + iva_pct / 100.0)
+                if shipping and shipping > 0:
+                    price += shipping
+                if profit_pct and profit_pct > 0:
+                    price = price * (1.0 + profit_pct / 100.0)
+            else:
+                if profit_pct and profit_pct > 0:
+                    price = price * (1.0 + profit_pct / 100.0)
+                if iva_pct and iva_pct > 0:
+                    price = price * (1.0 + iva_pct / 100.0)
+                if shipping and shipping > 0:
+                    price += shipping
         return str(round(price, 2))
     except Exception:
         try:
@@ -4127,6 +4179,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.5.1 (2026-11-19)
+        - Lucro e Taxas: adicionar coluna "Ordem" (Lucro, IVA, Portes / IVA, Portes, Lucro) para cada linha de preço.
+        - Lucro e Taxas: cada linha de preço é aplicada sequencialmente, respeitando a ordem configurada.
         v0.5.0 (2026-11-19)
         - Lucro e Taxas: múltiplas linhas de configuração de preço por perfil (Lucro %, IVA %, Portes €) com botão Guardar individual e botão × para remover linha.
         - Lucro e Taxas: cada linha é aplicada independientemente ao preço do fornecedor.
@@ -4749,6 +4804,7 @@ class App(Tk):
         profit_var = tk.StringVar(value="")
         iva_var = tk.StringVar(value="")
         shipping_var = tk.StringVar(value="")
+        order_var = tk.StringVar(value="Lucro, IVA, Portes")
 
         ttk.Label(line_frame, text="Lucro %:").grid(row=0, column=0, sticky="w", padx=(0, 4))
         ttk.Entry(line_frame, textvariable=profit_var, width=8).grid(row=0, column=1, sticky="w", padx=(0, 8))
@@ -4756,14 +4812,18 @@ class App(Tk):
         ttk.Entry(line_frame, textvariable=iva_var, width=8).grid(row=0, column=3, sticky="w", padx=(0, 8))
         ttk.Label(line_frame, text="Portes (€):").grid(row=0, column=4, sticky="w", padx=(0, 4))
         ttk.Entry(line_frame, textvariable=shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(0, 8))
-        ttk.Button(line_frame, text="Guardar", command=lambda: self._save_price_line(profit_var, iva_var, shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
-        ttk.Button(line_frame, text="×", command=lambda f=line_frame: self._remove_price_line(f), width=3).grid(row=0, column=7, sticky="w", padx=(0, 4))
+        ttk.Label(line_frame, text="Ordem:").grid(row=0, column=6, sticky="w", padx=(0, 4))
+        ttk.Combobox(line_frame, textvariable=order_var, state="readonly", width=15,
+                     values=["Lucro, IVA, Portes", "IVA, Portes, Lucro"]).grid(row=0, column=7, sticky="w", padx=(0, 8))
+        ttk.Button(line_frame, text="Guardar", command=lambda: self._save_price_line(profit_var, iva_var, shipping_var, order_var), width=10).grid(row=0, column=8, sticky="w", padx=(0, 4))
+        ttk.Button(line_frame, text="×", command=lambda f=line_frame: self._remove_price_line(f), width=3).grid(row=0, column=9, sticky="w", padx=(0, 4))
 
         self._price_lines.append({
             "frame": line_frame,
             "profit_var": profit_var,
             "iva_var": iva_var,
             "shipping_var": shipping_var,
+            "order_var": order_var,
         })
 
     def _remove_price_line(self, line_frame):
@@ -4771,12 +4831,13 @@ class App(Tk):
         line_frame.destroy()
         self._price_lines = [l for l in self._price_lines if l["frame"] is not line_frame]
 
-    def _save_price_line(self, profit_var, iva_var, shipping_var):
+    def _save_price_line(self, profit_var, iva_var, shipping_var, order_var):
         """Guarda uma linha individual de configuração de preço."""
         try:
             profit_str = profit_var.get().strip().replace(",", ".")
             iva_str = iva_var.get().strip().replace(",", ".")
             shipping_str = shipping_var.get().strip().replace(",", ".")
+            order = order_var.get().strip() if order_var else "Lucro, IVA, Portes"
 
             profit_pct = None
             iva_pct = None
@@ -4805,7 +4866,7 @@ class App(Tk):
                     pass
 
             from core.field_mapping import get_active_profile
-            if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula="detailed", profile_name=get_active_profile()):
+            if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula=order, profile_name=get_active_profile()):
                 messagebox.showinfo(translate("Guardado", self.language), translate("Configurações de preço guardadas.", self.language), parent=self)
             else:
                 messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar as configurações de preço.", self.language), parent=self)

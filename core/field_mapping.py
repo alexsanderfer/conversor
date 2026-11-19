@@ -302,6 +302,18 @@ def get_price_settings(profile_name=None):
         if not settings:
             # Fallback para settings globais para compatibilidade
             settings = data.get("settings", {})
+        # Retorna lista de linhas de preço (pode ser uma única linha para compatibilidade)
+        price_lines = settings.get("price_lines", [])
+        if price_lines:
+            return {
+                "price_lines": price_lines,
+                "profit_margin": float(settings.get("profit_margin", _DEFAULT_PROFIT_MARGIN)),
+                "profit_percentage": float(settings.get("profit_percentage", 40.0)),
+                "iva_percentage": float(settings.get("iva_percentage", 0.0)),
+                "shipping_cost": float(settings.get("shipping_cost", 0.0)),
+                "price_formula": settings.get("price_formula", "margin"),
+            }
+        # Fallback para linha única (compatibilidade com versões antigas)
         return {
             "profit_margin": float(settings.get("profit_margin", _DEFAULT_PROFIT_MARGIN)),
             "profit_percentage": float(settings.get("profit_percentage", 40.0)),
@@ -319,8 +331,13 @@ def get_price_settings(profile_name=None):
         }
 
 
-def set_price_settings(profit_percentage=None, iva_percentage=None, shipping_cost=None, price_formula=None, profile_name=None):
-    """Define configurações de preço por perfil."""
+def set_price_settings(profit_percentage=None, iva_percentage=None, shipping_cost=None, price_formula=None, profile_name=None, price_line=None, price_lines=None):
+    """Define configurações de preço por perfil.
+
+    Se price_lines for fornecido, substitui todas as linhas de preço.
+    Se price_line for fornecido, adiciona uma linha individual.
+    Se profit_percentage/iva_percentage/shipping_cost forem fornecidos, cria uma única linha.
+    """
     try:
         data = _read_config()
         if profile_name is None:
@@ -328,16 +345,28 @@ def set_price_settings(profit_percentage=None, iva_percentage=None, shipping_cos
         profiles = data.setdefault("profiles", {})
         profile = profiles.setdefault(profile_name, {})
         price_settings = profile.setdefault("price_settings", {})
-        if profit_percentage is not None:
-            pp = float(profit_percentage)
-            price_settings["profit_percentage"] = pp
-            price_settings["profit_margin"] = 1.0 + (pp / 100.0)
-        if iva_percentage is not None:
-            price_settings["iva_percentage"] = float(iva_percentage)
-        if shipping_cost is not None:
-            price_settings["shipping_cost"] = float(shipping_cost)
-        if price_formula is not None:
-            price_settings["price_formula"] = str(price_formula)
+
+        if price_lines is not None:
+            # Substitui todas as linhas
+            price_settings["price_lines"] = price_lines
+        elif price_line is not None:
+            # Adiciona uma linha individual
+            existing_lines = price_settings.get("price_lines", [])
+            existing_lines.append(price_line)
+            price_settings["price_lines"] = existing_lines
+        else:
+            # Modo legado: cria/atualiza uma única linha
+            if profit_percentage is not None:
+                pp = float(profit_percentage)
+                price_settings["profit_percentage"] = pp
+                price_settings["profit_margin"] = 1.0 + (pp / 100.0)
+            if iva_percentage is not None:
+                price_settings["iva_percentage"] = float(iva_percentage)
+            if shipping_cost is not None:
+                price_settings["shipping_cost"] = float(shipping_cost)
+            if price_formula is not None:
+                price_settings["price_formula"] = str(price_formula)
+
         profiles[profile_name] = profile
         data["profiles"] = profiles
         return _write_config(data)
@@ -1155,22 +1184,36 @@ def _normalize_massive_category(value: str) -> str:
 
 
 def apply_massive_category_rules(
-    familia: str, sub_familia: str = "", sub_sub_familia: str = ""
+    familia: str, sub_familia: str = "", sub_sub_familia: str = "",
+    column_level: str = "unique",
 ) -> str:
     """Aplica regras massivas por categorias de origem selecionadas.
 
     Regras novas usam ``source_categories`` e fazem correspondência exata
-    normalizada com qualquer nível da linha. Regras antigas que só possuem
-    ``category_group`` continuam a usar correspondência parcial para preservar
-    a compatibilidade com configurações existentes.
+    normalizada com qualquer nível da linha, validando a hierarquia completa.
+    ``column_level`` controla em qual nível da hierarquia a regra se aplica:
+      - "unique": apenas a categoria principal (familia)
+      - "unique+subcats": categoria principal ou subcategoria
+      - "unique+subcats+subsubcats": qualquer nível da hierarquia
+
+    Regras antigas que só possuem ``category_group`` continuam a usar
+    correspondência parcial para preservar a compatibilidade com configurações existentes.
     """
     familia_norm = _normalize_massive_category(familia)
+    sub_familia_norm = _normalize_massive_category(sub_familia)
+    sub_sub_familia_norm = _normalize_massive_category(sub_sub_familia)
+
     source_values = {
         familia_norm,
-        _normalize_massive_category(sub_familia),
-        _normalize_massive_category(sub_sub_familia),
+        sub_familia_norm,
+        sub_sub_familia_norm,
     }
     source_values.discard("")
+
+    # Caminho hierárquico completo do produto (ex: "informática > portáteis > acer")
+    hierarchy_path = " > ".join(
+        v for v in [familia_norm, sub_familia_norm, sub_sub_familia_norm] if v
+    )
 
     for rule in get_massive_category_rules():
         parent = str(rule.get("parent_category", "")).strip()
@@ -1184,7 +1227,31 @@ def apply_massive_category_rules(
                 for value in source_categories
                 if _normalize_massive_category(value)
             }
-            if familia_norm in normalized_sources:
+
+            matched = False
+            for src in normalized_sources:
+                if column_level == "unique":
+                    # Apenas categoria principal corresponde exatamente à origem.
+                    if familia_norm == src:
+                        matched = True
+                        break
+                elif column_level == "unique+subcats":
+                    # Categoria principal ou subcategoria correspondem à origem.
+                    if familia_norm == src or sub_familia_norm == src:
+                        matched = True
+                        break
+                else:  # "unique+subcats+subsubcats"
+                    # Qualquer nível da hierarquia corresponde à origem.
+                    if familia_norm == src or sub_familia_norm == src or sub_sub_familia_norm == src:
+                        matched = True
+                        break
+                # Verificar se a categoria de origem é um prefixo do caminho completo
+                # (ex: origem "informática" corresponde a "informática > portáteis > acer")
+                if not matched and hierarchy_path.startswith(src + " > "):
+                    matched = True
+                    break
+
+            if matched:
                 return parent
             continue
 
