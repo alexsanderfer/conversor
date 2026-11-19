@@ -205,6 +205,9 @@ def _calc_price(raw_preco: str) -> str:
         # Aplicar múltiplas linhas de preço em sequência
         price = preco
         for line in price_lines:
+            # Verificar se a linha está ativa
+            if not line.get("active", True):
+                continue
             profit_pct = float(line.get("profit_percentage", 0.0))
             iva_pct = float(line.get("iva_percentage", 0.0))
             shipping = float(line.get("shipping_cost", 0.0))
@@ -1593,8 +1596,8 @@ class App(Tk):
         self._price_line1_shipping_var = tk.StringVar(value="")
         ttk.Entry(line1_frame, textvariable=self._price_line1_shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(0, 8))
         ttk.Button(line1_frame, text="Guardar", command=lambda: self._save_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
-        self._price_line1_clear_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(line1_frame, text="Limpar", variable=self._price_line1_clear_var, command=lambda: self._clear_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var, self._price_line1_clear_var), width=6).grid(row=0, column=7, sticky="w", padx=(0, 4))
+        self._price_line1_active_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(line1_frame, text="Ativo", variable=self._price_line1_active_var).grid(row=0, column=7, sticky="w", padx=(0, 4))
 
         # Linha 2: IVA → Portes → Lucro
         ttk.Label(frm, text="Linha 2: IVA → Portes → Lucro", font=("Segoe UI", 9, "bold"), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
@@ -1611,8 +1614,8 @@ class App(Tk):
         self._price_line2_shipping_var = tk.StringVar(value="")
         ttk.Entry(line2_frame, textvariable=self._price_line2_shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(0, 8))
         ttk.Button(line2_frame, text="Guardar", command=lambda: self._save_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
-        self._price_line2_clear_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(line2_frame, text="Limpar", variable=self._price_line2_clear_var, command=lambda: self._clear_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var, self._price_line2_clear_var), width=6).grid(row=0, column=7, sticky="w", padx=(0, 4))
+        self._price_line2_active_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(line2_frame, text="Ativo", variable=self._price_line2_active_var).grid(row=0, column=7, sticky="w", padx=(0, 4))
 
         ttk.Label(frm, text="As configurações são guardadas por perfil e aplicadas apenas quando definidas.\nValores vazios ou zero (IVA/Portes) não são aplicados.\nLinha 1 aplica: Lucro → IVA → Portes.\nLinha 2 aplica: IVA → Portes → Lucro.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
 
@@ -4197,6 +4200,8 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.5.4 (2026-11-19)
+        - Lucro e Taxas: cada linha tem caixa de seleção "Ativo" para ligar/desligar a regra de preço.
         v0.5.3 (2026-11-19)
         - Lucro e Taxas: duas linhas fixas com caixas de seleção "Limpar" para cada linha.
         - Lucro e Taxas: ordem de aplicação por linha (Linha 1: Lucro → IVA → Portes / Linha 2: IVA → Portes → Lucro).
@@ -4856,19 +4861,26 @@ class App(Tk):
 
             from core.field_mapping import get_active_profile
             order = "Lucro, IVA, Portes" if line_key == "line1" else "IVA, Portes, Lucro"
-            if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula=order, profile_name=get_active_profile()):
+
+            # Construir dicionário da linha com estado ativo
+            price_line = {
+                "profit_percentage": profit_pct,
+                "iva_percentage": iva_pct,
+                "shipping_cost": shipping,
+                "price_formula": order,
+                "active": True  # Sempre salva como ativo quando guarda
+            }
+
+            if set_price_settings(profit_percentage=profit_pct, iva_percentage=iva_pct, shipping_cost=shipping, price_formula=order, profile_name=get_active_profile(), price_line=price_line):
                 messagebox.showinfo(translate("Guardado", self.language), translate("Configurações de preço guardadas.", self.language), parent=self)
             else:
                 messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar as configurações de preço.", self.language), parent=self)
         except Exception as e:
             messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
 
-    def _clear_price_line(self, line_key, profit_var, iva_var, shipping_var, clear_var):
-        """Limpa os campos de uma linha de preço."""
-        profit_var.set("")
-        iva_var.set("")
-        shipping_var.set("")
-        clear_var.set(False)
+    def _toggle_price_line(self, line_key, active_var):
+        """Alterna a linha de preço entre ativo e inativo."""
+        active_var.set(not active_var.get())
 
     def _save_price_settings(self):
         """Guarda as configurações de preços."""
