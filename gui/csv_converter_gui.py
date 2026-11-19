@@ -1593,7 +1593,8 @@ class App(Tk):
         self._price_line1_shipping_var = tk.StringVar(value="")
         ttk.Entry(line1_frame, textvariable=self._price_line1_shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(0, 8))
         ttk.Button(line1_frame, text="Guardar", command=lambda: self._save_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
-        ttk.Button(line1_frame, text="×", command=lambda: self._clear_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var), width=3).grid(row=0, column=7, sticky="w", padx=(0, 4))
+        self._price_line1_clear_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(line1_frame, text="Limpar", variable=self._price_line1_clear_var, command=lambda: self._clear_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var, self._price_line1_clear_var), width=6).grid(row=0, column=7, sticky="w", padx=(0, 4))
 
         # Linha 2: IVA → Portes → Lucro
         ttk.Label(frm, text="Linha 2: IVA → Portes → Lucro", font=("Segoe UI", 9, "bold"), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
@@ -1610,7 +1611,8 @@ class App(Tk):
         self._price_line2_shipping_var = tk.StringVar(value="")
         ttk.Entry(line2_frame, textvariable=self._price_line2_shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(0, 8))
         ttk.Button(line2_frame, text="Guardar", command=lambda: self._save_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
-        ttk.Button(line2_frame, text="×", command=lambda: self._clear_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var), width=3).grid(row=0, column=7, sticky="w", padx=(0, 4))
+        self._price_line2_clear_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(line2_frame, text="Limpar", variable=self._price_line2_clear_var, command=lambda: self._clear_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var, self._price_line2_clear_var), width=6).grid(row=0, column=7, sticky="w", padx=(0, 4))
 
         ttk.Label(frm, text="As configurações são guardadas por perfil e aplicadas apenas quando definidas.\nValores vazios ou zero (IVA/Portes) não são aplicados.\nLinha 1 aplica: Lucro → IVA → Portes.\nLinha 2 aplica: IVA → Portes → Lucro.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
 
@@ -4195,6 +4197,10 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.5.3 (2026-11-19)
+        - Lucro e Taxas: duas linhas fixas com caixas de seleção "Limpar" para cada linha.
+        - Lucro e Taxas: ordem de aplicação por linha (Linha 1: Lucro → IVA → Portes / Linha 2: IVA → Portes → Lucro).
+        - Cada linha tem botão Guardar e caixa de seleção Limpar.
         v0.5.2 (2026-11-19)
         - Lucro e Taxas: duas linhas fixas com ordem de aplicação (Linha 1: Lucro → IVA → Portes / Linha 2: IVA → Portes → Lucro).
         - Cada linha tem botão Guardar e × para limpar.
@@ -4857,11 +4863,12 @@ class App(Tk):
         except Exception as e:
             messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
 
-    def _clear_price_line(self, line_key, profit_var, iva_var, shipping_var):
+    def _clear_price_line(self, line_key, profit_var, iva_var, shipping_var, clear_var):
         """Limpa os campos de uma linha de preço."""
         profit_var.set("")
         iva_var.set("")
         shipping_var.set("")
+        clear_var.set(False)
 
     def _save_price_settings(self):
         """Guarda as configurações de preços."""
