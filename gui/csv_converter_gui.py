@@ -4559,6 +4559,11 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.5.8 (2026-11-19)
+        - CATEGORIAS M: botão "Analisar Sugestões" propõe agrupamentos por palavras-chave.
+        - CATEGORIAS M: as sugestões usam a coluna selecionada (Únicas, +Subcategorias, +Sub-subcategorias) e são aprovadas por área.
+        - CATEGORIAS M: corrigidas as colunas de categorias e a pesquisa, que nunca eram preenchidas.
+        - As regras massivas passam a aplicar-se em qualquer nível da hierarquia (família, subcategoria ou sub-subcategoria).
         v0.5.7 (2026-11-19)
         - Lucro e Taxas: apenas uma linha pode estar ativa por vez (mutuamente exclusiva).
         - Lucro e Taxas: caixas de seleção "Ativo" persistem entre sessões.
