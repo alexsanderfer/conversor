@@ -1,20 +1,20 @@
 """
-Motor de agrupamento automatico de categorias por palavras-chave.
+Motor de agrupamento automático de categorias por palavras-chave.
 
-Reutiliza as regras padrao do classificador (`core.category_classifier`) para
-sugerir categorias pai para as categorias unicas de um CSV de fornecedor.
-Funcao pura: nao escreve em ficheiros nem tem estado.
+Reutiliza as regras padrão do classificador (`core.category_classifier`) para
+sugerir categorias pai para as categorias únicas de um CSV de fornecedor.
+Função pura: não escreve em ficheiros nem tem estado.
 """
 from core.category_classifier import DEFAULT_RULES, _normalize
 
 
 def suggest_groupings(unique_categories: list) -> dict:
-    """Agrupa categorias unicas sob categorias pai sugeridas.
+    """Agrupa categorias únicas sob categorias pai sugeridas.
 
     Devolve {categoria_pai_sugerida: [categorias_agrupadas]} com as chaves
-    ordenadas alfabeticamente e as listas de categorias ordenadas tambem.
-    Categorias sem correspondencia sao IGNORADAS (nao ha chave "(sem area)").
-    Uma categoria so pode pertencer a UMA area: a regra com maior pontuacao
+    ordenadas alfabeticamente e as listas de categorias ordenadas também.
+    Categorias sem correspondência são IGNORADAS (não há chave "(sem área)").
+    Uma categoria só pode pertencer a UMA área: a regra com maior pontuação
     (soma do comprimento das palavras-chave que casam) ganha; empate -> a
     regra que aparece primeiro em DEFAULT_RULES.
     """
@@ -39,7 +39,7 @@ def suggest_groupings(unique_categories: list) -> dict:
         if not texto:
             continue
 
-        # Em empate de pontuacao, a regra que aparece primeiro em
+        # Em empate de pontuação, a regra que aparece primeiro em
         # DEFAULT_RULES ganha (por isso o `>` em vez de `>=`).
         melhor_categoria = None
         melhor_pontuacao = 0
