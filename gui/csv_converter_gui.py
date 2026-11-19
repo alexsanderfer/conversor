@@ -4214,6 +4214,8 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.5.6 (2026-11-19)
+        - Lucro e Taxas: campos em branco são tratados como 0 (não aplicado), não como não configurado.
         v0.5.5 (2026-11-19)
         - Lucro e Taxas: as caixas de seleção "Ativo" agora mantêm o estado ao fechar e reabrir o programa.
         v0.5.4 (2026-11-19)
