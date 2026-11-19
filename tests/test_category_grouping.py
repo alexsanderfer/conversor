@@ -37,8 +37,10 @@ class TestSuggestGroupings(unittest.TestCase):
         )
 
     def test_ignora_categorias_sem_correspondencia(self):
+        # "Categoria Misteriosa" nao case com nenhuma keyword e deve ser
+        # ignorada; as entradas vazias tambem.
         categorias = [
-            INFORMATICA + " > Computadores",
+            "Informatica > Computadores",
             "Categoria Misteriosa",
             "",
             "   ",
@@ -47,7 +49,7 @@ class TestSuggestGroupings(unittest.TestCase):
         resultado = suggest_groupings(categorias)
 
         self.assertEqual(
-            resultado, {INFORMATICA: [INFORMATICA + " > Computadores"]}
+            resultado, {INFORMATICA: ["Informatica > Computadores"]}
         )
 
     def test_lista_vazia_devolve_dicionario_vazio(self):
