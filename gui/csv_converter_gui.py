@@ -4566,6 +4566,8 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.5.9 (2026-11-19)
+        - CATEGORIAS M: as sugestões de agrupamento já não vêm pré-selecionadas; a aprovação é explícita e o diálogo mostra quantas categorias estão selecionadas.
         v0.5.8 (2026-11-19)
         - CATEGORIAS M: botão "Analisar Sugestões" propõe agrupamentos por palavras-chave.
         - CATEGORIAS M: as sugestões usam a coluna selecionada (Únicas, +Subcategorias, +Sub-subcategorias) e são aprovadas por área.
