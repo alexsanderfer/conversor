@@ -4616,12 +4616,15 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.5.10 (2026-11-20)
+        - Ao converter, abre um diálogo de confirmação com o fornecedor ativo e o respetivo prefixo SKU, para evitar que um CSV de um fornecedor fique com o prefixo de outro.
+        - Categorias: a lista de categorias únicas passa a mostrar apenas as que ainda não têm mapeamento, com o título "CATEGORIAS ÚNICAS SEM MAPEAMENTO (N de M)".
+        - Categorias: mapear uma categoria faz desaparecer da lista; remover a regra fá-la reaparecer.
         v0.5.9 (2026-11-19)
         - CATEGORIAS M: as sugestões de agrupamento já não vêm pré-selecionadas; a aprovação é explícita e o diálogo mostra quantas categorias estão selecionadas.
         v0.5.8 (2026-11-19)
         - CATEGORIAS M: botão "Analisar Sugestões" propõe agrupamentos por palavras-chave.
         - CATEGORIAS M: as sugestões usam a coluna selecionada (Únicas, +Subcategorias, +Sub-subcategorias) e são aprovadas por área.
-        - CATEGORIAS M: as sugestões já não vêm pré-selecionadas; a aprovação é explícita e o diálogo mostra quantas categorias estão selecionadas.
         - CATEGORIAS M: corrigidas as colunas de categorias e a pesquisa, que nunca eram preenchidas.
         - As regras massivas passam a aplicar-se em qualquer nível da hierarquia (família, subcategoria ou sub-subcategoria).
         - Correção: o matching por palavras-chave do agrupamento automático deixou de casar por substring (ex.: "ram" classificava "Ferramentas" como Informática).

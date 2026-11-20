@@ -141,3 +141,66 @@ feito com um modelo de linguagem, mantendo a forma (não o motor):
 - Chaves e listas ordenadas.
 - (UI) Diálogo não abre quando não há sugestões.
 - (UI) Aprovar sem nenhuma categoria selecionada não grava regra.
+
+---
+
+# (Anexo) Confirmação de fornecedor e lista de pendentes — v0.5.10
+
+Duas correções de usabilidade feitas no desktop em novembro de 2026, que se
+aplicam tal ao SaaS.
+
+## A. Confirmar o fornecedor antes de converter
+
+**Problema real relatado pelo utilizador:** o CSV era carregado de um
+fornecedor estando outro ativo, e o CSV convertido ficava com o prefixo SKU do
+fornecedor errado (ex.: CSV da Viptrónica com o prefixo `GRE-` da GreenFever).
+O prefixo vai para o SKU de todos os produtos, pelo que o erro propaga-se para
+a loja.
+
+**Solução no desktop:** ao clicar em Converter, abre um diálogo modal com o
+fornecedor ativo, o respetivo prefixo SKU e a lista de perfis; o utilizador
+confirma (usa o prefixo do perfil escolhido, que passa a ser o ativo) ou
+cancela. Cancelar não converte.
+
+**No SaaS:**
+- **Confirmar sempre**, não apenas quando houver divergência — o custo de um
+  clique é inferior ao custo de um lote com o prefixo errado.
+- Mostrar o **prefixo** em vez do nome do fornecedor: é o prefixo que o
+  utilizador consegue verificar contra o resultado, e é o que está em causa.
+- Se o SaaS associa o CSV a um fornecedor por upload/pasta, mostrar essa
+  associação e permitir corrigi-la no diálogo.
+- Regra de bolso: o prefixo aplicado deve ser sempre lido **no momento da
+  conversão** (`get_sku_prefix(perfil_ativo)`), nunca guardado em variável antes
+  do diálogo.
+
+## B. Lista das categorias por mapear
+
+**Problema real relatado pelo utilizador:** com muitas categorias, é fácil
+esquecer de mapear algumas, e não havia forma de saber quais ficaram por
+mapear.
+
+**Solução no desktop:** a lista de categorias únicas do mapeamento avançado
+passa a mostrar apenas as que ainda não têm regra, com o título
+`CATEGORIAS ÚNICAS SEM MAPEAMENTO (N de M)`. Criar uma regra faz a categoria
+desaparecer; remover a regra fá-la reaparecer. Quando a lista fica vazia, o
+mapeamento está concluído.
+
+**No SaaS:**
+- Manter a lista de "por mapear" como indicador de progresso, não como
+  obstáculo: não bloquear a conversão por categorias por mapear.
+- O critério de "já mapeada" deve ser o **mesmo** que a conversão usa. No
+  desktop foi preciso alinhar isto: a lista inicial usava `apply_keyword_rules`
+  (que ignora regras com subcategoria) e passava a usar as regras compiladas
+  (`apply_compiled_keyword_rules`), incluindo as subcategorias. Sem este
+  alinhamento, categorias já mapeadas continuavam listadas como pendentes.
+- Útil no SaaS: um contador por fornecedor ("faltam 7") na listagem de
+  fornecedores, derivado do mesmo critério.
+
+## Testes a reproduzir no SaaS (anexo)
+
+- Com um fornecedor ativo e um CSV de outro, o diálogo mostra o prefixo do
+  ativo e, ao confirmar com outro perfil, o prefixo aplicado é o desse perfil.
+- Cancelar o diálogo não produz CSV de saída.
+- Com regras de subcategoria, a categoria pai não fica listada como pendente.
+- Remover uma regra volta a mostrar a categoria na lista de pendentes.
+- Com todas as categorias mapeadas, a lista mostra o estado "concluído".
