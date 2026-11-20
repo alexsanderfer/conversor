@@ -3,8 +3,9 @@
 Regression tests para a coluna 1 da aba CATEGORIAS i (mapeamento avançado).
 
 A coluna de categorias únicas passa a mostrar apenas as categorias que ainda
-não têm regra de mapeamento (`apply_keyword_rules(categoria, "")` vazio);
-a coluna de subcategorias mantém-se completa.
+não têm regra de mapeamento. O critério é o da conversão: as regras compiladas
+(`apply_compiled_keyword_rules`) aplicadas à categoria ou a uma subcategoria
+dela; a coluna de subcategorias mantém-se completa.
 
 A configuração do core é isolada num diretório temporário para não tocar no
 `field_mapping_config.json` do ambiente de desenvolvimento.

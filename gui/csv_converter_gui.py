@@ -3340,18 +3340,33 @@ class App(Tk):
     def _categorias_nao_mapeadas(self) -> list:
         """Devolve as categorias únicas que ainda não têm regra de mapeamento.
 
-        Uma categoria está mapeada quando as regras compiladas aplicadas a ela
-        (com subcategoria vazia) devolvem um pai não vazio — a mesma função que
-        a conversão usa (`apply_compiled_keyword_rules`), para que uma categoria
-        que a conversão já mapeia nunca fique listada como pendente.
+        Uma categoria está mapeada quando as regras compiladas a aplicam a ela
+        ou a qualquer subcategoria dela — a mesma função que a conversão usa
+        (`apply_compiled_keyword_rules`), para que uma categoria que a
+        conversão já mapeia nunca fique listada como pendente. Testar também
+        as subcategorias é necessário porque as regras legadas por palavras-chave
+        só comparam a subcategoria, e as regras com subcategoria não casam com a
+        família sozinha.
         """
         try:
             categorias = list(getattr(self, "_unique_categories", []) or [])
             compiladas = get_compiled_keyword_rules()
-            return [
-                c for c in categorias
-                if not apply_compiled_keyword_rules(str(c), "", compiladas)
-            ]
+            subcats = getattr(self, "_subcat_categories", []) or []
+
+            def mapeada(categoria: str) -> bool:
+                if apply_compiled_keyword_rules(str(categoria), "", compiladas):
+                    return True
+                prefixo = str(categoria).strip().lower() + " > "
+                for sub in subcats:
+                    if str(sub).strip().lower().startswith(prefixo):
+                        partes = str(sub).split(" > ")
+                        if len(partes) >= 2 and apply_compiled_keyword_rules(
+                            str(categoria), partes[1], compiladas
+                        ):
+                            return True
+                return False
+
+            return [c for c in categorias if not mapeada(c)]
         except Exception:
             return list(getattr(self, "_unique_categories", []) or [])
 
@@ -3386,7 +3401,7 @@ class App(Tk):
                 if not nao_mapeadas:
                     conteudo_unique = translate("(todas as categorias mapeadas)", self.language)
                 else:
-                    conteudo_unique = "\n".join(filtered_unique) if filtered_unique else "(nenhuma categoria)"
+                    conteudo_unique = "\n".join(filtered_unique) if filtered_unique else translate("(nenhuma categoria)", self.language)
                 self._cat_unique_text.config(state="normal")
                 self._cat_unique_text.delete("1.0", "end")
                 self._cat_unique_text.insert("1.0", conteudo_unique)
@@ -3395,7 +3410,7 @@ class App(Tk):
             if hasattr(self, '_cat_subcat_text'):
                 self._cat_subcat_text.config(state="normal")
                 self._cat_subcat_text.delete("1.0", "end")
-                self._cat_subcat_text.insert("1.0", "\n".join(filtered_subcat) if filtered_subcat else "(nenhuma categoria)")
+                self._cat_subcat_text.insert("1.0", "\n".join(filtered_subcat) if filtered_subcat else translate("(nenhuma categoria)", self.language))
                 self._cat_subcat_text.config(state="disabled")
         except Exception:
             pass
