@@ -55,13 +55,14 @@
     },
     "keyword_rules": [
       {
-        "category": "Smart Home e Iluminação",
-        "subcategory": "Câmaras de Segurança",
-        "parent_category": "Inovação Tech / Super Exclusivo 2026",
-        "priority": 100
+        "category": "Moda",
+        "subcategory": "",
+        "parent_category": "Loja MODA",
+        "priority": 10
       }
     ],
-    "language": "pt-PT"
+    "language": "pt-PT",
+    "massive_category_rules": []
   },
   "last_input_file": "C:/Users/Alexsander/OneDrive/Documentos/csv_examples/produtos (3).csv"
 }
