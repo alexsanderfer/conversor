@@ -5538,6 +5538,108 @@ class App(Tk):
                 parent=self,
             )
 
+    def _confirmar_fornecedor_ao_converter(self) -> bool | None:
+        """Pede confirmação do fornecedor/prefixo antes de converter.
+
+        Devolve True se o utilizador confirmou (com o perfil ativo ou um escolhido
+        no diálogo), False se cancelou, None em erro.
+        """
+        if not hasattr(self, "language"):
+            return True
+
+        try:
+            perfis = list_profiles()
+            if not perfis:
+                return None
+            ativo = get_active_profile()
+        except Exception:
+            return None
+
+        if ativo not in perfis:
+            ativo = perfis[0]
+
+        dialog = tk.Toplevel(self)
+        dialog.title(translate("Confirmar Fornecedor", self.language))
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.geometry("420x260")
+        dialog.minsize(360, 220)
+        dialog.columnconfigure(0, weight=1)
+
+        resultado = {"confirmado": False, "perfil": None}
+
+        frame = ttk.LabelFrame(
+            dialog, text=translate("Fornecedor ativo", self.language), padding=(14, 10)
+        )
+        frame.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 4))
+        frame.columnconfigure(1, weight=1)
+
+        fornecedor_var = tk.StringVar(master=dialog, value=ativo)
+        prefixo_var = tk.StringVar(master=dialog, value=get_sku_prefix(ativo))
+
+        def _atualizar_prefixo(_event=None):
+            prefixo_var.set(get_sku_prefix(fornecedor_var.get().strip()))
+
+        ttk.Label(frame, text=translate("Fornecedor:", self.language)).grid(
+            row=0, column=0, sticky="w", padx=(0, 6), pady=4
+        )
+        combo = ttk.Combobox(
+            frame, textvariable=fornecedor_var, state="readonly",
+            values=perfis, width=28,
+        )
+        combo.grid(row=0, column=1, sticky="ew", pady=4)
+        combo.bind("<<ComboboxSelected>>", _atualizar_prefixo)
+
+        ttk.Label(frame, text=translate("Prefixo SKU", self.language)).grid(
+            row=1, column=0, sticky="w", padx=(0, 6), pady=4
+        )
+        ttk.Label(
+            frame, textvariable=prefixo_var,
+            font=("Segoe UI", 10, "bold"), foreground=BLUE_700,
+        ).grid(row=1, column=1, sticky="w", pady=4)
+
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(8, 12))
+
+        def _confirmar():
+            resultado["perfil"] = fornecedor_var.get().strip()
+            resultado["confirmado"] = True
+            dialog.destroy()
+
+        def _cancelar():
+            resultado["confirmado"] = False
+            dialog.destroy()
+
+        ttk.Button(
+            btn_frame, text=translate("Cancelar", self.language), command=_cancelar
+        ).pack(side="left")
+        ttk.Button(
+            btn_frame, text=translate("Converter", self.language), command=_confirmar
+        ).pack(side="right")
+
+        dialog.bind("<Escape>", lambda _e: _cancelar())
+        dialog.protocol("WM_DELETE_WINDOW", _cancelar)
+
+        dialog.wait_window()
+
+        if not resultado["confirmado"]:
+            return False
+
+        try:
+            escolhido = resultado["perfil"] or ""
+            if escolhido and escolhido != get_active_profile():
+                self._set_active_profile_global(escolhido)
+            # O prefixo aplicado é sempre get_sku_prefix(get_active_profile()),
+            # que o convert_row já lê sozinho.
+            return True
+        except Exception as exc:
+            messagebox.showerror(
+                translate("Erro", self.language),
+                f"{translate('Erro ao propagar fornecedor:', self.language)} {exc}",
+                parent=self,
+            )
+            return None
+
     def _convert(self):
         if not self._ensure_license():
             return
@@ -5545,6 +5647,11 @@ class App(Tk):
         if not raw:
             messagebox.showwarning("Campo vazio", "Selecione ou digite um arquivo CSV primeiro.", parent=self)
             return
+
+        confirmacao = self._confirmar_fornecedor_ao_converter()
+        if confirmacao is not True:
+            return
+
         self._auto_save_price_settings()
         self.convert_btn.config(state="disabled")
         self._set_drop_text("A processar conversão em background (otimizado com cache e threads)...", "#FFF9C4", "#F57F17", widget=self._status_widget)

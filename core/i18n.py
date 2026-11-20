@@ -17,6 +17,7 @@ TRANSLATABLE_STRINGS = (
     "Abrir pasta do resultado", "Converter", "Atualizar loja", "Mapear Campos...",
     "Fornecedor:", "Novo", "Eliminar", "Export da loja (Jumpseller):",
     "Novo ficheiro do fornecedor:", "Configuração de Preços (por perfil)",
+    "Confirmar Fornecedor", "Fornecedor ativo", "Cancelar",
     "Lucro %:", "IVA %:", "Portes (€):", "Guardar", "Gestão de Fornecedores (Perfis)",
     "Novo Fornecedor:", "Adicionar Fornecedor", "Definir como Ativo",
     "Eliminar Fornecedor", "Mapeamento", "Guardar todas as configurações de categorias",
@@ -292,7 +293,8 @@ _TRANSLATIONS = {
     "en": {
         "Fornecedores": "Suppliers", "Novo Ficheiro": "New File", "Atualizar Loja": "Update Store", "Lucro e Taxas": "Profit and Taxes",
         "Prefixo SKU": "SKU Prefix", "Categorias I": "CATEGORIES i", "Categorias M": "CATEGORIES M", "Destaques": "Highlights", "Marcas": "Brands",
-        "Configurações": "Settings", "Sobre": "About", "Comprar Licença": "Buy License", "Pasta de destino:": "Destination folder:",
+        "Configurações": "Settings", "Sobre": "About", "Comprar Licença": "Buy License",
+        "Confirmar Fornecedor": "Confirm Supplier", "Cancelar": "Cancel", "Pasta de destino:": "Destination folder:",
         "Escolher pasta…": "Choose folder…", "Arquivo CSV de entrada:": "Input CSV file:", "Escolher arquivo…": "Choose file…", "Escolher ficheiro…": "Choose file…",
         "CSV ORIGINAL (Nenhum ficheiro carregado)": "ORIGINAL CSV (No file loaded)", "PREVIEW CONVERTIDO (Nenhum ficheiro carregado)": "CONVERTED PREVIEW (No file loaded)",
         "FORNECEDOR ORIGINAL (Primeiras Linhas)": "ORIGINAL SUPPLIER (First Rows)", "PREVIEW CONVERTIDO (Jumpseller)": "CONVERTED PREVIEW (Jumpseller)",
