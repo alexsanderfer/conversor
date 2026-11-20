@@ -6,7 +6,7 @@ A coluna de categorias únicas passa a mostrar apenas as categorias que ainda
 não têm regra de mapeamento (`apply_keyword_rules(categoria, "")` vazio);
 a coluna de subcategorias mantém-se completa.
 
-A configuração do core é isolada em `tmp_path` para não tocar no
+A configuração do core é isolada num diretório temporário para não tocar no
 `field_mapping_config.json` do ambiente de desenvolvimento.
 """
 import sys
