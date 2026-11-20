@@ -86,6 +86,7 @@ TRANSLATABLE_STRINGS = (
     "Regras gravadas:", "Fonte: ",
     "Não foi possível gravar as regras de agrupamento.",
     "Ocorreu um erro ao gerar as sugestões de agrupamento. Consulte o registo para mais detalhes.",
+    "CATEGORIAS ÚNICAS SEM MAPEAMENTO", "(todas as categorias mapeadas)",
 )
 
 _TRANSLATIONS = {
@@ -292,6 +293,8 @@ _TRANSLATIONS = {
         "Confirmar Fornecedor": "Confirmar fornecedor",
         "Fornecedor ativo": "Fornecedor ativo",
         "Cancelar": "Cancelar",
+        "CATEGORIAS ÚNICAS SEM MAPEAMENTO": "CATEGORIAS ÚNICAS SEM MAPEAMENTO",
+        "(todas as categorias mapeadas)": "(todas as categorias mapeadas)",
     },
     "en": {
         "Fornecedores": "Suppliers", "Novo Ficheiro": "New File", "Atualizar Loja": "Update Store", "Lucro e Taxas": "Profit and Taxes",
@@ -405,6 +408,8 @@ _TRANSLATIONS = {
         "Fonte: ": "Source: ",
         "Não foi possível gravar as regras de agrupamento.": "Could not save the grouping rules.",
         "Ocorreu um erro ao gerar as sugestões de agrupamento. Consulte o registo para mais detalhes.": "An error occurred while generating the grouping suggestions. Check the log for more details.",
+        "CATEGORIAS ÚNICAS SEM MAPEAMENTO": "UNMAPPED UNIQUE CATEGORIES",
+        "(todas as categorias mapeadas)": "(all categories mapped)",
     },
 }
 

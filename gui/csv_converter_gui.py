@@ -1988,7 +1988,7 @@ class App(Tk):
         # Coluna 1: Categorias Únicas
         col1_frame = ttk.Frame(lists_container)
         col1_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
-        self._cat_unique_title_var = tk.StringVar(value="CATEGORIAS ÚNICAS (0)")
+        self._cat_unique_title_var = tk.StringVar(value=translate("CATEGORIAS ÚNICAS SEM MAPEAMENTO", self.language) + " (0)")
         ttk.Label(col1_frame, textvariable=self._cat_unique_title_var, font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
 
         c1_box = ttk.Frame(col1_frame)
@@ -3337,6 +3337,20 @@ class App(Tk):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _categorias_nao_mapeadas(self) -> list:
+        """Devolve as categorias únicas que ainda não têm regra de mapeamento.
+
+        Uma categoria está mapeada quando `apply_keyword_rules(categoria, "")`
+        devolve um pai não vazio (mesma semântica usada na conversão).
+        """
+        try:
+            return [
+                c for c in (getattr(self, "_unique_categories", []) or [])
+                if not apply_keyword_rules(str(c), "")
+            ]
+        except Exception:
+            return list(getattr(self, "_unique_categories", []) or [])
+
     def _filter_categories(self):
         try:
             query = getattr(self, "_cat_search_var", None)
@@ -3344,21 +3358,34 @@ class App(Tk):
 
             unique_all = getattr(self, "_unique_categories", [])
             subcat_all = getattr(self, "_subcat_categories", [])
+            nao_mapeadas = self._categorias_nao_mapeadas()
 
-            filtered_unique = [c for c in unique_all if not q or q in c.lower()]
+            filtered_unique = [c for c in nao_mapeadas if not q or q in c.lower()]
             filtered_subcat = [c for c in subcat_all if not q or q in c.lower()]
             # Filtrar: manter apenas subcateogrias (que contêm '>')
             filtered_subcat = [c for c in filtered_subcat if ">" in c]
 
+            titulo_unique = translate("CATEGORIAS ÚNICAS SEM MAPEAMENTO", self.language)
             if hasattr(self, '_cat_unique_title_var'):
-                self._cat_unique_title_var.set(f"CATEGORIAS ÚNICAS ({len(filtered_unique)} de {len(unique_all)})" if q else f"CATEGORIAS ÚNICAS ({len(unique_all)})")
+                if q:
+                    self._cat_unique_title_var.set(
+                        f"{titulo_unique} ({len(filtered_unique)} de {len(nao_mapeadas)} de {len(unique_all)})"
+                    )
+                else:
+                    self._cat_unique_title_var.set(
+                        f"{titulo_unique} ({len(nao_mapeadas)} de {len(unique_all)})"
+                    )
             if hasattr(self, '_cat_subcat_title_var'):
                 self._cat_subcat_title_var.set(f"CATEGORIAS ÚNICAS COM SUBCATEGORIAS ({len(filtered_subcat)} de {len(subcat_all)})" if q else f"CATEGORIAS ÚNICAS COM SUBCATEGORIAS ({len(subcat_all)})")
 
             if hasattr(self, '_cat_unique_text'):
+                if not nao_mapeadas:
+                    conteudo_unique = translate("(todas as categorias mapeadas)", self.language)
+                else:
+                    conteudo_unique = "\n".join(filtered_unique) if filtered_unique else "(nenhuma categoria)"
                 self._cat_unique_text.config(state="normal")
                 self._cat_unique_text.delete("1.0", "end")
-                self._cat_unique_text.insert("1.0", "\n".join(filtered_unique) if filtered_unique else "(nenhuma categoria)")
+                self._cat_unique_text.insert("1.0", conteudo_unique)
                 self._cat_unique_text.config(state="disabled")
 
             if hasattr(self, '_cat_subcat_text'):
@@ -3623,6 +3650,8 @@ class App(Tk):
                 self._adv_cat_var.set("")
                 self._adv_subcat_var.set("")
                 self._refresh_adv_rules_list()
+                # Recalcular as não-mapeadas para a categoria desaparecer da coluna 1.
+                self._filter_categories()
                 messagebox.showinfo(translate("Guardado", self.language), translate("Regra avançada adicionada com sucesso.", self.language), parent=self)
             else:
                 messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar a regra.", self.language), parent=self)
