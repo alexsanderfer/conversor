@@ -3340,13 +3340,17 @@ class App(Tk):
     def _categorias_nao_mapeadas(self) -> list:
         """Devolve as categorias únicas que ainda não têm regra de mapeamento.
 
-        Uma categoria está mapeada quando `apply_keyword_rules(categoria, "")`
-        devolve um pai não vazio (mesma semântica usada na conversão).
+        Uma categoria está mapeada quando as regras compiladas aplicadas a ela
+        (com subcategoria vazia) devolvem um pai não vazio — a mesma função que
+        a conversão usa (`apply_compiled_keyword_rules`), para que uma categoria
+        que a conversão já mapeia nunca fique listada como pendente.
         """
         try:
+            categorias = list(getattr(self, "_unique_categories", []) or [])
+            compiladas = get_compiled_keyword_rules()
             return [
-                c for c in (getattr(self, "_unique_categories", []) or [])
-                if not apply_keyword_rules(str(c), "")
+                c for c in categorias
+                if not apply_compiled_keyword_rules(str(c), "", compiladas)
             ]
         except Exception:
             return list(getattr(self, "_unique_categories", []) or [])
@@ -3699,6 +3703,8 @@ class App(Tk):
                 if messagebox.askyesno("Remover Regra", f"Remover a regra:\n'{desc} → {cat}'?", parent=self):
                     remove_keyword_rule(index)
                     self._refresh_adv_rules_list()
+                    # A categoria deixa de estar mapeada: volta a aparecer na coluna 1.
+                    self._filter_categories()
             return
         messagebox.showwarning(translate("Atenção", self.language), translate("Selecione uma regra na lista para remover.", self.language), parent=self)
 
