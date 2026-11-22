@@ -1762,6 +1762,212 @@ class App(Tk):
         # Carregar valores atuais no tab
         self._refresh_lucro_tab()
 
+    def _save_price_rates(self):
+        """Guarda as taxas de preço e IVA da linha 1."""
+        try:
+            profit_str = self._price_profit_var.get().strip().replace(",", ".")
+            iva_str = self._price_iva_var.get().strip().replace(",", ".")
+
+            profit_pct = None
+            iva_pct = None
+
+            if profit_str:
+                try:
+                    p = float(profit_str)
+                    if p > 0:
+                        profit_pct = p
+                except ValueError:
+                    pass
+            if iva_str:
+                try:
+                    p = float(iva_str)
+                    if p >= 0:
+                        iva_pct = p
+                except ValueError:
+                    pass
+
+            from core.field_mapping import get_active_profile, set_price_settings
+            set_price_settings(
+                profit_percentage=profit_pct,
+                iva_percentage=iva_pct,
+                shipping_cost=0.0,
+                price_formula="Lucro, IVA, Portes",
+                profile_name=get_active_profile(),
+                price_line={
+                    "profit_percentage": profit_pct,
+                    "iva_percentage": iva_pct,
+                    "shipping_cost": 0.0,
+                    "price_formula": "Lucro, IVA, Portes",
+                    "active": True,
+                },
+            )
+            messagebox.showinfo(translate("Guardado", self.language), translate("Configurações de preço guardadas.", self.language), parent=self)
+        except Exception as e:
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
+
+    def _save_regime1(self):
+        """Guarda as configurações do regime 1 (Empresa com IVA: Lucro » IVA)."""
+        try:
+            profit_str = self._price_line1_profit_var.get().strip().replace(",", ".")
+            iva_str = self._price_line1_iva_var.get().strip().replace(",", ".")
+            shipping_str = self._price_line1_shipping_var.get().strip().replace(",", ".")
+
+            profit_pct = None
+            iva_pct = None
+            shipping = None
+
+            if profit_str:
+                try:
+                    p = float(profit_str)
+                    if p > 0:
+                        profit_pct = p
+                except ValueError:
+                    pass
+            if iva_str:
+                try:
+                    p = float(iva_str)
+                    if p >= 0:
+                        iva_pct = p
+                except ValueError:
+                    pass
+            if shipping_str:
+                try:
+                    p = float(shipping_str)
+                    if p >= 0:
+                        shipping = p
+                except ValueError:
+                    pass
+
+            from core.field_mapping import get_active_profile, set_price_settings
+            set_price_settings(
+                profit_percentage=profit_pct,
+                iva_percentage=iva_pct,
+                shipping_cost=shipping,
+                price_formula="IVA, Portes, Lucro",
+                profile_name=get_active_profile(),
+                price_line={
+                    "profit_percentage": profit_pct,
+                    "iva_percentage": iva_pct,
+                    "shipping_cost": shipping,
+                    "price_formula": "IVA, Portes, Lucro",
+                    "active": True,
+                },
+            )
+            messagebox.showinfo(translate("Guardado", self.language), translate("Configurações do regime 1 guardadas.", self.language), parent=self)
+        except Exception as e:
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
+
+    def _save_regime2(self):
+        """Guarda as configurações do regime 2 (Isenta de IVA: IVA » Lucro)."""
+        try:
+            profit_str = self._price_line2_profit_var.get().strip().replace(",", ".")
+            iva_str = self._price_line2_iva_var.get().strip().replace(",", ".")
+            shipping_str = self._price_line2_shipping_var.get().strip().replace(",", ".")
+
+            profit_pct = None
+            iva_pct = None
+            shipping = None
+
+            if profit_str:
+                try:
+                    p = float(profit_str)
+                    if p > 0:
+                        profit_pct = p
+                except ValueError:
+                    pass
+            if iva_str:
+                try:
+                    p = float(iva_str)
+                    if p >= 0:
+                        iva_pct = p
+                except ValueError:
+                    pass
+            if shipping_str:
+                try:
+                    p = float(shipping_str)
+                    if p >= 0:
+                        shipping = p
+                except ValueError:
+                    pass
+
+            from core.field_mapping import get_active_profile, set_price_settings
+            set_price_settings(
+                profit_percentage=profit_pct,
+                iva_percentage=iva_pct,
+                shipping_cost=shipping,
+                price_formula="IVA, Portes, Lucro",
+                profile_name=get_active_profile(),
+                price_line={
+                    "profit_percentage": profit_pct,
+                    "iva_percentage": iva_pct,
+                    "shipping_cost": shipping,
+                    "price_formula": "IVA, Portes, Lucro",
+                    "active": True,
+                },
+            )
+            messagebox.showinfo(translate("Guardado", self.language), translate("Configurações do regime 2 guardadas.", self.language), parent=self)
+        except Exception as e:
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
+
+    def _toggle_regime1(self):
+        """Ativa o regime 1 e desativa o regime 2."""
+        if self._price_line1_active_var.get():
+            self._price_line2_active_var.set(False)
+            try:
+                self._save_regime2()
+            except Exception:
+                pass
+        self._save_regime1()
+
+    def _toggle_regime2(self):
+        """Ativa o regime 2 e desativa o regime 1."""
+        if self._price_line2_active_var.get():
+            self._price_line1_active_var.set(False)
+            try:
+                self._save_regime1()
+            except Exception:
+                pass
+        self._save_regime2()
+
+    def _refresh_lucro_tab(self):
+        """Carrega os valores atuais nas entradas da aba Lucro e Taxas."""
+        try:
+            from core.field_mapping import get_active_profile, get_price_settings
+            settings = get_price_settings(get_active_profile())
+            price_lines = settings.get("price_lines", [])
+            line1_data = {}
+            line2_data = {}
+            for line in price_lines:
+                if line.get("price_formula") == "Lucro, IVA, Portes":
+                    line1_data = line
+                elif line.get("price_formula") == "IVA, Portes, Lucro":
+                    line2_data = line
+
+            if hasattr(self, "_price_profit_var"):
+                self._price_profit_var.set(str(line1_data.get("profit_percentage", "")))
+            if hasattr(self, "_price_iva_var"):
+                self._price_iva_var.set(str(line1_data.get("iva_percentage", "")))
+            if hasattr(self, "_price_shipping_var"):
+                self._price_shipping_var.set(str(line1_data.get("shipping_cost", "")))
+            if hasattr(self, "_price_line1_profit_var"):
+                self._price_line1_profit_var.set(str(line1_data.get("profit_percentage", "")))
+            if hasattr(self, "_price_line1_iva_var"):
+                self._price_line1_iva_var.set(str(line1_data.get("iva_percentage", "")))
+            if hasattr(self, "_price_line1_shipping_var"):
+                self._price_line1_shipping_var.set(str(line1_data.get("shipping_cost", "")))
+            if hasattr(self, "_price_line2_profit_var"):
+                self._price_line2_profit_var.set(str(line2_data.get("profit_percentage", "")))
+            if hasattr(self, "_price_line2_iva_var"):
+                self._price_line2_iva_var.set(str(line2_data.get("iva_percentage", "")))
+            if hasattr(self, "_price_line2_shipping_var"):
+                self._price_line2_shipping_var.set(str(line2_data.get("shipping_cost", "")))
+            if hasattr(self, "_price_line1_active_var"):
+                self._price_line1_active_var.set(bool(line1_data.get("active", False)))
+            if hasattr(self, "_price_line2_active_var"):
+                self._price_line2_active_var.set(bool(line2_data.get("active", False)))
+        except Exception:
+            pass
+
     def _build_tab_fornecedores(self):
         """Constrói a aba 'Fornecedores' para gerir e listar perfis."""
         frm = ttk.Frame(self.tab_fornecedores, padding=12)
