@@ -5079,6 +5079,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.5.14 (2026-11-22)
+        - Licença: o botão "Gerar Código" copia o código e abre o ShopSync já com o código preenchido.
+        - SaaS: o ecrã de ativação regista o código automaticamente antes de mostrar o botão de autorização.
         v0.5.13 (2026-11-22)
         - Licença: novo diálogo com três métodos de ativação — conta vinculada online, código do dispositivo e código de ativação.
         - Licença: a ativação por conta SaaS valida o plano (Pro ou Lifetime) no servidor.
