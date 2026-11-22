@@ -754,9 +754,12 @@ def remove_highlights_brands_keyword_rule(index: int) -> bool:
         return False
 
 
-def apply_keyword_rules(familia: str, sub_familia: str = "") -> str:
+def apply_keyword_rules(
+    familia: str, sub_familia: str = "", return_rule_type: bool = False
+):
     """
     Aplica as regras de mapeamento avançado baseadas em Categoria e Subcategoria do fornecedor.
+    Se return_rule_type=True, retorna tupla (parent, rule_type).
     """
     fam_norm = str(familia).strip().lower()
     sub_norm = str(sub_familia).strip().lower()
@@ -768,14 +771,16 @@ def apply_keyword_rules(familia: str, sub_familia: str = "") -> str:
             text = f"{fam_norm} {sub_norm}"
             for kw in rule.get("keywords", []):
                 if str(kw).strip().lower() and str(kw).strip().lower() in text:
-                    return parent
+                    return (parent, "keyword") if return_rule_type else parent
         else:
             rule_cat = str(rule.get("category", "")).strip().lower()
             rule_sub = str(rule.get("subcategory", "")).strip().lower()
             if rule_cat and rule_cat == fam_norm:
-                if not rule_sub or rule_sub == sub_norm or rule_sub in sub_norm:
-                    return parent
-    return ""
+                if not rule_sub:
+                    return (parent, "category_direct") if return_rule_type else parent
+                elif rule_sub == sub_norm or rule_sub in sub_norm:
+                    return (parent, "subcategory") if return_rule_type else parent
+    return ("", "") if return_rule_type else ""
 
 
 def get_compiled_keyword_rules():
@@ -804,28 +809,35 @@ def get_compiled_keyword_rules():
     return exact_map, general_map, keyword_list
 
 
-def apply_compiled_keyword_rules(familia: str, sub_familia: str, compiled_rules) -> str:
-    """Aplica regras pré-compiladas de forma ultrarrápida O(1)."""
+def apply_compiled_keyword_rules(
+    familia: str, sub_familia: str, compiled_rules, return_rule_type: bool = False
+):
+    """
+    Aplica regras pré-compiladas de forma ultrarrápida O(1).
+    Se return_rule_type=True, retorna tupla (parent, rule_type).
+    """
     exact_map, general_map, keyword_list = compiled_rules
     fam_norm = str(familia).strip().lower()
     sub_norm = str(sub_familia).strip().lower()
 
     if (fam_norm, sub_norm) in exact_map:
-        return exact_map[(fam_norm, sub_norm)]
+        parent = exact_map[(fam_norm, sub_norm)]
+        return (parent, "subcategory") if return_rule_type else parent
 
     for (cat_c, sub_c), parent in exact_map.items():
         if cat_c == fam_norm and sub_c and (sub_c in sub_norm or sub_norm in sub_c):
-            return parent
+            return (parent, "subcategory") if return_rule_type else parent
 
     if fam_norm in general_map:
-        return general_map[fam_norm]
+        parent = general_map[fam_norm]
+        return (parent, "category_direct") if return_rule_type else parent
 
     if keyword_list:
         text = f"{fam_norm} {sub_norm}"
         for kw, parent in keyword_list:
             if kw in text:
-                return parent
-    return ""
+                return (parent, "keyword") if return_rule_type else parent
+    return ("", "") if return_rule_type else ""
 
 
 def apply_highlights_brands_keyword_rules(familia: str, sub_familia: str = "") -> str:

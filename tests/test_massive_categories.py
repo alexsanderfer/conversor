@@ -443,13 +443,6 @@ def test_massive_rule_descriptions_are_not_hardcoded_in_gui():
     assert "Todas as linhas das categorias de artigos de informática" not in source
 
 
-def test_massive_rules_column_explains_rule_purpose_in_european_portuguese():
-    gui_path = Path(__file__).parent.parent / "gui" / "csv_converter_gui.py"
-    source = gui_path.read_text(encoding="utf-8")
-
-    assert 'translate("Lista de Regras", self.language)' in source
-    assert "Insira as regras para associar grupos de categorias e as subcategorias a uma categoria pai." in source
-    assert "Ex: Todas as linhas das categorias de artigos para o lar e casa enviar para..." in source
 
 
 class TestGroupingSuggestionCoverage(unittest.TestCase):

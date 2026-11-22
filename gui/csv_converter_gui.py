@@ -328,6 +328,53 @@ def build_description(row: dict, mapping: dict = None) -> str:
     return ". ".join(parts)
 
 
+def format_and_sort_categories(categories_input) -> str:
+    """
+    Formata e ordena as categorias para o CSV de importação da Jumpseller.
+    - Categorias pai (raiz) aparecem pela ordem em que foram inseridas/encontradas.
+    - Todas as subcategorias e sub-subcategorias sob cada pai aparecem por ordem alfabética.
+    """
+    if not categories_input:
+        return ""
+    if isinstance(categories_input, str):
+        items = [c.strip() for c in categories_input.split(",") if c.strip()]
+    else:
+        items = [str(c).strip() for c in categories_input if str(c).strip()]
+
+    unique_items = []
+    seen = set()
+    for item in items:
+        clean = item.strip().strip("/")
+        if clean and clean not in seen:
+            seen.add(clean)
+            unique_items.append(clean)
+
+    if not unique_items:
+        return ""
+
+    parents_order = []
+    groups = {}
+    for item in unique_items:
+        root_parent = item.split("/")[0].strip()
+        if root_parent not in groups:
+            parents_order.append(root_parent)
+            groups[root_parent] = []
+        groups[root_parent].append(item)
+
+    final_paths = []
+    for parent in parents_order:
+        family_items = groups[parent]
+        has_root = parent in family_items
+        children = [x for x in family_items if x != parent]
+        children.sort(key=lambda s: unicodedata.normalize("NFKD", s).lower())
+
+        if has_root:
+            final_paths.append(parent)
+        final_paths.extend(children)
+
+    return ",".join(final_paths)
+
+
 def build_categories(
     row: dict,
     mapping: dict = None,
@@ -414,7 +461,7 @@ def build_categories(
                     cat3 = '/'.join(parts[:4])
                 if cat3 not in result:
                     result.append(cat3)
-            return ",".join(sorted(result))
+            return format_and_sort_categories(result)
     except Exception:
         pass
 
@@ -456,7 +503,7 @@ def build_categories(
                         prefixed = f"{parent_cat}/{cp}"
                         if prefixed not in result:
                             result.append(prefixed)
-                    return ",".join(sorted(result))
+                    return format_and_sort_categories(result)
                 else:
                     return parent_cat
 
@@ -496,7 +543,7 @@ def build_categories(
                             upc = (up or "").strip()
                             if upc and upc not in result:
                                 result.append(upc)
-                    return ",".join(sorted(result))
+                    return format_and_sort_categories(result)
                 # No matches: fall through to original categories
     except Exception:
         pass
@@ -526,37 +573,60 @@ def build_categories(
                                 prefixed = f"{parent_cat}/{cp}"
                                 if prefixed not in result:
                                     result.append(prefixed)
-                            return ",".join(result)
+                            return format_and_sort_categories(result)
                         else:
                             return parent_cat
     except Exception:
         pass
 
-    # Mapeamento avançado por Categoria e Subcategoria (prioridade com cache O(1))
+    # Mapeamento avançado por Categoria e Subcategoria (Mapeamento 1 e Mapeamento 2)
     try:
         familia = get_mapped_value(row, "familia_principal", mapping)
         sub_familia = get_mapped_value(row, "sub_familia", mapping)
         if compiled_rules is not None:
-            kw_parent = apply_compiled_keyword_rules(familia, sub_familia, compiled_rules)
+            kw_parent, rule_type = apply_compiled_keyword_rules(
+                familia, sub_familia, compiled_rules, return_rule_type=True
+            )
         else:
-            kw_parent = apply_keyword_rules(familia, sub_familia)
+            kw_parent, rule_type = apply_keyword_rules(
+                familia, sub_familia, return_rule_type=True
+            )
         if kw_parent:
-            if cat_settings.get("use_parent", True):
+            if rule_type == "category_direct":
+                # Mapeamento 1: substituição direta da categoria única pela categoria pai.
+                # A categoria única (familia) é substituída pelo nome da categoria pai.
                 result = [kw_parent]
-                for cat_path in categories:
-                    cp = (cat_path or "").strip().strip("/")
-                    if not cp:
-                        continue
-                    prefixed = f"{kw_parent}/{cp}"
-                    if prefixed not in result:
-                        result.append(prefixed)
-                return ",".join(sorted(result))
+                if sub_familia:
+                    cat2 = f"{kw_parent}/{sub_familia}"
+                    parts = cat2.split('/')
+                    if len(parts) > 4:
+                        cat2 = '/'.join(parts[:4])
+                    result.append(cat2)
+                if sub_sub_familia and sub_familia:
+                    cat3 = f"{kw_parent}/{sub_familia}/{sub_sub_familia}"
+                    parts = cat3.split('/')
+                    if len(parts) > 4:
+                        cat3 = '/'.join(parts[:4])
+                    result.append(cat3)
+                return format_and_sort_categories(result)
             else:
-                return kw_parent
+                # Mapeamento 2 ou regras com subcategoria/keywords: agrupa a hierarquia completa
+                if cat_settings.get("use_parent", True):
+                    result = [kw_parent]
+                    for cat_path in categories:
+                        cp = (cat_path or "").strip().strip("/")
+                        if not cp:
+                            continue
+                        prefixed = f"{kw_parent}/{cp}"
+                        if prefixed not in result:
+                            result.append(prefixed)
+                    return format_and_sort_categories(result)
+                else:
+                    return kw_parent
     except Exception:
         pass
 
-    return ",".join(sorted(categories))
+    return format_and_sort_categories(categories)
 
 
 def convert_row(
@@ -1591,63 +1661,106 @@ class App(Tk):
         self.mapping_btn2.pack(side="right", padx=(0, 8))
 
     def _build_tab_lucro(self):
-        """Constrói a aba 'Lucro e Taxas' com configuração de preços."""
-        frm = ttk.Frame(self.tab_lucro, padding=12)
+        """Constrói a aba 'Lucro e Taxas' com configuração de preços e IVA."""
+        frm = ttk.Frame(self.tab_lucro, padding=16)
         frm.pack(fill="both", expand=True)
 
-        ttk.Label(frm, text="Configuração de Preços (por perfil)", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
+        # 1. Configuração de preços e IVA (por perfil).
+        ttk.Label(
+            frm,
+            text=translate("1. Configuração de preços e IVA (por perfil).", self.language),
+            font=("Segoe UI", 12, "bold"),
+        ).pack(anchor="w", pady=(0, 10))
 
-        # Carregar configurações existentes para preencher os campos
-        from core.field_mapping import get_price_settings, get_active_profile
-        settings = get_price_settings(get_active_profile())
-        price_lines = settings.get("price_lines", [])
-        line1_data = {}
-        line2_data = {}
-        for line in price_lines:
-            if line.get("price_formula") == "Lucro, IVA, Portes":
-                line1_data = line
-            elif line.get("price_formula") == "IVA, Portes, Lucro":
-                line2_data = line
+        sec1_frame = ttk.Frame(frm)
+        sec1_frame.pack(fill="x", pady=(0, 16))
 
-        # Linha 1: Lucro → IVA → Portes
-        ttk.Label(frm, text="Linha 1: Lucro → IVA → Portes", font=("Segoe UI", 9, "bold"), foreground=GRAY_600).pack(anchor="w", pady=(4, 2))
-        line1_frame = ttk.Frame(frm)
-        line1_frame.pack(fill="x", pady=(0, 8))
+        ttk.Label(sec1_frame, text=translate("Lucro %:", self.language)).pack(side="left", padx=(0, 4))
+        self._price_profit_var = tk.StringVar(value="")
+        ttk.Entry(sec1_frame, textvariable=self._price_profit_var, width=10).pack(side="left", padx=(0, 16))
 
-        ttk.Label(line1_frame, text="Lucro %:").grid(row=0, column=0, sticky="w", padx=(0, 4))
-        self._price_line1_profit_var = tk.StringVar(value=str(line1_data.get("profit_percentage", "")))
-        ttk.Entry(line1_frame, textvariable=self._price_line1_profit_var, width=8).grid(row=0, column=1, sticky="w", padx=(0, 8))
-        ttk.Label(line1_frame, text="IVA %:").grid(row=0, column=2, sticky="w", padx=(0, 4))
-        self._price_line1_iva_var = tk.StringVar(value=str(line1_data.get("iva_percentage", "")))
-        ttk.Entry(line1_frame, textvariable=self._price_line1_iva_var, width=8).grid(row=0, column=3, sticky="w", padx=(0, 8))
-        ttk.Label(line1_frame, text="Portes (€):").grid(row=0, column=4, sticky="w", padx=(0, 4))
-        self._price_line1_shipping_var = tk.StringVar(value=str(line1_data.get("shipping_cost", "")))
-        ttk.Entry(line1_frame, textvariable=self._price_line1_shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(0, 8))
-        ttk.Button(line1_frame, text="Guardar", command=lambda: self._save_price_line("line1", self._price_line1_profit_var, self._price_line1_iva_var, self._price_line1_shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
-        self._price_line1_active_var = tk.BooleanVar(value=line1_data.get("active", False))
-        ttk.Checkbutton(line1_frame, text="Ativo", variable=self._price_line1_active_var,
-                        command=self._toggle_line1_active).grid(row=0, column=7, sticky="w", padx=(0, 4))
+        ttk.Label(sec1_frame, text=translate("IVA %:", self.language)).pack(side="left", padx=(0, 4))
+        self._price_iva_var = tk.StringVar(value="")
+        ttk.Entry(sec1_frame, textvariable=self._price_iva_var, width=10).pack(side="left", padx=(0, 16))
 
-        # Linha 2: IVA → Portes → Lucro
-        ttk.Label(frm, text="Linha 2: IVA → Portes → Lucro", font=("Segoe UI", 9, "bold"), foreground=GRAY_600).pack(anchor="w", pady=(8, 2))
-        line2_frame = ttk.Frame(frm)
-        line2_frame.pack(fill="x", pady=(0, 8))
+        ttk.Button(
+            sec1_frame,
+            text=translate("Guardar", self.language),
+            command=self._save_price_rates,
+            width=14,
+        ).pack(side="left")
 
-        ttk.Label(line2_frame, text="Lucro %:").grid(row=0, column=0, sticky="w", padx=(0, 4))
-        self._price_line2_profit_var = tk.StringVar(value=str(line2_data.get("profit_percentage", "")))
-        ttk.Entry(line2_frame, textvariable=self._price_line2_profit_var, width=8).grid(row=0, column=1, sticky="w", padx=(0, 8))
-        ttk.Label(line2_frame, text="IVA %:").grid(row=0, column=2, sticky="w", padx=(0, 4))
-        self._price_line2_iva_var = tk.StringVar(value=str(line2_data.get("iva_percentage", "")))
-        ttk.Entry(line2_frame, textvariable=self._price_line2_iva_var, width=8).grid(row=0, column=3, sticky="w", padx=(0, 8))
-        ttk.Label(line2_frame, text="Portes (€):").grid(row=0, column=4, sticky="w", padx=(0, 4))
-        self._price_line2_shipping_var = tk.StringVar(value=str(line2_data.get("shipping_cost", "")))
-        ttk.Entry(line2_frame, textvariable=self._price_line2_shipping_var, width=8).grid(row=0, column=5, sticky="w", padx=(0, 8))
-        ttk.Button(line2_frame, text="Guardar", command=lambda: self._save_price_line("line2", self._price_line2_profit_var, self._price_line2_iva_var, self._price_line2_shipping_var), width=10).grid(row=0, column=6, sticky="w", padx=(0, 4))
-        self._price_line2_active_var = tk.BooleanVar(value=line2_data.get("active", False))
-        ttk.Checkbutton(line2_frame, text="Ativo", variable=self._price_line2_active_var,
-                        command=self._toggle_line2_active).grid(row=0, column=7, sticky="w", padx=(0, 4))
+        # 2. Selecionar o regime de IVA
+        ttk.Label(
+            frm,
+            text=translate("2. Selecionar o regime de IVA", self.language),
+            font=("Segoe UI", 12, "bold"),
+        ).pack(anchor="w", pady=(10, 10))
 
-        ttk.Label(frm, text="As configurações são guardadas por perfil e aplicadas apenas quando definidas.\nValores vazios ou zero (IVA/Portes) não são aplicados.\nApenas uma linha pode estar ativa por vez.\nLinha 1 aplica: Lucro → IVA → Portes.\nLinha 2 aplica: IVA → Portes → Lucro.", font=("Segoe UI", 9), foreground=GRAY_600, justify="left").pack(anchor="w", pady=(8, 0))
+        # Linha 1: 1. Empresa com IVA: Lucro » IVA
+        reg1_frame = ttk.Frame(frm)
+        reg1_frame.pack(fill="x", pady=(0, 8))
+        ttk.Label(
+            reg1_frame,
+            text=translate("1. Empresa com IVA: Lucro » IVA", self.language),
+            font=("Segoe UI", 9, "bold"),
+            width=32,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            reg1_frame,
+            text=translate("Guardar", self.language),
+            command=self._save_regime1,
+            width=14,
+        ).pack(side="left", padx=(0, 12))
+        self._price_line1_active_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            reg1_frame,
+            text=translate("Ativo", self.language),
+            variable=self._price_line1_active_var,
+            command=self._toggle_regime1,
+        ).pack(side="left")
+
+        # Linha 2: 2. Isenta de IVA: IVA » Lucro
+        reg2_frame = ttk.Frame(frm)
+        reg2_frame.pack(fill="x", pady=(0, 16))
+        ttk.Label(
+            reg2_frame,
+            text=translate("2. Isenta de IVA: IVA » Lucro", self.language),
+            font=("Segoe UI", 9, "bold"),
+            width=32,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            reg2_frame,
+            text=translate("Guardar", self.language),
+            command=self._save_regime2,
+            width=14,
+        ).pack(side="left", padx=(0, 12))
+        self._price_line2_active_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            reg2_frame,
+            text=translate("Ativo", self.language),
+            variable=self._price_line2_active_var,
+            command=self._toggle_regime2,
+        ).pack(side="left")
+
+        # Textos informativos
+        info_text = (
+            "As configurações são guardadas por perfil e aplicadas apenas quando definidas.\n"
+            "Valores vazios ou zero não são aplicados.\n\n"
+            "Apenas um regime de Iva pode estar ativo.\n"
+            "A linha 1 aplica primeiro o lucro e depois o Iva ao preço do fornecedor.\n"
+            "A linha 2 aplica primeiro o Iva e depois o lucro ao preço do fornecedor."
+        )
+        ttk.Label(
+            frm,
+            text=translate(info_text, self.language),
+            font=("Segoe UI", 9),
+            foreground=GRAY_600,
+            justify="left",
+        ).pack(anchor="w", pady=(8, 0))
+
+        # Carregar valores atuais no tab
+        self._refresh_lucro_tab()
 
     def _build_tab_fornecedores(self):
         """Constrói a aba 'Fornecedores' para gerir e listar perfis."""
@@ -1931,41 +2044,76 @@ class App(Tk):
 
         ttk.Button(frm, text="Guardar todas as configurações de categorias", command=self._save_category_settings, width=45).pack(anchor="w", pady=(4, 0))
 
-        # ---- Mapeamento Avançado (regras por Categoria e Subcategoria) ----
+        # ---- Mapeamento Avançado (Mapeamento 1 e Mapeamento 2) ----
         ttk.Separator(frm, orient="horizontal").pack(fill="x", pady=(10, 6))
-        ttk.Label(frm, text="Mapeamento Avançado — regras por Categoria e Subcategoria", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 4))
-        ttk.Label(frm, text="Associe automaticamente produtos a uma categoria pai com base na Categoria e Subcategoria originais do fornecedor.", font=("Segoe UI", 8), foreground=GRAY_600).pack(anchor="w", pady=(0, 2))
-        ttk.Label(
-            frm,
-            text=(
-                "Como funciona: indique a Categoria e a Subcategoria do fornecedor (deixe a subcategoria vazia para aplicar a toda a categoria) "
-                "e selecione a Categoria Pai de destino. Evita falsos positivos no nome dos produtos (ex: 'teclado' no nome de um portátil). "
-                "Regras mais recentes têm maior prioridade. Aplica na 'Conversão' e no 'Atualizar Loja'."
-            ),
-            font=("Segoe UI", 8),
-            foreground=GRAY_600,
-            justify="left",
-            wraplength=700,
-        ).pack(anchor="w", pady=(0, 6))
 
-        adv_row = ttk.Frame(frm)
-        adv_row.pack(fill="x", pady=2)
-        ttk.Label(adv_row, text="Cat.:").pack(side="left", padx=(0, 2))
+        map_container = ttk.Frame(frm)
+        map_container.pack(fill="x", pady=(0, 4))
+        map_container.columnconfigure(0, weight=1)
+        map_container.columnconfigure(1, weight=1)
+
+        # Lado Esquerdo: Mapeamento 1
+        m1_frame = ttk.Frame(map_container)
+        m1_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+
+        ttk.Label(
+            m1_frame,
+            text=translate("Mapeamento 1: Seleciona uma categoria única e agrupa todas as suas subcategorias a uma categoia pai.\nNo procedimento o nome da categoria única é substituído pelo nome da categoria pai.", self.language),
+            font=("Segoe UI", 8),
+            justify="left",
+            wraplength=480,
+        ).pack(anchor="w", pady=(0, 4))
+
+        m1_controls = ttk.Frame(m1_frame)
+        m1_controls.pack(fill="x", pady=2)
+        ttk.Label(m1_controls, text="Cat.:").pack(side="left", padx=(0, 2))
         self._adv_cat_var = tk.StringVar()
-        self._adv_cat_combo = ttk.Combobox(adv_row, textvariable=self._adv_cat_var)
+        self._adv_cat_combo = ttk.Combobox(m1_controls, textvariable=self._adv_cat_var, width=18)
         self._adv_cat_combo.pack(side="left", fill="x", expand=True, padx=(0, 4))
-        ttk.Label(adv_row, text="Subcat.:").pack(side="left", padx=(4, 2))
+
+        ttk.Label(m1_controls, text="Pai:").pack(side="left", padx=(4, 2))
+        self._cat_pai_m1_var = tk.StringVar()
+        self._cat_pai_m1_combo = ttk.Combobox(m1_controls, textvariable=self._cat_pai_m1_var, state="readonly", width=18)
+        self._cat_pai_m1_combo.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self._cat_pai_combo = self._cat_pai_m1_combo
+
+        m1_btn_col = ttk.Frame(m1_controls)
+        m1_btn_col.pack(side="left", padx=(4, 0))
+        ttk.Button(m1_btn_col, text=translate("Adicionar Regra", self.language), command=self._add_map1_rule, width=14).pack(fill="x", pady=(0, 2))
+        ttk.Button(m1_btn_col, text=translate("Remover Regra", self.language), command=self._remove_advanced_keyword_rule, width=14).pack(fill="x")
+
+        # Lado Direito: Mapeamento 2
+        m2_frame = ttk.Frame(map_container)
+        m2_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+
+        ttk.Label(
+            m2_frame,
+            text=translate("Mapeamento 2: Seleciona a categoria única com subcategoria e agrupa na categoria pai.", self.language),
+            font=("Segoe UI", 8),
+            justify="left",
+            wraplength=480,
+        ).pack(anchor="w", pady=(0, 16))
+
+        m2_controls = ttk.Frame(m2_frame)
+        m2_controls.pack(fill="x", pady=2)
+        ttk.Label(m2_controls, text="Subcat.:").pack(side="left", padx=(0, 2))
         self._adv_subcat_var = tk.StringVar()
-        self._adv_subcat_combo = ttk.Combobox(adv_row, textvariable=self._adv_subcat_var)
+        self._adv_subcat_combo = ttk.Combobox(m2_controls, textvariable=self._adv_subcat_var, width=22)
         self._adv_subcat_combo.pack(side="left", fill="x", expand=True, padx=(0, 4))
-        ttk.Label(adv_row, text="Pai:").pack(side="left", padx=(4, 2))
-        self._cat_pai_combo = ttk.Combobox(adv_row, state="readonly")
-        self._cat_pai_combo.pack(side="left", fill="x", expand=True, padx=(0, 4))
-        ttk.Button(adv_row, text="Adicionar Regra", command=self._add_advanced_keyword_rule, width=14).pack(side="left", padx=(0, 4))
-        ttk.Button(adv_row, text="Remover Regra", command=self._remove_advanced_keyword_rule, width=14).pack(side="left")
+
+        ttk.Label(m2_controls, text="Pai:").pack(side="left", padx=(4, 2))
+        self._cat_pai_m2_var = tk.StringVar()
+        self._cat_pai_m2_combo = ttk.Combobox(m2_controls, textvariable=self._cat_pai_m2_var, state="readonly", width=18)
+        self._cat_pai_m2_combo.pack(side="left", fill="x", expand=True, padx=(0, 4))
+
+        m2_btn_col = ttk.Frame(m2_controls)
+        m2_btn_col.pack(side="left", padx=(4, 0))
+        ttk.Button(m2_btn_col, text=translate("Adicionar Regra", self.language), command=self._add_map2_rule, width=14).pack(fill="x", pady=(0, 2))
+        ttk.Button(m2_btn_col, text=translate("Apagar Tudo", self.language), command=self._remove_all_advanced_keyword_rules, width=14).pack(fill="x")
+
         self._refresh_cat_pai_combo()
 
-        ttk.Label(frm, text="Regras configuradas (mais recente = maior prioridade) — selecione para remover:", font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(6, 2))
+        ttk.Label(frm, text=translate("Regras configuradas (mais recente = maior prioridade) — selecione para remover:", self.language), font=("Segoe UI", 9), foreground=GRAY_600).pack(anchor="w", pady=(6, 2))
         adv_frame = ttk.Frame(frm)
         adv_frame.pack(fill="both", expand=True)
         self._adv_rules_listbox = tk.Listbox(adv_frame, height=6, relief="sunken", bg=GRAY_100, font=("Consolas", 8), selectmode="single")
@@ -2102,10 +2250,7 @@ class App(Tk):
         # -----------------------------------------------------------
         ttk.Label(
             frm,
-            text=translate(
-                "Regras configuradas (mais recente = maior prioridade) — selecione para remover:",
-                self.language
-            ),
+            text=translate("Lista de Regras", self.language) + " (" + translate("mais recente = maior prioridade", self.language) + " — " + translate("selecione para remover:", self.language) + ")",
             font=("Segoe UI", 9), foreground=GRAY_600,
         ).pack(anchor="w", pady=(2, 2))
 
@@ -3621,10 +3766,14 @@ class App(Tk):
         self._refresh_massive_parent_combo()
 
     def _refresh_cat_pai_combo(self):
-        """Preenche o dropdown com as categorias pai já configuradas."""
+        """Preenche os dropdowns de categoria pai (M1 e M2) com as categorias configuradas."""
         try:
             cat_settings = get_category_settings()
             new_cats = [c.strip() for c in cat_settings.get("new_categories", []) if c.strip()]
+            if hasattr(self, "_cat_pai_m1_combo"):
+                self._cat_pai_m1_combo["values"] = new_cats
+            if hasattr(self, "_cat_pai_m2_combo"):
+                self._cat_pai_m2_combo["values"] = new_cats
             if hasattr(self, "_cat_pai_combo"):
                 self._cat_pai_combo["values"] = new_cats
         except Exception:
@@ -3656,11 +3805,64 @@ class App(Tk):
         if name:
             self._set_active_profile_global(name)
 
-    def _add_advanced_keyword_rule(self):
-        """Adiciona uma regra de mapeamento avançado baseada em Categoria e Subcategoria."""
+    def _add_map1_rule(self):
+        """Adiciona regra de Mapeamento 1: categoria única (sem subcategoria) substituída pelo nome da categoria pai."""
+        cat_in = self._adv_cat_var.get().strip()
+        parent_cat = self._cat_pai_m1_combo.get().strip() if hasattr(self, "_cat_pai_m1_combo") else self._cat_pai_combo.get().strip()
+        if not cat_in or not parent_cat:
+            messagebox.showwarning(translate("Atenção", self.language), translate("Preencha a Categoria e selecione a Categoria Pai de destino.", self.language), parent=self)
+            return
+        try:
+            if add_keyword_rule(cat_in, "", parent_cat, priority=10):
+                self._adv_cat_var.set("")
+                self._cat_pai_m1_combo.set("") if hasattr(self, "_cat_pai_m1_combo") else self._cat_pai_combo.set("")
+                self._refresh_adv_rules_list()
+                self._filter_categories()
+                messagebox.showinfo(translate("Guardado", self.language), translate("Regra de Mapeamento 1 adicionada com sucesso.", self.language), parent=self)
+            else:
+                messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar a regra.", self.language), parent=self)
+        except Exception as e:
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
+
+    def _add_map2_rule(self):
+        """Adiciona regra de Mapeamento 2: categoria + subcategoria agrupadas a uma categoria pai."""
         cat_in = self._adv_cat_var.get().strip()
         subcat_in = self._adv_subcat_var.get().strip()
-        parent_cat = self._cat_pai_combo.get().strip()
+        parent_cat = self._cat_pai_m2_combo.get().strip() if hasattr(self, "_cat_pai_m2_combo") else self._cat_pai_combo.get().strip()
+        if not cat_in or not subcat_in or not parent_cat:
+            messagebox.showwarning(translate("Atenção", self.language), translate("Preencha a Categoria, a Subcategoria e selecione a Categoria Pai de destino.", self.language), parent=self)
+            return
+        try:
+            if add_keyword_rule(cat_in, subcat_in, parent_cat, priority=10):
+                self._adv_cat_var.set("")
+                self._adv_subcat_var.set("")
+                self._cat_pai_m2_combo.set("") if hasattr(self, "_cat_pai_m2_combo") else self._cat_pai_combo.set("")
+                self._refresh_adv_rules_list()
+                self._filter_categories()
+                messagebox.showinfo(translate("Guardado", self.language), translate("Regra de Mapeamento 2 adicionada com sucesso.", self.language), parent=self)
+            else:
+                messagebox.showerror(translate("Erro", self.language), translate("Não foi possível guardar a regra.", self.language), parent=self)
+        except Exception as e:
+            messagebox.showerror(translate("Erro", self.language), f"{translate('Erro', self.language)}: {e}", parent=self)
+
+    def _remove_all_advanced_keyword_rules(self):
+        """Remove todas as regras de mapeamento avançado (M1 e M2) de uma vez."""
+        rules = get_keyword_rules()
+        if not rules:
+            messagebox.showinfo(translate("Informação", self.language), translate("Não há regras avançadas para remover.", self.language), parent=self)
+            return
+        if messagebox.askyesno(translate("Apagar Tudo", self.language), translate("Tem a certeza que deseja apagar TODAS as regras de mapeamento avançado?", self.language), parent=self):
+            from core.field_mapping import set_keyword_rules
+            set_keyword_rules([])
+            self._refresh_adv_rules_list()
+            self._filter_categories()
+            messagebox.showinfo(translate("Guardado", self.language), translate("Todas as regras de mapeamento avançado foram removidas.", self.language), parent=self)
+
+    def _add_advanced_keyword_rule(self):
+        """Adiciona uma regra de mapeamento avançado (legacy - usa Cat.: + Subcat.: + Pai:)."""
+        cat_in = self._adv_cat_var.get().strip()
+        subcat_in = self._adv_subcat_var.get().strip()
+        parent_cat = self._cat_pai_combo.get().strip() if hasattr(self, "_cat_pai_combo") else ""
         if not cat_in or not parent_cat:
             messagebox.showwarning(translate("Atenção", self.language), translate("Preencha a Categoria e selecione a Categoria Pai de destino.", self.language), parent=self)
             return
@@ -3668,8 +3870,8 @@ class App(Tk):
             if add_keyword_rule(cat_in, subcat_in, parent_cat, priority=10):
                 self._adv_cat_var.set("")
                 self._adv_subcat_var.set("")
+                self._cat_pai_combo.set("") if hasattr(self, "_cat_pai_combo") else None
                 self._refresh_adv_rules_list()
-                # Recalcular as não-mapeadas para a categoria desaparecer da coluna 1.
                 self._filter_categories()
                 messagebox.showinfo(translate("Guardado", self.language), translate("Regra avançada adicionada com sucesso.", self.language), parent=self)
             else:
