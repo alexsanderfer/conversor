@@ -21,6 +21,7 @@ from gui.theme import (
     GRAY_600,
     GRAY_800,
     BLUE_100,
+    BLUE_500,
     BLUE_700,
     BLUE_900,
     WHITE,
