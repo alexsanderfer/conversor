@@ -28,7 +28,7 @@ from tkinterdnd2 import DND_FILES, Tk
 
 from core.i18n import translate, DEFAULT_LANGUAGE
 from core.license_dialog import LicenseDialog
-from core.license_manager import check_license, load_license_state, check_license_expiry_warning
+from core.license_manager import check_license, load_license_state, save_license_state, check_license_expiry_warning
 from core.stripe_integration import open_stripe_checkout
 from core.updater import check_for_updates, get_current_version
 from gui.theme import (
@@ -4131,6 +4131,30 @@ class App(Tk):
             return
         messagebox.showwarning(translate("Atenção", self.language), translate("Selecione uma regra na lista para remover.", self.language), parent=self)
 
+    def _refresh_lic_status_label(self):
+        """Atualiza o rótulo de status da licença na aba Sobre."""
+        try:
+            from core.license_manager import load_license_state
+            state = load_license_state()
+            method = state.get("activation_method", "")
+            email = state.get("activation_email", "")
+            tier = state.get("activation_tier", "")
+            key = state.get("activation_key", "")
+
+            if method == "account" and email:
+                tier_txt = f" ({tier})" if tier else ""
+                self._lic_status_var.set(f"Licença ativa via conta online: {email}{tier_txt}")
+                self._lic_status_label.config(fg=BLUE_700)
+            elif key:
+                self._lic_status_var.set("Licença ativa via código de ativação")
+                self._lic_status_label.config(fg=BLUE_700)
+            else:
+                self._lic_status_var.set("Nenhuma licença ativa. Clique em 'Gerenciar Licença' para ativar.")
+                self._lic_status_label.config(fg=GRAY_600)
+        except Exception:
+            self._lic_status_var.set("Não foi possível carregar o status da licença.")
+            self._lic_status_label.config(fg=ERROR_FG)
+
     def _build_tab_destaques(self):
         """Constrói a aba 'Destaques'."""
         frm = ttk.Frame(self.tab_destaques, padding=6)
@@ -5006,6 +5030,37 @@ class App(Tk):
         )
         check_up_btn.pack(anchor="w", pady=(0, 6))
 
+        # Botão Gerenciar Licença
+        lic_btn = tk.Button(
+            frm,
+            text="🔑 Gerenciar Licença",
+            command=self._open_license_window,
+            bg=BLUE_700,
+            fg=WHITE,
+            activebackground=BLUE_500,
+            activeforeground=WHITE,
+            relief="flat",
+            font=("Segoe UI", 9, "bold"),
+            padx=14,
+            pady=6,
+            cursor="hand2",
+        )
+        lic_btn.pack(anchor="w", pady=(0, 6))
+
+        # Status da licença atual
+        self._lic_status_var = tk.StringVar()
+        self._lic_status_label = tk.Label(
+            frm,
+            textvariable=self._lic_status_var,
+            bg=BG_WINDOW,
+            fg=GRAY_800,
+            font=("Segoe UI", 9),
+            justify="left",
+            wraplength=700,
+        )
+        self._lic_status_label.pack(anchor="w", pady=(0, 8))
+        self._refresh_lic_status_label()
+
         # Atualizações automáticas são configuradas na aba de definições;
         # aqui mostramos apenas o estado atual, sem duplicar o controlo.
 
@@ -5024,6 +5079,16 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.5.13 (2026-11-22)
+        - Licença: novo diálogo com três métodos de ativação — conta vinculada online, código do dispositivo e código de ativação.
+        - Licença: a ativação por conta SaaS valida o plano (Pro ou Lifetime) no servidor.
+        - Licença: aba Sobre mostra o estado da licença e o botão "Gerenciar Licença" abre o diálogo de ativação.
+        - Correção: o botão "Gerenciar Licença" voltou a abrir o diálogo (deixou de falhar por um argumento obsoleto).
+        - SaaS: endpoints de código do dispositivo (registo, consulta e aprovação) para ativação remota.
+        v0.5.12 (2026-11-22)
+        - Migração para o sistema de licenciamento por chaves.
+        v0.5.11 (2026-11-22)
+        - Corrigidos métodos da aba Lucro e Taxas que causavam erro no executável.
         v0.5.10 (2026-11-20)
         - Ao converter, abre um diálogo de confirmação com o fornecedor ativo e o respetivo prefixo SKU, para evitar que um CSV de um fornecedor fique com o prefixo de outro.
         - Categorias: a lista de categorias únicas passa a mostrar apenas as que ainda não têm mapeamento, com o título "CATEGORIAS ÚNICAS SEM MAPEAMENTO (N de M)".
@@ -5571,33 +5636,73 @@ class App(Tk):
         aplicacao, e o motivo da recusa aparece no proprio ecra onde ele
         esta a arrastar o ficheiro.
         """
-        lic_path = self._stored_license_path()
-        ok, reason = check_license(lic_path)
-        if ok:
-            # Licença válida: verificar aviso de expiração (nos próximos 7 dias)
-            if not getattr(self, "_license_warning_shown", False):
-                self._license_warning_shown = True
-                warning_msg = check_license_expiry_warning(lic_path)
-                if warning_msg:
-                    messagebox.showwarning("Aviso de Validade da Licença", warning_msg, parent=self)
-            return True
+        # Verificar se já há uma chave válida guardada no estado
+        try:
+            from core.license_manager import load_license_state, verify_activation_key
+            state = load_license_state()
+            saved_key = state.get("activation_key", "").strip()
+            if saved_key:
+                ok, _ = verify_activation_key(saved_key)
+                if ok:
+                    self._licensed = True
+                    self._license_warning_shown = False
+                    return True
+        except Exception:
+            pass
 
-        # primeira tentativa: explicar porquê, se houver cached path
-        dialog = LicenseDialog(
-            self,
-            LICENSE_DIR,
-            reason=reason,
-            on_submit=self._accept_license,
-            on_cancel=self._deny_license,
-        )
-        self.wait_window(dialog.win)
-        return self._licensed
+        # Verificar se já há uma conta SaaS válida guardada no estado
+        try:
+            from core.license_manager import load_license_state
+            state = load_license_state()
+            method = state.get("activation_method", "")
+            email = state.get("activation_email", "").strip()
+            if method == "account" and email:
+                self._licensed = True
+                self._license_warning_shown = False
+                return True
+        except Exception:
+            pass
+
+        # Verificar se já há um código de dispositivo válido guardado no estado
+        try:
+            from core.license_manager import load_license_state
+            state = load_license_state()
+            method = state.get("activation_method", "")
+            device_code = state.get("activation_device_code", "").strip()
+            if method == "device" and device_code:
+                self._licensed = True
+                self._license_warning_shown = False
+                return True
+        except Exception:
+            pass
+
+        # Não há chave válida: mostrar dialog para colar nova chave
+        try:
+            dialog = LicenseDialog(
+                self,
+                LICENSE_DIR,
+                on_submit=self._accept_license,
+                on_cancel=self._deny_license,
+            )
+            dialog.win.lift()
+            dialog.win.attributes('-topmost', True)
+            dialog.win.after(100, lambda: dialog.win.attributes('-topmost', False))
+            self.wait_window(dialog.win)
+            return self._licensed
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror(
+                "Erro de Licença",
+                f"Não foi possível abrir o diálogo de ativação:\n{e}",
+                parent=self,
+            )
+            return False
 
     def _deny_license(self):
         """Chamado quando o utilizador clica em 'Sair' no diálogo de licença."""
         self._licensed = False
-        # Forçar fechamento da aplicação — não permite usar sem licença
-        self.after(100, self.destroy)
+        # Não desabilitar o botão Converter; o utilizador pode clicar novamente para tentar ativar
 
     def _stored_license_path(self) -> Path:
         """Licença guardada na ultima activacao, ou o caminho por defeito."""
@@ -5606,21 +5711,91 @@ class App(Tk):
             return Path(cached)
         return LICENSE_DIR / "conversor.lic"
 
-    def _accept_license(self, path: Path) -> tuple[bool, str]:
+    def _accept_license(self, method: str, value: str, tier: str | None = None) -> tuple[bool, str]:
         """
-        Chamado pelo dialog com a chave de ativação colada. Devolve (ok, message).
+        Chamado pelo dialog com a chave de ativação colada ou conta SaaS.
+        Devolve (ok, message).
 
-        Guarda a chave em %LOCALAPPDATA%/ConversorJumpseller/licenses/conversor.lic
+        Guarda a chave/conta em %LOCALAPPDATA%/ConversorJumpseller/licenses/conversor.lic
         para sobreviver a reinícios.
         """
-        ok, reason = check_license(path)
+        from datetime import datetime, timezone
+        from core.license_manager import verify_activation_key
+
+        if method == "account":
+            # Ativação via conta SaaS (já validada por verify_saas_account)
+            try:
+                LICENSE_DIR.mkdir(parents=True, exist_ok=True)
+                target = LICENSE_DIR / "conversor.lic"
+                account_data = {
+                    "method": "account",
+                    "email": value,
+                    "tier": tier,
+                    "activated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                }
+                target.write_text(json.dumps(account_data, ensure_ascii=False), encoding="utf-8")
+            except OSError as exc:
+                messagebox.showwarning(
+                    "Aviso",
+                    f"Conta válida, mas não foi possível guardá-la:\n{exc}\n"
+                    "Faça login novamente na próxima vez que abrir o programa.",
+                    parent=self,
+                )
+            self._licensed = True
+            self._license_warning_shown = False
+            msg = f"Conta ativa para: {value}"
+            self._last_license_message = msg
+            # Guardar a conta no estado para sobreviver a reinícios
+            try:
+                state = load_license_state()
+                state["activation_method"] = "account"
+                state["activation_email"] = value
+                state["activation_tier"] = tier
+                save_license_state(data=state)
+            except Exception:
+                pass
+            return True, msg
+
+        if method == "device":
+            # Ativação via Código do Dispositivo (já validado por verify_device_code)
+            try:
+                LICENSE_DIR.mkdir(parents=True, exist_ok=True)
+                target = LICENSE_DIR / "conversor.lic"
+                device_data = {
+                    "method": "device",
+                    "device_code": value,
+                    "tier": tier,
+                    "activated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                }
+                target.write_text(json.dumps(device_data, ensure_ascii=False), encoding="utf-8")
+            except OSError as exc:
+                messagebox.showwarning(
+                    "Aviso",
+                    f"Código válido, mas não foi possível guardá-lo:\n{exc}\n"
+                    "Tente novamente na próxima vez que abrir o programa.",
+                    parent=self,
+                )
+            self._licensed = True
+            self._license_warning_shown = False
+            msg = f"Dispositivo ativado via código: {value}"
+            self._last_license_message = msg
+            # Guardar o código no estado para sobreviver a reinícios
+            try:
+                state = load_license_state()
+                state["activation_method"] = "device"
+                state["activation_device_code"] = value
+                state["activation_tier"] = tier
+                save_license_state(data=state)
+            except Exception:
+                pass
+            return True, msg
+
+        ok, reason = verify_activation_key(value)
         if ok:
             try:
                 LICENSE_DIR.mkdir(parents=True, exist_ok=True)
                 target = LICENSE_DIR / "conversor.lic"
-                target.write_text(
-                    path.read_text(encoding="utf-8"), encoding="utf-8"
-                )
+                target.write_text(value, encoding="utf-8")
             except OSError as exc:
                 messagebox.showwarning(
                     "Aviso",
@@ -5631,14 +5806,18 @@ class App(Tk):
             self._licensed = True
             self._license_warning_shown = False
             try:
-                data = json.loads(path.read_text(encoding="utf-8"))
+                data = json.loads(value)
                 msg = f"Chave ativa para: {data.get('licensee', '—')}"
             except (OSError, ValueError):
                 msg = "Chave ativa"
             self._last_license_message = msg
-            warning_msg = check_license_expiry_warning(path)
-            if warning_msg:
-                messagebox.showwarning("Aviso de Validade da Licença", warning_msg, parent=self)
+            # Guardar a chave no estado para sobreviver a reinícios
+            try:
+                state = load_license_state()
+                state["activation_key"] = value
+                save_license_state(data=state)
+            except Exception:
+                pass
             return True, msg
         else:
             self._licensed = False
@@ -5648,7 +5827,7 @@ class App(Tk):
     # -- acesso a licenca (botao no rodape) -------------------------------
 
     def _open_license_window(self):
-        """Botão 'Licença…': mostra a licença ativa e permite renovar/carregar novo ficheiro .lic."""
+        """Botão 'Licença…' / 'Renovar Licença': mostra a licença ativa e permite renovar/carregar nova chave."""
         lic_path = self._stored_license_path()
         ok, reason = check_license(lic_path)
 
@@ -5657,23 +5836,20 @@ class App(Tk):
             try:
                 data = json.loads(lic_path.read_text(encoding="utf-8"))
                 detail = (
-                    f"Licença ativa:\n"
+                    f"Chave ativa:\n"
                     f"• Loja / Licenciado: {data.get('licensee', '—')}\n"
                     f"• Válida até: {data.get('expires', '—')}\n\n"
                 )
             except (OSError, ValueError):
                 pass
 
-        msg = f"{detail}Deseja carregar ou renovar um novo ficheiro de licença (.lic)?" if ok else f"Licença inválida ou não encontrada.\n{reason}\n\nPretende carregar um ficheiro .lic?"
-
-        if messagebox.askyesno("Gestão de Licença", msg, parent=self):
-            dialog = LicenseDialog(
-                self,
-                LICENSE_DIR,
-                reason=reason if not ok else "",
-                on_submit=self._accept_license,
-            )
-            self.wait_window(dialog.win)
+        # Abre diretamente o diálogo para colar a nova chave de ativação.
+        dialog = LicenseDialog(
+            self,
+            LICENSE_DIR,
+            on_submit=self._accept_license,
+        )
+        self.wait_window(dialog.win)
 
     def _save_price_line(self, line_key, profit_var, iva_var, shipping_var):
         """Guarda uma linha individual de configuração de preço."""
@@ -6176,16 +6352,20 @@ class App(Tk):
 
 if __name__ == "__main__":
     app = App()
-    # Antes do mainloop: enquanto nao houver licenca valida, so se ve o
-    # dialog de activacao. E preciso rodar o loop para o dialog funcionar.
     app._licensed = False
     app._last_license_message = ""
     app.update_idletasks()
     app.lift()
     app.attributes('-topmost', True)
     app.after(100, lambda: app.attributes('-topmost', False))
-    if app._ensure_license():
+
+    # Verificar licença após o mainloop começar (evita travar na inicialização)
+    def _check_license_on_start():
+        if not app._ensure_license():
+            app.convert_btn.config(state="disabled")
         app.lift()
         app.attributes('-topmost', True)
         app.after(100, lambda: app.attributes('-topmost', False))
-        app.mainloop()
+
+    app.after(200, _check_license_on_start)
+    app.mainloop()

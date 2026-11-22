@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -239,7 +240,6 @@ def check_license(lic_path: Path, state_dir: Path | None = None, secret: str | N
         {
             "license_path": str(lic_path),
             "accepted_at": now.isoformat().replace("+00:00", "Z"),
-            "machine_id": machine_fp,
             "max_seen_time": now.isoformat().replace("+00:00", "Z"),
         },
     )
@@ -247,11 +247,213 @@ def check_license(lic_path: Path, state_dir: Path | None = None, secret: str | N
 
 
 # ---------------------------------------------------------------------------
-# Renovação: limpa estado para forçar nova aceitação
+# Validação de chave de ativação (formato simples, não-JSON)
 # ---------------------------------------------------------------------------
+
+def verify_activation_key(key: str, secret: str | None = None) -> tuple[bool, str]:
+    """
+    Valida uma chave de ativação (JSON assinado enviado como string).
+    A chave pode ser o conteúdo completo do ficheiro .lic ou apenas a string assinada.
+    """
+    secret = secret or SHARED_SECRET
+    if not secret:
+        return False, (
+            "Não foi possível carregar a chave de validação. "
+            "Reinstale a aplicação a partir do ficheiro .exe original."
+        )
+    if not key or not key.strip():
+        return False, "Chave vazia. Insira a chave de ativação enviada pelo fornecedor."
+
+    key = key.strip()
+
+    try:
+        data = json.loads(key)
+    except (json.JSONDecodeError, ValueError):
+        return False, "Formato de chave inválido. A chave deve ser um JSON assinado pelo fornecedor."
+
+    # 1. Verificar assinatura HMAC
+    if not _verify_signature(data, secret):
+        return False, "Chave de ativação inválida. Solicite uma nova chave ao fornecedor."
+
+    # 2. Validar expiração
+    issued_str = (data.get("issued") or "").strip()
+    expires_str = (data.get("expires") or "").strip()
+    try:
+        issued = datetime.fromisoformat(issued_str.replace("Z", "+00:00"))
+        expires = datetime.fromisoformat(expires_str.replace("Z", "+00:00"))
+    except ValueError:
+        return False, "Licença com datas inválidas. Obtenha uma nova cópia do fornecedor."
+
+    now = datetime.now(timezone.utc)
+    if now < issued:
+        return False, f"Licença ainda não entra em vigor (emite em {issued_str})."
+    if now > expires:
+        return False, f"Licença expirada em {expires_str}. Contacte o fornecedor para renovação."
+
+    licensee = data.get("licensee", "Cliente")
+    return True, f"Chave ativa para: {licensee}"
 
 def clear_license_state(state_dir: Path | None = None) -> None:
     save_license_state(state_dir or _STATE_DIR, {})
+
+
+def verify_saas_account(email: str, password: str, base_url: str | None = None) -> tuple[bool, str, str | None]:
+    """
+    Valida uma conta do SaaS via Supabase Auth + perfil de subscrição.
+
+    Faz login com email/senha no Supabase, obtém o perfil do usuário
+    e verifica se o plano é Pro ou Lifetime (ativa). Se válido, devolve
+    o token de sessão para ser guardado localmente.
+
+    Argumentos:
+        email: email da conta SaaS
+        password: senha da conta SaaS
+        base_url: URL base da API SaaS (default: https://qaazukvxafrwsidiguuo.supabase.co/v1)
+
+    Devolve (True, mensagem) se válida, ou (False, motivo).
+    """
+    import json
+
+    if not email or not password:
+        return False, "Email e senha são obrigatórios."
+
+    base = base_url or "https://qaazukvxafrwsidiguuo.supabase.co"
+    # Chave pública anon do Supabase (visível no .env como NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    anon_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhYXp1a3Z4YWZyd3NpZGlndXVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MzA3MjcsImV4cCI6MjEwNzQwNjcyN30.w_78NytsvC_3F6JTmTxI-j3P7rGGiMpPqbpdNRPLkBM"
+
+    try:
+        import urllib.request
+
+        # 1. Login via Supabase Auth
+        # Endpoint correto: /auth/v1/token?grant_type=password
+        login_payload = json.dumps({
+            "email": email,
+            "password": password,
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            f"{base}/auth/v1/token?grant_type=password",
+            data=login_payload,
+            headers={
+                "Content-Type": "application/json",
+                "apikey": anon_key,
+                "Authorization": f"Bearer {anon_key}",
+            },
+            method="POST",
+        )
+
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            auth_data = json.loads(resp.read().decode())
+
+        access_token = auth_data.get("access_token")
+        user_id = auth_data.get("user", {}).get("id")
+        if not access_token or not user_id:
+            return False, "Credenciais inválidas. Verifique email e senha."
+
+        # 2. Obter perfil do usuário (tier/subscription)
+        profile_req = urllib.request.Request(
+            f"{base}/rest/v1/profiles?id=eq.{user_id}&select=tier,full_name,email",
+            headers={
+                "apikey": anon_key,
+                "Authorization": f"Bearer {access_token}",
+            },
+            method="GET",
+        )
+
+        with urllib.request.urlopen(profile_req, timeout=10) as resp:
+            profiles = json.loads(resp.read().decode())
+
+        if not profiles:
+            return False, "Perfil não encontrado no SaaS."
+
+        profile = profiles[0]
+        tier = profile.get("tier", "Free")
+        full_name = profile.get("full_name", email)
+
+        # 3. Verificar se o plano está ativo (Pro ou Lifetime)
+        valid_tiers = {"Pro", "Lifetime", "pro", "lifetime"}
+        if tier not in valid_tiers:
+            return False, (
+                f"Seu plano '{tier}' não dá direito à ativação do desktop. "
+                "Faça upgrade para Pro ou Lifetime no SaaS."
+            )
+
+        return True, f"Conta validada: {full_name} ({tier})", tier
+
+    except urllib.error.HTTPError as exc:
+        try:
+            body = exc.read().decode()
+            data = json.loads(body)
+            msg = data.get("message", str(exc))
+        except Exception:
+            msg = str(exc)
+        if exc.code == 401:
+            return False, "Email ou senha incorretos."
+        return False, f"Erro ao validar conta: {msg}"
+    except Exception as exc:
+        return False, f"Erro ao contactar o servidor SaaS: {exc}"
+
+
+def verify_device_code(code: str, base_url: str | None = None) -> tuple[bool, str, str | None]:
+    """
+    Verifica se um código de dispositivo foi aprovado no SaaS.
+
+    Fluxo Device Code Flow:
+    1. Desktop gera código e exibe ao utilizador
+    2. Utilizador vai ao navegador e autoriza o dispositivo no SaaS
+    3. Desktop consulta este endpoint para verificar se foi aprovado
+
+    Argumentos:
+        code: código de ativação do dispositivo
+        base_url: URL base da API SaaS (default: https://shopsyncpt.vercel.app/api)
+
+    Devolve (True, mensagem, tier) se aprovado, ou (False, motivo, None).
+    """
+    import json
+
+    if not code or not code.strip():
+        return False, "Código de ativação é obrigatório.", None
+
+    base = base_url or "https://shopsyncpt.vercel.app/api"
+
+    try:
+        import urllib.request
+
+        # 1. Consultar servidor se o código foi aprovado
+        req = urllib.request.Request(
+            f"{base}/device/verify?code={code.strip()}",
+            headers={
+                "Content-Type": "application/json",
+            },
+            method="GET",
+        )
+
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+
+        approved = data.get("approved", False)
+        if not approved:
+            return False, data.get("message", "Código ainda não foi aprovado no SaaS."), None
+
+        tier = data.get("tier", "")
+        email = data.get("email", "")
+
+        return True, f"Conta validada: {email} ({tier})", tier
+
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return False, "Código não encontrado ou expirou. Gere um novo código.", None
+        if exc.code == 401:
+            return False, "Não autorizado. Verifique o código.", None
+        try:
+            body = exc.read().decode()
+            data = json.loads(body)
+            msg = data.get("message", str(exc))
+        except Exception:
+            msg = str(exc)
+        return False, f"Erro ao verificar código: {msg}", None
+    except Exception as exc:
+        return False, f"Erro ao contactar o servidor SaaS: {exc}", None
 
 
 def check_license_expiry_warning(lic_path: Path) -> str | None:

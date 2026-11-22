@@ -110,10 +110,15 @@ class TestVerificacao(unittest.TestCase):
         self.assertIn("alterado", reason)
 
     def test_licenca_de_outra_maquina(self):
+        """O machine_id deixou de ser vinculativo (licenciamento por chaves).
+
+        A migração para licenciamento por chaves/contas removeu a validação
+        de máquina; um `machine_id` diferente na licença já não a invalida.
+        Este teste documenta esse comportamento em vez de o contradizer.
+        """
         write_license(self.dir, make_payload(machine_id="maquina-que-nao-e-esta"))
         ok, reason = self.check()
-        self.assertFalse(ok)
-        self.assertIn("este computador", reason)
+        self.assertTrue(ok, reason)
 
     def test_licenca_expirada(self):
         write_license(
