@@ -27,6 +27,9 @@ from gui.theme import (
     WHITE,
 )
 
+# Ecrã do SaaS onde o fornecedor cola o código de dispositivo.
+DEVICE_ACTIVATION_URL = "https://shopsyncpt.vercel.app/pt-PT/device/activate"
+
 
 class LicenseDialog:
     """
@@ -315,13 +318,43 @@ class LicenseDialog:
             cursor="hand2",
         ).pack(side="left", padx=(8, 0))
 
+        # Ligação direta ao ecrã do SaaS onde o fornecedor cola o código.
+        tk.Label(
+            self._panel_device,
+            text=translate(
+                "O fornecedor cola este código no ShopSync para autorizar o dispositivo.",
+                self.language
+            ),
+            bg=BG_WINDOW,
+            fg=GRAY_600,
+            font=("Segoe UI", 8),
+            justify="left",
+        ).pack(anchor="w", pady=(6, 0))
+
+        self._device_url_var = tk.StringVar()
+        self._device_url_link = tk.Label(
+            self._panel_device,
+            textvariable=self._device_url_var,
+            bg=BG_WINDOW,
+            fg=BLUE_700,
+            font=("Segoe UI", 8, "underline"),
+            cursor="hand2",
+        )
+        self._device_url_link.pack(anchor="w", pady=(2, 0))
+        self._device_url_link.bind("<Button-1>", self._open_device_page)
+        self._device_url_var.set(DEVICE_ACTIVATION_URL)
+        # Atualiza o link sempre que o código muda, para o browser abrir já
+        # com o código preenchido no SaaS.
+        self._device_code_var.trace_add("write", self._update_device_url)
+        self._update_device_url()
+
         tk.Label(
             self._panel_device,
             text=translate("O código expira em 10 minutos.", self.language),
             bg=BG_WINDOW,
             fg=GRAY_600,
             font=("Segoe UI", 8),
-        ).pack(anchor="w", pady=(6, 0))
+        ).pack(anchor="w", pady=(4, 0))
 
         # --- Painel: Código de ativação ---
         self._panel_code = tk.Frame(frm, bg=BG_WINDOW)
@@ -453,7 +486,44 @@ class LicenseDialog:
         # Gera código de 8 caracteres alfanuméricos
         code = "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
         self._device_code_var.set(code)
-        self._set_status(translate("Código gerado. Copie-o para o navegador.", self.language), GRAY_600)
+
+        # Copia para a área de transferência e abre o ecrã do SaaS, para o
+        # utilizador só ter de colar o código no navegador.
+        try:
+            self.win.clipboard_clear()
+            self.win.clipboard_append(code)
+            self._set_status(
+                translate(
+                    "Código gerado e copiado. A abrir o ShopSync…",
+                    self.language,
+                ),
+                GRAY_600,
+            )
+        except Exception:
+            self._set_status(
+                translate("Código gerado. Copie-o para o navegador.", self.language),
+                GRAY_600,
+            )
+
+        self._open_device_page()
+
+    def _update_device_url(self, *_args):
+        """Reflete o código atual no link do ecrã do SaaS."""
+        code = self._device_code_var.get().strip()
+        if code:
+            self._device_url_var.set(f"{DEVICE_ACTIVATION_URL}?code={code}")
+        else:
+            self._device_url_var.set(DEVICE_ACTIVATION_URL)
+
+    def _open_device_page(self, _event=None):
+        """Abre no navegador o ecrã do SaaS com o código preenchido."""
+        import webbrowser
+
+        url = self._device_url_var.get() or DEVICE_ACTIVATION_URL
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
 
     def _verify_device_code(self):
         """Verifica se o código do dispositivo foi aprovado no SaaS."""
