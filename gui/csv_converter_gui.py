@@ -5608,31 +5608,33 @@ class App(Tk):
 
     def _accept_license(self, path: Path) -> tuple[bool, str]:
         """
-        Chamado pelo dialog com o .lic escolhido. Devolve (ok, message).
+        Chamado pelo dialog com a chave de ativação colada. Devolve (ok, message).
 
-        Guarda a licença em %LOCALAPPDATA% para sobreviver a reinicios e
-        move-a para a pasta de licenças, de modo a que o caminho guardado
-        aponte para um ficheiro que o cliente não vá mover.
+        Guarda a chave em %LOCALAPPDATA%/ConversorJumpseller/licenses/conversor.lic
+        para sobreviver a reinícios.
         """
         ok, reason = check_license(path)
         if ok:
             try:
                 LICENSE_DIR.mkdir(parents=True, exist_ok=True)
                 target = LICENSE_DIR / "conversor.lic"
-                if path.resolve() != target.resolve():
-                    target.write_text(
-                        path.read_text(encoding="utf-8"), encoding="utf-8"
-                    )
+                target.write_text(
+                    path.read_text(encoding="utf-8"), encoding="utf-8"
+                )
             except OSError as exc:
                 messagebox.showwarning(
                     "Aviso",
-                    f"Licença válida, mas não foi possível guardá-la:\n{exc}\n"
-                    "Volte a arrastá-la na próxima vez que abrir o programa.",
+                    f"Chave válida, mas não foi possível guardá-la:\n{exc}\n"
+                    "Cole novamente a chave na próxima vez que abrir o programa.",
                     parent=self,
                 )
             self._licensed = True
             self._license_warning_shown = False
-            msg = f"Licença ativa: {path.name}"
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                msg = f"Chave ativa para: {data.get('licensee', '—')}"
+            except (OSError, ValueError):
+                msg = "Chave ativa"
             self._last_license_message = msg
             warning_msg = check_license_expiry_warning(path)
             if warning_msg:

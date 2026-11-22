@@ -1,18 +1,16 @@
 """
 Janela de ativação / renovação de licença.
 
-Mostrada quando não há licença válida. O utilizador arrasta (ou procura) um
-ficheiro .lic; o diálogo valida-o e só se fecha quando a licença é aceite,
-para que a recusa apareça no ecrã onde ele está a trabalhar.
+Mostrada quando não há licença válida. O utilizador cola a chave de ativação
+(enviada por email/WhatsApp pelo fornecedor); o diálogo valida-a e só se fecha
+quando a chave é aceite, para que a recusa apareça no ecrã onde ele está a trabalhar.
 """
 
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox
+from tkinter import messagebox
 
-from tkinterdnd2 import DND_FILES
-
-from core.license_manager import compute_machine_fingerprint
+from core.license_manager import check_license
 from core.i18n import translate, DEFAULT_LANGUAGE
 from gui.theme import (
     BG_WINDOW,
@@ -31,10 +29,10 @@ from gui.theme import (
 
 class LicenseDialog:
     """
-    Diálogo modal de ativação.
+    Diálogo modal de ativação por chave.
 
-    `on_submit(path)` valida a licença e devolve (ok, motivo). O diálogo
-    fecha-se sozinho quando ok é True, ou quando o utilizador desiste.
+    `on_submit(key)` valida a chave de ativação e devolve (ok, motivo).
+    O diálogo fecha-se sozinho quando ok é True, ou quando o utilizador desiste.
     """
 
     def __init__(self, root, license_dir, on_submit, on_cancel=None, reason="", language=DEFAULT_LANGUAGE):
@@ -47,7 +45,7 @@ class LicenseDialog:
 
         self.win = tk.Toplevel(root)
         self.win.title(translate("Licença — CsvFast-FileConverter", self.language))
-        self.win.geometry("540x340")
+        self.win.geometry("540x400")
         self.win.resizable(False, False)
         self.win.transient(root)
         self.win.configure(bg=BG_WINDOW)
@@ -65,7 +63,7 @@ class LicenseDialog:
 
         tk.Label(
             frm,
-            text=translate("Este Conversor precisa de uma licença para funcionar.", self.language),
+            text=translate("Este Conversor precisa de uma chave de ativação para funcionar.", self.language),
             bg=BG_WINDOW,
             fg=BLUE_900,
             font=("Segoe UI", 12, "bold"),
@@ -74,9 +72,8 @@ class LicenseDialog:
         tk.Label(
             frm,
             text=(
-                translate("Arraste para baixo o ficheiro .lic que lhe foi enviado, ou ", self.language) +
-                translate("clique em «Procurar…». A licença é guardada neste computador ", self.language) +
-                translate("e vale durante 12 meses.", self.language)
+                translate("Cole abaixo a chave de ativação enviada pelo fornecedor (por email ou WhatsApp). "
+                          "A chave é guardada neste computador.", self.language)
             ),
             bg=BG_WINDOW,
             fg=GRAY_800,
@@ -85,13 +82,13 @@ class LicenseDialog:
             wraplength=504,
         ).pack(anchor="w", pady=(4, 8))
 
-        self.drop = tk.Text(
+        self.key_text = tk.Text(
             frm,
-            height=6,
+            height=4,
             relief="solid",
             bg=GRAY_100,
             fg=GRAY_800,
-            font=("Segoe UI", 10),
+            font=("Consolas", 10),
             borderwidth=0,
             highlightbackground=BLUE_700,
             highlightcolor=BLUE_700,
@@ -100,14 +97,12 @@ class LicenseDialog:
             padx=8,
             pady=8,
         )
-        self.drop.pack(fill="both", expand=True)
-        self.drop.drop_target_register(DND_FILES)
-        self.drop.dnd_bind("<<Drop>>", self._on_drop)
+        self.key_text.pack(fill="both", expand=True)
 
         if reason:
-            inicial = translate("A licença anterior foi recusada:", self.language) + f"\n{reason}"
+            inicial = translate("A chave anterior foi recusada:", self.language) + f"\n{reason}"
         else:
-            inicial = translate("Nenhuma licença aceite.", self.language) + f"\n{translate('Coloque a licença em:', self.language)} {self._license_dir}"
+            inicial = translate("Nenhuma chave aceite.", self.language)
         self._set_status(
             inicial,
             ERROR_BG if reason else GRAY_100,
@@ -135,8 +130,8 @@ class LicenseDialog:
 
         tk.Button(
             frm_btn,
-            text=translate("Procurar…", self.language),
-            command=self._browse,
+            text=translate("Ativar", self.language),
+            command=self._activate,
             bg=BLUE_700,
             fg=WHITE,
             activebackground=BLUE_900,
@@ -149,46 +144,6 @@ class LicenseDialog:
             cursor="hand2",
         ).pack(side="right", padx=(0, 8))
 
-        # código da máquina: é o que o cliente envia ao fornecedor
-        tk.Label(
-            frm,
-            text=translate("Para receber a licença, envie este código ao fornecedor:", self.language),
-            bg=BG_WINDOW,
-            fg=GRAY_600,
-            font=("Segoe UI", 8),
-            anchor="w",
-        ).pack(fill="x", pady=(10, 0))
-
-        row = tk.Frame(frm, bg=BG_WINDOW)
-        row.pack(fill="x", pady=(3, 0))
-
-        self._code_entry = tk.Entry(
-            row,
-            font=("Consolas", 8),
-            relief="solid",
-            borderwidth=1,
-            bg=WHITE,
-            fg=GRAY_800,
-            readonlybackground=WHITE,
-        )
-        self._code_entry.pack(side="left", fill="x", expand=True)
-        self._code_entry.insert(0, compute_machine_fingerprint())
-        self._code_entry.config(state="readonly")
-
-        tk.Button(
-            row,
-            text=translate("Copiar", self.language),
-            command=self._copy_code,
-            bg=GRAY_100,
-            fg=GRAY_800,
-            activebackground="#E0E0E0",
-            relief="flat",
-            font=("Segoe UI", 9),
-            width=8,
-            pady=2,
-            cursor="hand2",
-        ).pack(side="left", padx=(6, 0))
-
         tk.Label(
             frm,
             text=FOOTER_TEXT,
@@ -199,55 +154,51 @@ class LicenseDialog:
             wraplength=504,
         ).pack(anchor="w", pady=(10, 0))
 
-    def _copy_code(self):
-        self._code_entry.clipboard_clear()
-        self._code_entry.clipboard_append(self._code_entry.get())
-        messagebox.showinfo(
-            translate("Copiado", self.language),
-            translate("Código copiado. Envie-o ao fornecedor por email ou WhatsApp.", self.language),
-            parent=self.win,
-        )
+    def _set_status(self, text: str, bg: str, fg: str):
+        self.key_text.config(state="normal", bg=bg, fg=fg)
+        self.key_text.delete("1.0", "end")
+        self.key_text.insert("1.0", text)
+        self.key_text.config(state="disabled")
 
     # -- handlers -------------------------------------------------------
 
-    def _browse(self):
-        path = filedialog.askopenfilename(
-            title=translate("Selecione o ficheiro de licença", self.language),
-            initialdir=str(self._license_dir),
-            filetypes=[(translate("Licenças", self.language), "*.lic"), (translate("Todos os arquivos", self.language), "*")],
-        )
-        if path:
-            self._submit(Path(path))
-
-    def _on_drop(self, event):
-        # No Windows o evento traz as chaves '{}' e pode vir com \r\n
-        raw = event.data.strip().strip("{}")
-        candidates = raw.replace("\r\n", " ").split()
-        lic = next((c for c in candidates if c.lower().endswith(".lic")), None)
-        if lic:
-            self._submit(Path(lic))
-        else:
-            messagebox.showwarning(
-                translate("Ficheiro inválido", self.language),
-                translate("Arraste apenas um ficheiro .lic.", self.language),
-                parent=self.win,
-            )
-
-    def _submit(self, path: Path):
-        """Valida e, se aceite, fecha."""
+    def _activate(self):
+        """Valida a chave digitada/colada."""
         if self._closing:
             return
-        self._set_status(translate("A verificar licença…", self.language), BLUE_100, BLUE_900)
+        key = self.key_text.get("1.0", "end").strip()
+        if not key:
+            messagebox.showwarning(
+                translate("Chave vazia", self.language),
+                translate("Por favor, cole a chave de ativação antes de continuar.", self.language),
+                parent=self.win,
+            )
+            return
+
+        self._set_status(translate("A verificar chave…", self.language), BLUE_100, BLUE_900)
         self.win.update_idletasks()
 
-        ok, message = self._on_submit(path)
+        # Criar um ficheiro temporário com a chave para reutilizar a lógica de verificação
+        import tempfile
+        import json
+        lic_path = None
+        try:
+            lic_path = Path(tempfile.mktemp(suffix=".lic", dir=str(self._license_dir.parent)))
+            lic_path.write_text(key, encoding="utf-8")
+            ok, message = self._on_submit(lic_path)
+        finally:
+            if lic_path and lic_path.exists():
+                try:
+                    lic_path.unlink()
+                except OSError:
+                    pass
 
         if ok:
             self._closing = True
-            self._set_status(f"{translate('Licença aceite.', self.language)}\n{message}", BLUE_100, BLUE_700)
+            self._set_status(f"{translate('Chave aceite.', self.language)}\n{message}", BLUE_100, BLUE_700)
             self.win.after(700, self._close)
         else:
-            # a recusa fica no ecrã; o utilizador pode tentar outro ficheiro
+            # a recusa fica no ecrã; o utilizador pode tentar outra chave
             self._set_status(message, ERROR_BG, ERROR_FG)
 
     def _cancel(self):
@@ -265,9 +216,3 @@ class LicenseDialog:
             self.win.destroy()
         except Exception:
             pass
-
-    def _set_status(self, text: str, bg: str, fg: str):
-        self.drop.config(state="normal", bg=bg, fg=fg)
-        self.drop.delete("1.0", "end")
-        self.drop.insert("1.0", text)
-        self.drop.config(state="disabled")

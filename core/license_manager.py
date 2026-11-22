@@ -201,11 +201,9 @@ def check_license(lic_path: Path, state_dir: Path | None = None, secret: str | N
     if not _verify_signature(data, secret):
         return False, "Ficheiro de licença alterado ou inválido. Obtenha uma nova cópia do fornecedor."
 
-    # 4. machine
-    machine_fp = compute_machine_fingerprint()
-    lic_machine = (data.get("machine_id") or "").strip()
-    if lic_machine and lic_machine != machine_fp:
-        return False, "Licença inválida para este computador. O fornecedor deve emitir uma nova licença."
+    # 4. assinatura (chave de ativação)
+    if not _verify_signature(data, secret):
+        return False, "Chave de ativação inválida. Solicite uma nova chave ao fornecedor."
 
     # 5. validade
     issued_str = (data.get("issued") or "").strip()
