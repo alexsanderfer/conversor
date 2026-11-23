@@ -119,6 +119,18 @@ def build_instalador() -> int:
         print(f"\nAVISO: {INSTALLER_ISS.name} nao encontrado; instalador nao gerado.")
         return 0
 
+    # Salvaguarda de tempo de compilacao: o [Files] copia o exe de dist\, que
+    # tem de existir antes do ISCC. Sem isto o instalador sairia vazio.
+    raw_version = (RAIZ / "VERSION.txt").read_text(encoding="utf-8").strip()
+    exe_fonte = RAIZ / "dist" / f"CsvFast-FileConverter-{raw_version}-x64.exe"
+    if not exe_fonte.is_file():
+        print(
+            f"\nERRO: o executavel de origem nao existe: {exe_fonte}\n"
+            "  O PyInstaller tem de correr primeiro (o build normal faz isso).\n"
+            "  O instalador NAO foi gerado."
+        )
+        return 1
+
     cmd = [iscc, str(INSTALLER_ISS)]
     print("\nA compilar o instalador:", " ".join(cmd))
     return subprocess.call(cmd, cwd=str(RAIZ))

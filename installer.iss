@@ -145,20 +145,3 @@ Type: filesandordirs; Name: "{app}\_MEI*"
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\internal"
 
-; --- Validação prévia ----------------------------------------------------
-[Code]
-function InitializeSetup(): Boolean;
-var
-  SourcePath: String;
-begin
-  SourcePath := ExpandConstant('{#SourceExe}');
-  if not FileExists(SourcePath) then
-  begin
-    MsgBox('O executável ' + SourcePath + ' não foi encontrado.' + #13#10 +
-           'Execute "uv run python build_release.py" antes de compilar o instalador.',
-           mbCriticalError, MB_OK);
-    Result := False;
-    Exit;
-  end;
-  Result := True;
-end;
