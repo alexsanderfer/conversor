@@ -40,7 +40,8 @@ def _parse_version(v: str) -> tuple[int, ...]:
 
 def get_latest_version() -> str | None:
     """
-    Obtém a versão mais recente a partir da API pública do GitHub.
+    Obtém a versão mais recente a partir da API pública do GitHub (releases/latest)
+    ou do ficheiro público de version.txt.
     Retorna None em caso de erro.
     """
     import json
@@ -54,7 +55,17 @@ def get_latest_version() -> str | None:
             version = data.get("tag_name") or data.get("name") or ""
             return version.lstrip("v") or None
     except Exception:
-        return None
+        # Fallback para o version.txt bruto no GitHub se a API REST falhar ou der rate limit
+        try:
+            url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/master/docs/version.txt"
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "ConversorJumpseller-Updater"}
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                version = response.read().decode("utf-8").strip()
+                return version.lstrip("v") or None
+        except Exception:
+            return None
 
 
 def get_current_version() -> str:
