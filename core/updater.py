@@ -183,7 +183,7 @@ def install_update_and_restart(latest_version: str, parent=None, language: str =
 
 
 def start_auto_update_flow(latest_version: str, parent=None, language: str = DEFAULT_LANGUAGE) -> None:
-    """Inicia o download e executa o instalador visível usando o gestor do Windows (os.startfile)."""
+    """Inicia o download e utiliza um script batch temporário para aguardar o fecho total da app e abrir o instalador gráfico."""
     def worker():
         installer_path, error = download_installer(latest_version)
         if error:
@@ -198,29 +198,58 @@ def start_auto_update_flow(latest_version: str, parent=None, language: str = DEF
                 if parent is not None:
                     messagebox.showinfo(
                         translate("Atualização", language),
-                        translate("A aplicação vai fechar para abrir o instalador da nova versão.", language),
+                        translate("A aplicação vai fechar e abrir o assistente de instalação da nova versão.", language),
                         parent=parent
                     )
-                # Usa startfile / explorer para garantir que o Windows abre o Setup gráfico visível
-                os.startfile(str(installer_path))
+
+                # Criar um script batch temporário para garantir que a app fecha
+                # e liberta todos os handles de DLL do Python antes de o instalador correr.
+                bat_path = Path(tempfile.gettempdir()) / "conversor_update.bat"
+                pid = os.getpid()
+                bat_content = f"""@echo off
+echo A aguardar o encerramento da aplicacao...
+:WAITLOOP
+tasklist /fi "pid eq {pid}" 2>NUL | find /i "{pid}" >NUL
+if not errorlevel 1 (
+    timeout /t 1 /nobreak >NUL
+    goto WAITLOOP
+)
+echo A iniciar o instalador...
+start "" "{installer_path}"
+del "%~f0"
+"""
+                bat_path.write_text(bat_content, encoding="utf-8")
+
+                # Lança o batch em segundo plano destacado
+                subprocess.Popen(["cmd.exe", "/c", str(bat_path)], creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+
+                # Fecha a app atual imediatamente
                 os._exit(0)
 
             if parent is not None and hasattr(parent, "after"):
                 parent.after(0, _notify_and_launch)
             else:
-                os.startfile(str(installer_path))
+                bat_path = Path(tempfile.gettempdir()) / "conversor_update.bat"
+                pid = os.getpid()
+                bat_content = f"""@echo off
+:WAITLOOP
+tasklist /fi "pid eq {pid}" 2>NUL | find /i "{pid}" >NUL
+if not errorlevel 1 (
+    timeout /t 1 /nobreak >NUL
+    goto WAITLOOP
+)
+start "" "{installer_path}"
+del "%~f0"
+"""
+                bat_path.write_text(bat_content, encoding="utf-8")
+                subprocess.Popen(["cmd.exe", "/c", str(bat_path)], creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
                 os._exit(0)
         except Exception as e:
-            # Fallback com cmd start se os.startfile falhar
-            try:
-                subprocess.Popen(["cmd.exe", "/c", "start", "", str(installer_path)])
-                os._exit(0)
-            except Exception as e2:
-                msg = f"{translate('Erro na instalação:', language)} {str(e2)}"
-                if parent is not None and hasattr(parent, "after"):
-                    parent.after(0, lambda: messagebox.showerror(translate("Erro", language), msg, parent=parent))
-                else:
-                    print(msg)
+            msg = f"{translate('Erro na instalação:', language)} {str(e)}"
+            if parent is not None and hasattr(parent, "after"):
+                parent.after(0, lambda: messagebox.showerror(translate("Erro", language), msg, parent=parent))
+            else:
+                print(msg)
 
     import threading
     threading.Thread(target=worker, daemon=True).start()
