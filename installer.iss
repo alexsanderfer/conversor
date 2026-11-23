@@ -16,7 +16,7 @@
 ;   uv run python build_release.py
 ;
 ; Instalação silenciosa (usada pelo sistema de atualização):
-;   ConversorJumpseller-Setup-v0.6.0-x64.exe /VERYSILENT /SUPPRESSMSGBOXES
+;   ConversorJumpseller-Setup-v0.6.1-x64.exe /VERYSILENT /SUPPRESSMSGBOXES
 ;
 ; O exe é copiado para {app} com nome FIXO (CsvFast-FileConverter.exe), não
 ; com o nome da versão. É o que torna o ciclo de atualização e desinstalação
@@ -32,7 +32,7 @@
 ;   uv run python build_release.py
 ; ============================================================================
 
-; --- Versão lida de VERSION.txt (contém apenas "v0.6.0") ------------------
+; --- Versão lida de VERSION.txt (contém apenas "v0.6.1") ------------------
 ; FileRead devolve a linha sem a quebra de linha final. O prefixo "v" é
 ; removido: o nome do executável de origem mantém "v", mas o VersionInfo
 ; do Inno Setup só aceita números.

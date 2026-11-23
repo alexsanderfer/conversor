@@ -68,6 +68,7 @@ from core.field_mapping import (
     get_massive_category_rules, set_massive_category_rules,
     add_massive_category_rule, save_massive_category_rule, remove_massive_category_rule,
     apply_massive_category_rules,
+    has_category_rules,
 )
 from core.category_classifier import classify_product, load_rules, save_rules, learn_from_product, learn_from_file_rows
 from core.category_grouping import suggest_groupings
@@ -758,7 +759,7 @@ def get_output_path(input_path: str, output_dir: str = None) -> str:
     return os.path.join(output_dir, output_name)
 
 
-def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bool = False, filter_mapped_only: bool = False):
+def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bool = False, filter_mapped_only: bool = False, filter_to_rules_only: bool = False):
     """
     Converte um CSV para o formato Jumpseller.
 
@@ -767,6 +768,8 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
         output_dir: Pasta de destino (opcional)
         exclude_unavailable: Se True, ignora produtos com stock <= 0 / Status not-available
         filter_mapped_only: Se True, ignora produtos cuja categoria não foi mapeada
+        filter_to_rules_only: Se True e existirem regras nos separadores de Categorias,
+                              converte apenas as linhas que correspondem a alguma regra
 
     Returns:
         (linhas_escritas, output_path, linhas_removidas_indisponiveis, linhas_removidas_nao_mapeadas)
@@ -778,6 +781,8 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
     compiled_rules = get_compiled_keyword_rules()
     removed_unavailable = 0
     removed_not_mapped = 0
+    removed_not_rule = 0
+    rules_active = filter_to_rules_only and has_category_rules()
     with open(input_path, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f, delimiter=";")
         rows = []
@@ -789,6 +794,50 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
             }
             if not any(v.strip() for v in row.values()):
                 continue
+            # Se regras ativas e filtro por regras, verificar se esta linha corresponde a alguma regra
+            if rules_active:
+                familia = get_mapped_value(row, "familia_principal", mapping)
+                sub_familia = get_mapped_value(row, "sub_familia", mapping)
+                sub_sub_familia = get_mapped_value(row, "sub_sub_familia", mapping)
+                matched = False
+                # Regras do separador M (massive_category_rules)
+                try:
+                    massive_parent, _ = apply_massive_category_rules(
+                        familia, sub_familia, sub_sub_familia, return_rule_type=True
+                    )
+                    if massive_parent:
+                        matched = True
+                except Exception:
+                    pass
+                # Regras do separador i (categoria_mapping.new_categories / cat_keywords)
+                if not matched:
+                    try:
+                        cat_settings = get_category_settings()
+                        new_cats = [c.strip() for c in cat_settings.get("new_categories", []) if c.strip()]
+                        cat_kws = cat_settings.get("cat_keywords", [])
+                        # Verificar categoria direta (familia)
+                        if familia and familia in new_cats:
+                            matched = True
+                        # Verificar palavras-chave no nome do produto ou categorias
+                        if not matched and cat_kws:
+                            product_name = get_mapped_value(row, "design", mapping)
+                            text = f"{product_name} {familia} {sub_familia} {sub_sub_familia}".lower()
+                            for i_cat, parent_cat in enumerate(new_cats):
+                                kws = cat_kws[i_cat] if i_cat < len(cat_kws) else ""
+                                if not parent_cat or not kws:
+                                    continue
+                                keywords = [k.strip().lower() for k in kws.replace(",", ";").split(";") if k.strip()]
+                                for kw in keywords:
+                                    if kw and kw in text:
+                                        matched = True
+                                        break
+                                if matched:
+                                    break
+                    except Exception:
+                        pass
+                if not matched:
+                    removed_not_rule += 1
+                    continue
             converted = convert_row(row, mapping, compiled_rules=compiled_rules)
             if exclude_unavailable:
                 stock_raw = (converted.get("Stock") or "0").strip()
@@ -815,7 +864,7 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
         )
         writer.writeheader()
         writer.writerows(rows)
-    return len(rows), output_path, removed_unavailable, removed_not_mapped
+    return len(rows), output_path, removed_unavailable, removed_not_mapped, removed_not_rule
 
 
 # ---------------------------------------------------------------------------
@@ -5221,6 +5270,9 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.6.1 (2026-11-23)
+        - Categorias: ao converter, se existirem regras de mapeamento, a aplicação pergunta se quer converter apenas as linhas com regra ou todas.
+        - Categorias: novo indicador no resultado da conversão com o número de linhas ignoradas por não terem regra correspondente.
         v0.6.0 (2026-11-23)
         - Instalador Windows com Inno Setup: a aplicação passa a ser distribuída em ConversorJumpseller-Setup-v0.6.0-x64.exe, com atalhos no menu iniciar e no ambiente de trabalho.
         - Atualização automática: ao detetar uma nova versão, a aplicação descarrega o instalador, instala silenciosamente (/VERYSILENT /SUPPRESSMSGBOXES /NORESTART) e reinicia sozinha, sem abrir o navegador.
@@ -6441,6 +6493,24 @@ class App(Tk):
         if confirmacao is not True:
             return
 
+        # Se existem regras nos separadores de Categorias, perguntar ao utilizador que tipo de conversão quer
+        filter_to_rules_only = False
+        if has_category_rules():
+            resp = messagebox.askyesnocancel(
+                translate("Tipo de Conversão", self.language),
+                translate(
+                    "Existem regras de Categorias configuradas nos separadores.\n\n"
+                    "Sim: converter apenas as linhas com regras inseridas.\n"
+                    "Não: converter todas as linhas (conversão completa).\n"
+                    "Cancelar: cancelar a conversão.",
+                    self.language
+                ),
+                parent=self
+            )
+            if resp is None:  # Cancelar
+                return
+            filter_to_rules_only = resp  # True = Sim (apenas regras), False = Não (completa)
+
         self._auto_save_price_settings()
         self.convert_btn.config(state="disabled")
         self._set_drop_text("A processar conversão em background (otimizado com cache e threads)...", "#FFF9C4", "#F57F17", widget=self._status_widget)
@@ -6453,7 +6523,12 @@ class App(Tk):
                 out_dir = self.out_dir_var.get()
                 exclude_unavailable = bool(getattr(self, "exclude_unavailable_var", None) and self.exclude_unavailable_var.get())
                 filter_mapped_only = bool(getattr(self, "_filter_mapped_only_var", None) and self._filter_mapped_only_var.get())
-                n, out, removed, removed_not_mapped = process_csv(raw, out_dir, exclude_unavailable=exclude_unavailable, filter_mapped_only=filter_mapped_only)
+                n, out, removed, removed_not_mapped, removed_not_rule = process_csv(
+                    raw, out_dir,
+                    exclude_unavailable=exclude_unavailable,
+                    filter_mapped_only=filter_mapped_only,
+                    filter_to_rules_only=filter_to_rules_only,
+                )
                 elapsed = time.time() - start_time
                 if elapsed < 60:
                     time_str = f"{elapsed:.1f} segundos"
@@ -6466,6 +6541,8 @@ class App(Tk):
                 status_msg = f"Concluído: {n} linha(s) em {time_str} -> {self.last_output.name}"
                 if removed_not_mapped > 0:
                     status_msg += f" (ignorado(s) não mapeado(s): {removed_not_mapped})"
+                if removed_not_rule > 0:
+                    status_msg += f" (ignorado(s) sem regra: {removed_not_rule})"
                 if exclude_unavailable and removed:
                     status_msg += f" | Removidos indisponíveis: {removed}"
 
@@ -6475,9 +6552,11 @@ class App(Tk):
                         BLUE_100, BLUE_700, widget=self._status_widget,
                     )
                     self.open_folder_btn.config(state="normal")
-                    info_msg = f"{n} linha(s) convertidas com sucesso em {time_str}!\nFicheiro guardado em:\n{out}"
+                    info_msg = f"{n} linha(s) convertida(s) com sucesso em {time_str}!\nFicheiro guardado em:\n{out}"
                     if exclude_unavailable:
                         info_msg += f"\n\nProdutos indisponíveis removidos (stock 0 / not-available): {removed}"
+                    if removed_not_rule > 0:
+                        info_msg += f"\n\nLinhas ignoradas (sem regra correspondente): {removed_not_rule}"
                     info_msg += "\n\nAbrir pasta do resultado abaixo."
                     messagebox.showinfo("Concluído", info_msg, parent=self)
                     self.convert_btn.config(state="normal")

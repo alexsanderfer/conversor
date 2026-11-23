@@ -505,6 +505,32 @@ def get_category_settings() -> dict:
         return {}
 
 
+def has_category_rules() -> bool:
+    """
+    Devolve True se existirem regras de mapeamento ativas em qualquer um dos
+    separadores de Categorias (separador i - categoria_mapping.new_categories/keywords
+    ou separador M - massive_category_rules).
+    """
+    try:
+        # Regras do separador i (Categoria 1-10 com palavras-chave)
+        cat_settings = get_category_settings()
+        new_cats = [c.strip() for c in cat_settings.get("new_categories", []) if c.strip()]
+        cat_kws = cat_settings.get("cat_keywords", [])
+        if new_cats:
+            return True
+        if cat_kws:
+            return True
+
+        # Regras do separador M (Mapeamento Massivo)
+        massive_rules = get_massive_category_rules()
+        if massive_rules:
+            return True
+
+        return False
+    except Exception:
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Prefixo SKU (identifica o fornecedor do produto numa encomenda)
 # ---------------------------------------------------------------------------
