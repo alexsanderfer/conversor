@@ -161,10 +161,9 @@ def install_update(latest_version: str) -> tuple[bool, str]:
         return False, error
 
     try:
-        # Lança o instalador em modo detached para que ele possa substituir o exe
-        # mesmo após este processo fechar.
+        # Lança o instalador em modo detached (sem /NORESTART)
         subprocess.Popen(
-            [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+            [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES"],
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
         )
         return True, translate("Instalação iniciada com sucesso.", DEFAULT_LANGUAGE)
@@ -195,9 +194,9 @@ def start_auto_update_flow(latest_version: str, parent=None, language: str = DEF
             return
 
         try:
-            # Lança o instalador em modo detached
+            # Lança o instalador em modo detached (sem /NORESTART para que ele reabra a app no final)
             subprocess.Popen(
-                [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+                [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES"],
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
             )
             # Aguardar 1 segundo para garantir que o instalador arranca
