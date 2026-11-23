@@ -16,7 +16,9 @@ Uso:
 """
 
 import argparse
+import os
 import secrets
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -25,6 +27,26 @@ RAIZ = Path(__file__).parent
 SEGREDO_FILE = RAIZ / "_segredo.txt"
 SEGREDO_MOD = RAIZ / "_segredo_gerado.py"
 SPEC = RAIZ / "CsvFastFileConverter.spec"
+INSTALLER_ISS = RAIZ / "installer.iss"
+
+# Locais habituais do compilador do Inno Setup (para além do PATH).
+ISCC_CANDIDATOS = (
+    r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+    r"C:\Program Files\Inno Setup 6\ISCC.exe",
+    r"C:\Program Files (x86)\Inno Setup 5\ISCC.exe",
+    r"C:\Program Files\Inno Setup 5\ISCC.exe",
+)
+
+
+def localizar_iscc() -> str | None:
+    """Devolve o caminho do ISCC.exe ou None se nao estiver instalado."""
+    no_path = shutil.which("ISCC.exe") or shutil.which("iscc")
+    if no_path:
+        return no_path
+    for candidato in ISCC_CANDIDATOS:
+        if os.path.isfile(candidato):
+            return candidato
+    return None
 
 
 def gerar_segredo() -> str:
@@ -74,6 +96,34 @@ def build() -> int:
     return subprocess.call(cmd, cwd=str(RAIZ))
 
 
+def build_instalador() -> int:
+    """Compila installer.iss com o ISCC.exe.
+
+    O PyInstaller ja' produziu o .exe em dist\\; se o Inno Setup nao estiver
+    instalado, avisa-se e o build nao falha (o artefacto principal existe).
+    Devolve 0 em caso de sucesso (ou quando o Inno Setup falta) e !=0 se a
+    compilacao do instalador correr mas falhar.
+    """
+    iscc = localizar_iscc()
+    if iscc is None:
+        print(
+            "\nAVISO: ISCC.exe (Inno Setup) nao encontrado.\n"
+            "  Procurado em: PATH e em:\n"
+            + "\n".join(f"    {c}" for c in ISCC_CANDIDATOS)
+            + "\n  O instalador NAO foi gerado. O executavel do PyInstaller em dist\\ "
+            "continua valido.\n  Instale o Inno Setup 6 para gerar o instalador."
+        )
+        return 0
+
+    if not INSTALLER_ISS.is_file():
+        print(f"\nAVISO: {INSTALLER_ISS.name} nao encontrado; instalador nao gerado.")
+        return 0
+
+    cmd = [iscc, str(INSTALLER_ISS)]
+    print("\nA compilar o instalador:", " ".join(cmd))
+    return subprocess.call(cmd, cwd=str(RAIZ))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Build de release do Conversor")
     ap.add_argument(
@@ -106,7 +156,11 @@ def main() -> int:
     except Exception as e:
         print(f" Aviso ao limpar releases antigos: {e}")
 
-    return build()
+    resultado = build()
+    if resultado != 0:
+        return resultado
+
+    return build_instalador()
 
 
 if __name__ == "__main__":
