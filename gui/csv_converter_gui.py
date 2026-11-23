@@ -6079,11 +6079,12 @@ class App(Tk):
                     def notify():
                         if messagebox.askyesno(
                             translate("Atualização disponível", self.language),
-                            f"{translate('Nova versão disponível:', self.language)} {latest}\n\n{translate('Pretende abrir a página de download?', self.language)}",
+                            f"{translate('Nova versão disponível:', self.language)} {latest}\n\n{translate('Pretende instalar agora?', self.language)}",
                             parent=self
                         ):
-                            import webbrowser
-                            webbrowser.open("https://alexsanderfer.github.io/conversor/")
+                            # Inicia o fluxo de download/instalação silenciosa
+                            from core.updater import start_auto_update_flow
+                            start_auto_update_flow(latest, parent=self, language=self.language)
                     self.after(0, notify)
             except Exception:
                 pass

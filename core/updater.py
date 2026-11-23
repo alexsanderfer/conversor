@@ -9,6 +9,11 @@ o programa simplesmente prossegue; a atualização é apenas informativa.
 import re
 import sys
 import urllib.request
+import urllib.error
+import tempfile
+import subprocess
+import os
+import shutil
 from pathlib import Path
 from tkinter import messagebox
 from core.i18n import translate, DEFAULT_LANGUAGE
@@ -96,12 +101,13 @@ def check_for_updates(show_message: bool = True, parent=None, language: str = DE
     if current_parts and latest_parts and latest_parts > current_parts:
         message = (
             f"{translate('Nova versão disponível:', language)} {latest}\n\n"
-            f"{translate('Clique em OK para abrir a página de download.', language)}"
+            f"{translate('Pretende instalar agora?', language)}"
         )
         if show_message:
-            import webbrowser
             if messagebox.askyesno(translate("Atualização disponível", language), message, parent=parent):
-                webbrowser.open("https://alexsanderfer.github.io/conversor/")
+                # Inicia o fluxo de instalação em thread para não bloquear a UI.
+                # Sem UI (fallback) executa diretamente.
+                start_auto_update_flow(latest, parent=parent, language=language)
         return True, message
 
     message = f"{translate('Já está na última versão:', language)} {current}"
@@ -115,3 +121,97 @@ def open_releases_page():
     url = "https://alexsanderfer.github.io/conversor/"
     import webbrowser
     webbrowser.open(url)
+
+
+def download_installer(latest_version: str) -> tuple[Path | None, str | None]:
+    """Descarrega o instalador para uma pasta temporária."""
+    try:
+        temp_dir = Path(tempfile.gettempdir()) / "ConversorJumpseller-Update"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        url = f"https://github.com/{GITHUB_REPO}/releases/download/v{latest_version}/ConversorJumpseller-Setup-v{latest_version}-x64.exe"
+        installer_path = temp_dir / f"ConversorJumpseller-Setup-v{latest_version}-x64.exe"
+
+        req = urllib.request.Request(url, headers={"User-Agent": "ConversorJumpseller-Updater"})
+        with urllib.request.urlopen(req, timeout=300) as response, open(installer_path, 'wb') as out_file:
+            shutil.copyfileobj(response, out_file)
+
+        return installer_path, None
+    except urllib.error.URLError:
+        return None, translate("Erro de rede ao descarregar o instalador.", DEFAULT_LANGUAGE)
+    except Exception as e:
+        return None, f"{translate('Erro inesperado:', DEFAULT_LANGUAGE)} {str(e)}"
+
+
+def install_update(latest_version: str) -> tuple[bool, str]:
+    """Executa o instalador descarregado."""
+    installer_path, error = download_installer(latest_version)
+    if error:
+        return False, error
+
+    try:
+        # flags: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+        subprocess.run([str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"], timeout=300, check=True)
+        return True, translate("Instalação iniciada com sucesso.", DEFAULT_LANGUAGE)
+    except subprocess.CalledProcessError:
+        return False, translate("Erro ao executar o instalador.", DEFAULT_LANGUAGE)
+    except Exception as e:
+        return False, f"{translate('Erro na instalação:', DEFAULT_LANGUAGE)} {str(e)}"
+    finally:
+        if installer_path and installer_path.exists():
+            try:
+                os.remove(installer_path)
+            except:
+                pass
+
+
+def install_update_and_restart(latest_version: str, parent=None, language: str = DEFAULT_LANGUAGE) -> None:
+    """Executa o instalador e reinicia o conversor (chamado em thread pela GUI)."""
+    success, msg = install_update(latest_version)
+    if success:
+        restart_conversor()
+    elif parent is not None and hasattr(parent, "after"):
+        parent.after(0, lambda: messagebox.showerror(translate("Erro", language), msg, parent=parent))
+    else:
+        print(msg)
+
+
+def start_auto_update_flow(latest_version: str, parent=None, language: str = DEFAULT_LANGUAGE) -> None:
+    """Inicia o download/instalação numa thread para não bloquear a interface."""
+    def worker():
+        success, msg = install_update(latest_version)
+        if success:
+            def _restart():
+                messagebox.showinfo(
+                    translate("Atualização", language),
+                    translate("A reiniciar aplicação...", language),
+                    parent=parent,
+                )
+                restart_conversor()
+            if parent is not None and hasattr(parent, "after"):
+                parent.after(0, _restart)
+            else:
+                restart_conversor()
+        else:
+            if parent is not None and hasattr(parent, "after"):
+                parent.after(0, lambda: messagebox.showerror(
+                    translate("Erro", language), msg, parent=parent))
+            else:
+                print(msg)
+
+    import threading
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def restart_conversor() -> None:
+    """Reabre o executável."""
+    if not getattr(sys, "frozen", False):
+        print("Em modo de desenvolvimento. Não é possível reiniciar.")
+        return
+
+    # In frozen mode, exe is at sys.executable
+    executable = sys.executable
+
+    # Detached process
+    subprocess.Popen([executable], creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+    os._exit(0)
