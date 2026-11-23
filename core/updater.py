@@ -155,29 +155,21 @@ def download_installer(latest_version: str) -> tuple[Path | None, str | None]:
 
 
 def install_update(latest_version: str) -> tuple[bool, str]:
-    """Executa o instalador descarregado com privilégios de administrador (UAC)."""
+    """Executa o instalador descarregado e encerra a app para permitir a substituição."""
     installer_path, error = download_installer(latest_version)
     if error:
         return False, error
 
     try:
-        # Como a pasta de destino é %LOCALAPPDATA%\ConversorJumpseller, a instalação
-        # ocorre sem exigir privilégios de administrador (sem UAC), permitindo
-        # a atualização 100% silenciosa.
-        subprocess.run(
+        # Lança o instalador em modo detached para que ele possa substituir o exe
+        # mesmo após este processo fechar.
+        subprocess.Popen(
             [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
-            timeout=300,
-            check=True
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
         )
         return True, translate("Instalação iniciada com sucesso.", DEFAULT_LANGUAGE)
-    except subprocess.CalledProcessError as e:
-        return False, f"Erro ao executar o instalador: {e}"
     except Exception as e:
         return False, f"{translate('Erro na instalação:', DEFAULT_LANGUAGE)} {str(e)}"
-    finally:
-        # O instalador descarregado pode ser mantido brevemente para o processo elevated ler,
-        # mas se necessário limpamos após um pequeno delay ou deixamos o OS limpar.
-        pass
 
 
 def install_update_and_restart(latest_version: str, parent=None, language: str = DEFAULT_LANGUAGE) -> None:
