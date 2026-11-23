@@ -2530,9 +2530,11 @@ class App(Tk):
 
         ttk.Label(parent_row, text=translate("Categoria Pai:", self.language), font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 8))
         self._massive_parent_var = tk.StringVar()
+        self._massive_cat_pai_var = self._massive_parent_var
         self._massive_parent_combo = ttk.Combobox(
             parent_row, textvariable=self._massive_parent_var, state="readonly", width=40
         )
+        self._massive_cat_pai_combo = self._massive_parent_combo
         self._massive_parent_combo.pack(side="left", padx=(0, 16))
 
         ttk.Button(
@@ -2852,8 +2854,14 @@ class App(Tk):
         """Atualiza o dropdown de categorias pai com as categorias da aba I."""
         settings = get_category_settings()
         values = [v.strip() for v in settings.get("new_categories", []) if v.strip()]
-        self._massive_cat_pai_combo["values"] = values
-        self._massive_cat_pai_var.set("")
+        if hasattr(self, "_massive_parent_combo"):
+            self._massive_parent_combo["values"] = values
+        if hasattr(self, "_massive_cat_pai_combo"):
+            self._massive_cat_pai_combo["values"] = values
+        if hasattr(self, "_massive_parent_var"):
+            self._massive_parent_var.set("")
+        if hasattr(self, "_massive_cat_pai_var"):
+            self._massive_cat_pai_var.set("")
 
     def _refresh_massive_area_combo(self):
         """Preenche o dropdown de Área com as categorias pai disponíveis."""
