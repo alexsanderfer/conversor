@@ -146,6 +146,8 @@ Name: "ptpt"; MessagesFile: "compiler:Languages\Portuguese.isl"
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\internal"
 Type: filesandordirs; Name: "{app}\_MEI*"
+; Apaga o executável principal anterior antes de copiar o novo (evita corrupção de DLLs onefile)
+Type: files; Name: "{app}\CsvFast-FileConverter.exe"
 ; Exe com nome de versão, deixado para trás por instaladores anteriores
 ; (anteriores à mudança para nome fixo). São órfãos: o desinstalador não os
 ; conhece e o ficheiro continua a arrancar.
