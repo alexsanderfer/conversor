@@ -30,11 +30,15 @@ SPEC = RAIZ / "CsvFastFileConverter.spec"
 INSTALLER_ISS = RAIZ / "installer.iss"
 
 # Locais habituais do compilador do Inno Setup (para além do PATH).
+# Inclui a cópia portátil usada pelo fornecedor em %LOCALAPPDATA%, para o build
+# não fingir sucesso quando o Inno Setup só existe aí.
 ISCC_CANDIDATOS = (
     r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
     r"C:\Program Files\Inno Setup 6\ISCC.exe",
     r"C:\Program Files (x86)\Inno Setup 5\ISCC.exe",
     r"C:\Program Files\Inno Setup 5\ISCC.exe",
+    str(Path(os.environ.get("LOCALAPPDATA", "")) / "ConversorJumpseller"
+        / "ferramentas" / "innosetup" / "ISCC.exe"),
 )
 
 
