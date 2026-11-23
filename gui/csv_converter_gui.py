@@ -2593,7 +2593,7 @@ class App(Tk):
 
         # Atualizar combobox e lista de regras
         self._refresh_massive_parent_combo()
-        self._refresh_massive_rules_listbox()
+        self._refresh_massive_rules_list()
 
         # -----------------------------------------------------------
         # Três colunas: Categorias Únicas | + Subcategorias | + Sub-subcategorias
