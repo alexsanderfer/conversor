@@ -183,7 +183,7 @@ def install_update_and_restart(latest_version: str, parent=None, language: str =
 
 
 def start_auto_update_flow(latest_version: str, parent=None, language: str = DEFAULT_LANGUAGE) -> None:
-    """Inicia o download e executa o instalador visível com feedback visual (fluxo padrão de mercado)."""
+    """Inicia o download e executa o instalador visível usando o gestor do Windows (os.startfile)."""
     def worker():
         installer_path, error = download_installer(latest_version)
         if error:
@@ -198,25 +198,29 @@ def start_auto_update_flow(latest_version: str, parent=None, language: str = DEF
                 if parent is not None:
                     messagebox.showinfo(
                         translate("Atualização", language),
-                        translate("A aplicação vai fechar para instalar a nova versão.", language),
+                        translate("A aplicação vai fechar para abrir o instalador da nova versão.", language),
                         parent=parent
                     )
-                # Lança o instalador com interface visual normal (barra de progresso do Inno Setup)
-                # O Inno Setup fecha a app se estiver aberta, substitui os ficheiros e reabre no fim.
-                subprocess.Popen([str(installer_path)], creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+                # Usa startfile / explorer para garantir que o Windows abre o Setup gráfico visível
+                os.startfile(str(installer_path))
                 os._exit(0)
 
             if parent is not None and hasattr(parent, "after"):
                 parent.after(0, _notify_and_launch)
             else:
-                subprocess.Popen([str(installer_path)], creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+                os.startfile(str(installer_path))
                 os._exit(0)
         except Exception as e:
-            msg = f"{translate('Erro na instalação:', language)} {str(e)}"
-            if parent is not None and hasattr(parent, "after"):
-                parent.after(0, lambda: messagebox.showerror(translate("Erro", language), msg, parent=parent))
-            else:
-                print(msg)
+            # Fallback com cmd start se os.startfile falhar
+            try:
+                subprocess.Popen(["cmd.exe", "/c", "start", "", str(installer_path)])
+                os._exit(0)
+            except Exception as e2:
+                msg = f"{translate('Erro na instalação:', language)} {str(e2)}"
+                if parent is not None and hasattr(parent, "after"):
+                    parent.after(0, lambda: messagebox.showerror(translate("Erro", language), msg, parent=parent))
+                else:
+                    print(msg)
 
     import threading
     threading.Thread(target=worker, daemon=True).start()
