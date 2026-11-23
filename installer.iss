@@ -130,10 +130,6 @@ Source: "assets\icon.ico"; DestDir: "{app}\assets"; Flags: ignoreversion
 Source: "assets\logo.png"; DestDir: "{app}\assets"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "assets\fundo.png"; DestDir: "{app}\assets"; Flags: ignoreversion skipifsourcedoesntexist
 
-; --- Arranque opcional / Reinício pós-atualização -------------------------
-[Run]
-Filename: "{app}\CsvFast-FileConverter.exe"; Description: "{cm:LaunchProgram,ConversorJumpseller}"; Flags: nowait postinstall unchecked
-
 ; --- Mensagens em português europeu -------------------------------------
 [Languages]
 Name: "ptpt"; MessagesFile: "compiler:Languages\Portuguese.isl"
