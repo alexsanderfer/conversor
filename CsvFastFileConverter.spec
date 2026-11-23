@@ -12,11 +12,16 @@ _ARCH = 'x64' if platform.architecture()[0] == '64bit' else 'x86'
 EXE_NAME = f'CsvFast-FileConverter-{_VER}-{_ARCH}'
 
 
+from PyInstaller.utils.hooks import collect_data_files
+
 datas = [('VERSION.txt', '.')]
 if os.path.exists('assets'):
     datas.append(('assets', 'assets'))
 if os.path.exists('field_mapping_config.json'):
     datas.append(('field_mapping_config.json', '.'))
+
+# Recolher os binários e dados do tkinterdnd2 (incluindo a pasta tkdnd)
+datas += collect_data_files('tkinterdnd2')
 
 a = Analysis(
     ['gui/csv_converter_gui.py'],
