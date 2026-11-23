@@ -1,5 +1,6 @@
 """Testes para o sistema de atualização automática do conversor."""
 
+import subprocess
 import unittest
 from unittest.mock import patch, MagicMock
 import urllib.error
@@ -136,6 +137,25 @@ class TestInstallUpdate(unittest.TestCase):
 
         self.assertFalse(success)
         self.assertIn("erro", msg.lower())
+
+    @patch("core.updater.download_installer")
+    def test_failure(self, mock_download):
+        """O instalador devolve returncode != 0: a falha e reportada."""
+        installer = MagicMock()
+        installer.exists.return_value = True
+        mock_download.return_value = (installer, None)
+
+        with patch("core.updater.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(
+                1, ["installer.exe", "/VERYSILENT"]
+            )
+
+            success, msg = install_update("0.5.15")
+
+        self.assertFalse(success)
+        self.assertIn("erro", msg.lower())
+        # A mensagem especifica e a do instalador, nao a generica.
+        self.assertIn("instalador", msg.lower())
 
 
 class TestCheckForUpdates(unittest.TestCase):
