@@ -200,7 +200,11 @@ def start_auto_update_flow(latest_version: str, parent=None, language: str = DEF
                 [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
             )
-            # Fecha a aplicação imediatamente para libertar o ficheiro .exe para o instalador
+            # Aguardar 1 segundo para garantir que o instalador arranca
+            # antes do processo principal terminar os descritores de ficheiro.
+            import time
+            time.sleep(1.0)
+            # Fecha a aplicação imediatamente
             os._exit(0)
         except Exception as e:
             msg = f"{translate('Erro na instalação:', language)} {str(e)}"
