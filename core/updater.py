@@ -150,16 +150,14 @@ def install_update(latest_version: str) -> tuple[bool, str]:
         return False, error
 
     try:
-        # No Windows, como a pasta de destino é C:\Program Files, a instalação exige
-        # privilégios de administrador. Usamos o PowerShell com -Verb RunAs para
-        # acionar o prompt UAC de forma limpa.
-        cmd = [
-            "powershell", "-NoProfile", "-Command",
-            f"Start-Process -FilePath '{installer_path}' -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Verb RunAs -Wait"
-        ]
-        result = subprocess.run(cmd, timeout=300, capture_output=True, text=True)
-        if result.returncode != 0:
-            return False, f"Erro ao executar o instalador (código {result.returncode}): {result.stderr.strip()}"
+        # Como a pasta de destino é %LOCALAPPDATA%\ConversorJumpseller, a instalação
+        # ocorre sem exigir privilégios de administrador (sem UAC), permitindo
+        # a atualização 100% silenciosa.
+        subprocess.run(
+            [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+            timeout=300,
+            check=True
+        )
         return True, translate("Instalação iniciada com sucesso.", DEFAULT_LANGUAGE)
     except subprocess.CalledProcessError as e:
         return False, f"Erro ao executar o instalador: {e}"

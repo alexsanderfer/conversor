@@ -72,11 +72,12 @@ VersionInfoProductName=ConversorJumpseller
 VersionInfoOriginalFileName=ConversorJumpseller-Setup-{#AppVersionStr}-x64.exe
 
 ; --- Destino e permissões ------------------------------------------------
-; {commonpf} = Program Files (64 bits) neste build x64.
-; PrivilegesRequired=admin: instalação padrão em Program Files, com elevação UAC.
-DefaultDirName={commonpf}\ConversorJumpseller
+; {localappdata} = AppData\Local do utilizador atual.
+; PrivilegesRequired=lowest: instalação por utilizador, sem exigir direitos de admin (sem UAC),
+; permitindo que as atualizações automáticas corram de forma 100% silenciosa e sem fricção.
+DefaultDirName={localappdata}\ConversorJumpseller
 DefaultGroupName=ConversorJumpseller
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 
 ; --- Artefacto de saída --------------------------------------------------
 OutputDir=dist
