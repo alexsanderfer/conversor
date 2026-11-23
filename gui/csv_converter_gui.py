@@ -1773,6 +1773,13 @@ class App(Tk):
         frm = ttk.Frame(self.tab_lucro, padding=16)
         frm.pack(fill="both", expand=True)
 
+        self._price_line1_profit_var = tk.StringVar(value="")
+        self._price_line1_iva_var = tk.StringVar(value="")
+        self._price_line1_shipping_var = tk.StringVar(value="0")
+        self._price_line2_profit_var = tk.StringVar(value="")
+        self._price_line2_iva_var = tk.StringVar(value="")
+        self._price_line2_shipping_var = tk.StringVar(value="0")
+
         # 1. Configuração de preços e IVA (por perfil).
         ttk.Label(
             frm,
@@ -2486,134 +2493,107 @@ class App(Tk):
         ttk.Button(search_row, text="🔄 Recarregar", command=self._reload_categories, width=14).pack(side="left")
 
     def _build_tab_categorias_massivas(self):
-        """Constrói a aba 'CATEGORIAS M' para agrupamento massivo."""
-        frm = ttk.Frame(self.tab_caturas_massivas, padding=6)
+        """Constrói a aba 'CATEGORIAS M' para agrupamento massivo (idêntico à versão v0.4.3)."""
+        frm = ttk.Frame(self.tab_caturas_massivas, padding=12)
         frm.pack(fill="both", expand=True)
 
-        # -----------------------------------------------------------
-        # Secção de mapeamento - indica categorias pai e área de atividade
-        # -----------------------------------------------------------
-        ttk.Label(frm, text="Mapeamento", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
         ttk.Label(
             frm,
-            text=translate(
-                "Indique as categorias pai, confirme as respetivas áreas de atividade e clique em ADICIONAR.",
-                self.language
-            ),
-            font=("Segoe UI", 9), foreground=GRAY_600, wraplength=700, justify="left",
+            text=translate("Adicionar Lista de Categorias Únicas", self.language),
+            font=("Segoe UI", 12, "bold"),
+        ).pack(anchor="w", pady=(0, 6))
+
+        instructions = (
+            "1. Na IA ou no ChatGPT cole a lista de categorias únicas e identifique as que deseja agrupar em cada categoria pai.\n"
+            "2. Insira as listas obtidas na vertical ou separadas por vírgulas, selecione a categoria pai e clique ADICIONAR LISTA."
+        )
+        ttk.Label(
+            frm,
+            text=translate(instructions, self.language),
+            font=("Segoe UI", 9), foreground=GRAY_600, justify="left",
         ).pack(anchor="w", pady=(0, 8))
 
-        # Linha de seleção: Categoria Pai, Área, Coluna
-        sel_row = ttk.Frame(frm)
-        sel_row.pack(fill="x", pady=(0, 8))
+        ttk.Label(frm, text=translate("LISTA:", self.language), font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 2))
 
-        ttk.Label(sel_row, text=translate("Categoria Pai:", self.language)).pack(side="left", padx=(0, 4))
-        self._massive_cat_pai_var = tk.StringVar()
-        self._massive_cat_pai_combo = ttk.Combobox(
-            sel_row, textvariable=self._massive_cat_pai_var, state="readonly", width=25
+        # Caixa de texto para a lista
+        text_frame = ttk.Frame(frm)
+        text_frame.pack(fill="both", expand=True, pady=(0, 8))
+        self._massive_input_text = tk.Text(text_frame, height=6, wrap="word", font=("Consolas", 9), relief="sunken", bg=GRAY_100)
+        scroll_text = ttk.Scrollbar(text_frame, orient="vertical", command=self._massive_input_text.yview)
+        self._massive_input_text.configure(yscrollcommand=scroll_text.set)
+        self._massive_input_text.pack(side="left", fill="both", expand=True)
+        scroll_text.pack(side="right", fill="y")
+
+        # Categoria Pai e Botão Adicionar Lista
+        parent_row = ttk.Frame(frm)
+        parent_row.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(parent_row, text=translate("Categoria Pai:", self.language), font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 8))
+        self._massive_parent_var = tk.StringVar()
+        self._massive_parent_combo = ttk.Combobox(
+            parent_row, textvariable=self._massive_parent_var, state="readonly", width=40
         )
-        self._massive_cat_pai_combo.pack(side="left", padx=(0, 10))
-
-        ttk.Label(sel_row, text=translate("Área:", self.language)).pack(side="left", padx=(0, 4))
-        self._massive_area_var = tk.StringVar()
-        self._massive_area_combo = ttk.Combobox(
-            sel_row, textvariable=self._massive_area_var, state="readonly", width=25
-        )
-        self._massive_area_combo.pack(side="left", padx=(0, 10))
-
-        ttk.Label(sel_row, text=translate("Coluna:", self.language)).pack(side="left", padx=(0, 4))
-        self._massive_coluna_var = tk.StringVar(value="Categorias Únicas")
-        self._massive_coluna_combo = ttk.Combobox(
-            sel_row, textvariable=self._massive_coluna_var, state="readonly", width=30,
-            values=[
-                translate("Categorias únicas", self.language),
-                translate("Categorias únicas + Subcategorias", self.language),
-                translate("Categorias únicas + Subcategorias + Sub-subcategorias", self.language),
-            ]
-        )
-        self._massive_coluna_combo.pack(side="left", padx=(0, 10))
-
-        # Linha para os 3 Modos de Mapeamento solicitados pelo cliente
-        mode_row = ttk.Frame(frm)
-        mode_row.pack(fill="x", pady=(0, 8))
-        ttk.Label(mode_row, text=translate("Modo de Mapeamento:", self.language), font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 8))
-
-        self._massive_mapping_mode_var = tk.IntVar(value=2) # Padrão: Modo 2
-        ttk.Radiobutton(
-            mode_row, text=translate("Mapeamento 1 (Agrupar subcategorias sem categoria única)", self.language),
-            variable=self._massive_mapping_mode_var, value=1
-        ).pack(side="left", padx=(0, 10))
-        ttk.Radiobutton(
-            mode_row, text=translate("Mapeamento 2 (Categoria única + subcategorias)", self.language),
-            variable=self._massive_mapping_mode_var, value=2
-        ).pack(side="left", padx=(0, 10))
-        ttk.Radiobutton(
-            mode_row, text=translate("Mapeamento 3 (Apenas subcategoria direta)", self.language),
-            variable=self._massive_mapping_mode_var, value=3
-        ).pack(side="left", padx=(0, 10))
-
-        btn_sel_row = ttk.Frame(frm)
-        btn_sel_row.pack(fill="x", pady=(0, 10))
+        self._massive_parent_combo.pack(side="left", padx=(0, 16))
 
         ttk.Button(
-            btn_sel_row, text=translate("Analisar Sugestões", self.language),
-            command=self._open_grouping_suggestions_dialog, width=18
+            parent_row, text=translate("ADICIONAR LISTA", self.language),
+            command=self._add_massive_list_rules, width=18
         ).pack(side="left")
 
+        # Botões de ação
+        btn_row = ttk.Frame(frm)
+        btn_row.pack(fill="x", pady=(0, 12))
+
         ttk.Button(
-            btn_sel_row, text=translate("Adicionar Regra", self.language),
-            command=self._add_massive_rule_from_ui, width=14
-        ).pack(side="left", padx=(8, 8))
-        ttk.Button(
-            btn_sel_row, text=translate("Apagar Tudo", self.language),
-            command=self._remove_massive_all, width=14
+            btn_row, text=translate("Apagar Selecionados", self.language),
+            command=self._remove_massive_selected, width=18
         ).pack(side="left", padx=(0, 8))
         ttk.Button(
-            btn_sel_row, text=translate("MAPA DE CATEGORIAS", self.language),
+            btn_row, text=translate("Apagar Tudo", self.language),
+            command=self._remove_massive_all, width=16
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            btn_row, text=translate("MAPA DE CATEGORIAS", self.language),
             command=self._open_category_map_dialog, width=20
         ).pack(side="left")
 
-        # Instrução
-        # Checkbox para filtrar apenas categorias mapeadas
-        self._filter_mapped_only_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            frm,
-            text=translate("Apenas converter produtos com categorias mapeadas", self.language),
-            variable=self._filter_mapped_only_var,
-        ).pack(anchor="w", pady=(5, 0))
-
-        # -----------------------------------------------------------
-        # Regras configuradas
-        # -----------------------------------------------------------
+        # Ficheiro Convertido
+        ttk.Label(frm, text=translate("Ficheiro Convertido", self.language), font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 4))
         ttk.Label(
             frm,
-            text=translate("Lista de Regras", self.language) + " (" + translate("mais recente = maior prioridade", self.language) + " — " + translate("selecione para remover:", self.language) + ")",
+            text=translate("Por cada lista adicionada vai construindo o seu ficheiro csv, finalmente pode fazer o download no separador NOVO FICHEIRO ou em ATUALIZAR LOJA.", self.language),
             font=("Segoe UI", 9), foreground=GRAY_600,
+        ).pack(anchor="w", pady=(0, 6))
+
+        conv_frame = ttk.Frame(frm)
+        conv_frame.pack(fill="x", pady=(0, 10))
+        self._massive_output_preview = tk.Text(conv_frame, height=3, wrap="word", font=("Consolas", 8), relief="sunken", bg=GRAY_100)
+        self._massive_output_preview.pack(fill="x", expand=True)
+        self._massive_output_preview.insert("1.0", translate("Por cada lista adicionada vai construindo o seu ficheiro csv...", self.language))
+        self._massive_output_preview.config(state="disabled")
+
+        # Regras configuradas
+        ttk.Label(
+            frm,
+            text=translate("Regras configuradas (as mais recentes têm prioridade):", self.language),
+            font=("Segoe UI", 9, "bold"),
         ).pack(anchor="w", pady=(2, 2))
 
         rules_frame = ttk.Frame(frm)
-        rules_frame.pack(fill="both", expand=False)
+        rules_frame.pack(fill="both", expand=True, pady=(0, 4))
         self._massive_rules_listbox = tk.Listbox(
-            rules_frame, height=6, relief="sunken", bg=GRAY_100,
+            rules_frame, height=5, relief="sunken", bg=GRAY_100,
             font=("Consolas", 8), selectmode="single",
         )
         rules_scroll = ttk.Scrollbar(rules_frame, orient="vertical", command=self._massive_rules_listbox.yview)
         self._massive_rules_listbox.configure(yscrollcommand=rules_scroll.set)
         self._massive_rules_listbox.pack(side="left", fill="both", expand=True)
         rules_scroll.pack(side="right", fill="y")
-        self._massive_rules_listbox.bind("<<ListboxSelect>>", self._on_massive_rule_list_selected)
         self._massive_rules_listbox.bind("<Double-Button-1>", lambda e: self._remove_massive_selected())
 
-        btn_rules_row = ttk.Frame(frm)
-        btn_rules_row.pack(fill="x", pady=(4, 0))
-        ttk.Button(
-            btn_rules_row, text=translate("Remover", self.language),
-            command=self._remove_massive_selected, width=12
-        ).pack(side="left")
-        ttk.Button(
-            btn_rules_row, text=translate("Guardar todas as configurações de categorias", self.language),
-            command=self._save_massive_config, width=40
-        ).pack(side="left", padx=(20, 0))
+        # Atualizar combobox e lista de regras
+        self._refresh_massive_parent_combo()
+        self._refresh_massive_rules_listbox()
 
         # -----------------------------------------------------------
         # Três colunas: Categorias Únicas | + Subcategorias | + Sub-subcategorias
