@@ -183,7 +183,7 @@ def install_update_and_restart(latest_version: str, parent=None, language: str =
 
 
 def start_auto_update_flow(latest_version: str, parent=None, language: str = DEFAULT_LANGUAGE) -> None:
-    """Inicia o download/instalação numa thread e fecha a app para permitir a substituição."""
+    """Inicia o download e executa o instalador visível com feedback visual (fluxo padrão de mercado)."""
     def worker():
         installer_path, error = download_installer(latest_version)
         if error:
@@ -194,22 +194,23 @@ def start_auto_update_flow(latest_version: str, parent=None, language: str = DEF
             return
 
         try:
-            # Lança o instalador em modo detached
-            subprocess.Popen(
-                [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES"],
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
-            )
-            # Aguarda o instalador substituir os ficheiros (2 segundos)
-            import time
-            time.sleep(2.0)
+            def _notify_and_launch():
+                if parent is not None:
+                    messagebox.showinfo(
+                        translate("Atualização", language),
+                        translate("A aplicação vai fechar para instalar a nova versão.", language),
+                        parent=parent
+                    )
+                # Lança o instalador com interface visual normal (barra de progresso do Inno Setup)
+                # O Inno Setup fecha a app se estiver aberta, substitui os ficheiros e reabre no fim.
+                subprocess.Popen([str(installer_path)], creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+                os._exit(0)
 
-            # Reabre explicitamente o novo executável instalado antes de fechar
-            target_exe = Path(os.environ.get("LOCALAPPDATA", "")) / "ConversorJumpseller" / "CsvFast-FileConverter.exe"
-            if target_exe.is_file():
-                subprocess.Popen([str(target_exe)], creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
-
-            # Fecha a aplicação atual
-            os._exit(0)
+            if parent is not None and hasattr(parent, "after"):
+                parent.after(0, _notify_and_launch)
+            else:
+                subprocess.Popen([str(installer_path)], creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+                os._exit(0)
         except Exception as e:
             msg = f"{translate('Erro na instalação:', language)} {str(e)}"
             if parent is not None and hasattr(parent, "after"):
