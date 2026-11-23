@@ -194,16 +194,21 @@ def start_auto_update_flow(latest_version: str, parent=None, language: str = DEF
             return
 
         try:
-            # Lança o instalador em modo detached (sem /NORESTART para que ele reabra a app no final)
+            # Lança o instalador em modo detached
             subprocess.Popen(
                 [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES"],
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
             )
-            # Aguardar 1 segundo para garantir que o instalador arranca
-            # antes do processo principal terminar os descritores de ficheiro.
+            # Aguarda o instalador substituir os ficheiros (2 segundos)
             import time
-            time.sleep(1.0)
-            # Fecha a aplicação imediatamente
+            time.sleep(2.0)
+
+            # Reabre explicitamente o novo executável instalado antes de fechar
+            target_exe = Path(os.environ.get("LOCALAPPDATA", "")) / "ConversorJumpseller" / "CsvFast-FileConverter.exe"
+            if target_exe.is_file():
+                subprocess.Popen([str(target_exe)], creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+
+            # Fecha a aplicação atual
             os._exit(0)
         except Exception as e:
             msg = f"{translate('Erro na instalação:', language)} {str(e)}"
