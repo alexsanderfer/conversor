@@ -55,14 +55,32 @@
     },
     "keyword_rules": [
       {
-        "category": "Moda",
+        "category": "Informatica",
+        "subcategory": "Portateis",
+        "parent_category": "Loja Tech",
+        "priority": 10,
+        "mapping_mode": 1
+      },
+      {
+        "category": "Casa",
         "subcategory": "",
-        "parent_category": "Loja MODA",
-        "priority": 10
+        "parent_category": "Loja Casa",
+        "priority": 5,
+        "mapping_mode": 2
       }
     ],
     "language": "pt-PT",
-    "massive_category_rules": []
+    "massive_category_rules": [
+      {
+        "category_group": "Informatica",
+        "parent_category": "Tecnologia",
+        "priority": 1,
+        "mapping_mode": 3,
+        "source_categories": [
+          "Informatica"
+        ]
+      }
+    ]
   },
   "last_input_file": "C:/Users/Alexsander/OneDrive/Documentos/csv_examples/produtos (3).csv"
 }
