@@ -21,7 +21,7 @@ VSVersionInfo(
             StringStruct('FileVersion', '0.6.0.0'),
             StringStruct('InternalName', 'CsvFast-FileConverter'),
             StringStruct('LegalCopyright', '© Alexsander Fernandes. Todos os direitos reservados.'),
-            StringStruct('OriginalFilename', 'CsvFast-FileConverter.exe'),
+            StringStruct('OriginalFilename', 'CsvFast-FileConverter-v0.6.0-x64.exe'),
             StringStruct('ProductName', 'CsvFast-FileConverter'),
             StringStruct('ProductVersion', '0.6.0')
           ]

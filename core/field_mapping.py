@@ -667,7 +667,7 @@ def set_keyword_rules(rules: list) -> bool:
         return False
 
 
-def add_keyword_rule(category: str, subcategory: str, parent_category: str, priority: int = 10) -> bool:
+def add_keyword_rule(category: str, subcategory: str, parent_category: str, priority: int = 10, mapping_mode: int = 2) -> bool:
     """Adiciona uma regra de mapeamento avançado baseada em Categoria e Subcategoria."""
     try:
         cat_str = str(category).strip()
@@ -681,10 +681,16 @@ def add_keyword_rule(category: str, subcategory: str, parent_category: str, prio
             "subcategory": subcat_str,
             "parent_category": parent_str,
             "priority": int(priority),
+            "mapping_mode": int(mapping_mode),
         })
         return set_keyword_rules(rules)
     except Exception:
         return False
+
+
+def clear_keyword_rules() -> bool:
+    """Remove todas as regras de mapeamento de categorias."""
+    return set_keyword_rules([])
 
 
 def remove_keyword_rule(index: int) -> bool:
@@ -759,7 +765,7 @@ def apply_keyword_rules(
 ):
     """
     Aplica as regras de mapeamento avançado baseadas em Categoria e Subcategoria do fornecedor.
-    Se return_rule_type=True, retorna tupla (parent, rule_type).
+    Se return_rule_type=True, retorna tupla (parent, rule_type, mapping_mode).
     """
     fam_norm = str(familia).strip().lower()
     sub_norm = str(sub_familia).strip().lower()
@@ -767,20 +773,21 @@ def apply_keyword_rules(
         parent = str(rule.get("parent_category", "")).strip()
         if not parent:
             continue
+        mode = int(rule.get("mapping_mode", 2))
         if "keywords" in rule:
             text = f"{fam_norm} {sub_norm}"
             for kw in rule.get("keywords", []):
                 if str(kw).strip().lower() and str(kw).strip().lower() in text:
-                    return (parent, "keyword") if return_rule_type else parent
+                    return (parent, "keyword", mode) if return_rule_type else parent
         else:
             rule_cat = str(rule.get("category", "")).strip().lower()
             rule_sub = str(rule.get("subcategory", "")).strip().lower()
             if rule_cat and rule_cat == fam_norm:
                 if not rule_sub:
-                    return (parent, "category_direct") if return_rule_type else parent
+                    return (parent, "category_direct", mode) if return_rule_type else parent
                 elif rule_sub == sub_norm or rule_sub in sub_norm:
-                    return (parent, "subcategory") if return_rule_type else parent
-    return ("", "") if return_rule_type else ""
+                    return (parent, "subcategory", mode) if return_rule_type else parent
+    return ("", "", 2) if return_rule_type else ""
 
 
 def get_compiled_keyword_rules():
@@ -793,19 +800,20 @@ def get_compiled_keyword_rules():
         parent = str(rule.get("parent_category", "")).strip()
         if not parent:
             continue
+        mode = int(rule.get("mapping_mode", 2))
         if "keywords" in rule:
             for kw in rule.get("keywords", []):
                 k_str = str(kw).strip().lower()
                 if k_str:
-                    keyword_list.append((k_str, parent))
+                    keyword_list.append((k_str, parent, mode))
         else:
             rule_cat = str(rule.get("category", "")).strip().lower()
             rule_sub = str(rule.get("subcategory", "")).strip().lower()
             if rule_cat:
                 if rule_sub:
-                    exact_map.setdefault((rule_cat, rule_sub), parent)
+                    exact_map.setdefault((rule_cat, rule_sub), (parent, mode))
                 else:
-                    general_map.setdefault(rule_cat, parent)
+                    general_map.setdefault(rule_cat, (parent, mode))
     return exact_map, general_map, keyword_list
 
 
@@ -814,30 +822,30 @@ def apply_compiled_keyword_rules(
 ):
     """
     Aplica regras pré-compiladas de forma ultrarrápida O(1).
-    Se return_rule_type=True, retorna tupla (parent, rule_type).
+    Se return_rule_type=True, retorna tupla (parent, rule_type, mapping_mode).
     """
     exact_map, general_map, keyword_list = compiled_rules
     fam_norm = str(familia).strip().lower()
     sub_norm = str(sub_familia).strip().lower()
 
     if (fam_norm, sub_norm) in exact_map:
-        parent = exact_map[(fam_norm, sub_norm)]
-        return (parent, "subcategory") if return_rule_type else parent
+        parent, mode = exact_map[(fam_norm, sub_norm)]
+        return (parent, "subcategory", mode) if return_rule_type else parent
 
-    for (cat_c, sub_c), parent in exact_map.items():
+    for (cat_c, sub_c), (parent, mode) in exact_map.items():
         if cat_c == fam_norm and sub_c and (sub_c in sub_norm or sub_norm in sub_c):
-            return (parent, "subcategory") if return_rule_type else parent
+            return (parent, "subcategory", mode) if return_rule_type else parent
 
     if fam_norm in general_map:
-        parent = general_map[fam_norm]
-        return (parent, "category_direct") if return_rule_type else parent
+        parent, mode = general_map[fam_norm]
+        return (parent, "category_direct", mode) if return_rule_type else parent
 
     if keyword_list:
         text = f"{fam_norm} {sub_norm}"
-        for kw, parent in keyword_list:
+        for kw, parent, mode in keyword_list:
             if kw in text:
-                return (parent, "keyword") if return_rule_type else parent
-    return ("", "") if return_rule_type else ""
+                return (parent, "keyword", mode) if return_rule_type else parent
+    return ("", "", 2) if return_rule_type else ""
 
 
 def apply_highlights_brands_keyword_rules(familia: str, sub_familia: str = "") -> str:
@@ -1088,7 +1096,7 @@ def set_massive_category_rules(rules: list) -> bool:
 
 
 def add_massive_category_rule(
-    category_group: str, parent_category: str, priority: int | None = None
+    category_group: str, parent_category: str, priority: int | None = None, mapping_mode: int = 2
 ) -> bool:
     """Adiciona uma regra de mapeamento massivo.
 
@@ -1111,6 +1119,7 @@ def add_massive_category_rule(
             "category_group": group_str,
             "parent_category": parent_str,
             "priority": rule_priority,
+            "mapping_mode": int(mapping_mode),
         })
         return set_massive_category_rules(rules)
     except Exception:
@@ -1123,6 +1132,7 @@ def save_massive_category_rule(
     parent_category: str,
     rule_id: str = None,
     priority: int = None,
+    mapping_mode: int = 2,
 ) -> bool:
     """Cria ou atualiza uma regra massiva com várias categorias de origem."""
     try:
@@ -1144,8 +1154,6 @@ def save_massive_category_rule(
                 None,
             )
         else:
-            # Reaproveita regras legadas quando a descrição selecionada coincide;
-            # isso evita criar uma duplicata ao editar uma configuração antiga.
             existing_index = next(
                 (
                     index for index, rule in enumerate(rules)
@@ -1164,8 +1172,9 @@ def save_massive_category_rule(
             "rule_id": rule_id or uuid.uuid4().hex,
             "description": description,
             "source_categories": sources,
-            "parent_category": parent_category,
+            "parent_category": parent_str if 'parent_str' in locals() and parent_str else parent_category,
             "priority": int(priority),
+            "mapping_mode": int(mapping_mode),
         }
         if existing_index is None:
             rules.append(normalized_rule)
@@ -1221,33 +1230,10 @@ def _massive_path_matches(path: str, src: str) -> bool:
 def apply_massive_category_rules(
     familia: str, sub_familia: str = "", sub_sub_familia: str = "",
     column_level: str = "unique",
-) -> str:
+    return_rule_type: bool = False,
+) -> str | tuple[str, int]:
     """Aplica regras massivas por categorias de origem selecionadas.
-
-    Regras novas usam ``source_categories``. A origem é comparada por níveis
-    inteiros contra o caminho hierárquico do produto (``"familia > sub >
-    subsub"``): a origem casa quando é o caminho completo ou um prefixo dele
-    por níveis inteiros (ver ``_massive_path_matches``). Isto cobre os três
-    formatos de origem gravados pela interface:
-      - coluna 1 (categorias únicas): ``"Informática"``;
-      - coluna 2 (únicas + subcategorias): ``"Informática > Computadores"``;
-      - coluna 3 (únicas + sub + sub-sub): ``"Informática > Computadores > Acer"``.
-
-    ``column_level`` já **não** limita a correspondência: com a comparação por
-    caminho, a própria origem delimita os níveis (o caminho só casa se começar
-    exatamente nela), por isso restringir por nível seria redundante e,
-    pior, faria depender o resultado de um estado de interface que não viaja
-    com a configuração (o parâmetro só é atualizado pelo dropdown da aba). O
-    parâmetro mantém-se na assinatura por compatibilidade com as chamadas
-    existentes e é ignorado na correspondência por caminho.
-
-    Regras antigas que só possuem ``category_group`` continuam a usar
-    correspondência parcial (``group in value``) para preservar a
-    compatibilidade com configurações existentes; quando uma regra tem ambos
-    (``source_categories`` e ``category_group``), o grupo legado é acrescentado
-    às origens e comparado pelo mesmo critério de caminho, que é mais estrito
-    que o ``in`` parcial. O ramo ``continue`` seguinte cobre as regras que só
-    têm ``category_group``, pelo que o comportamento dessas não muda.
+    Se return_rule_type=True, retorna tupla (parent, mapping_mode).
     """
     familia_norm = _normalize_massive_category(familia)
     sub_familia_norm = _normalize_massive_category(sub_familia)
@@ -1260,7 +1246,6 @@ def apply_massive_category_rules(
     }
     source_values.discard("")
 
-    # Caminho hierárquico completo do produto (ex: "informática > portáteis > acer")
     hierarchy_path = " > ".join(
         v for v in [familia_norm, sub_familia_norm, sub_sub_familia_norm] if v
     )
@@ -1269,6 +1254,7 @@ def apply_massive_category_rules(
         parent = str(rule.get("parent_category", "")).strip()
         if not parent:
             continue
+        mode = int(rule.get("mapping_mode", 2))
 
         source_categories = rule.get("source_categories")
         if isinstance(source_categories, list):
@@ -1278,22 +1264,18 @@ def apply_massive_category_rules(
                 if _normalize_massive_category(value)
             }
 
-            # Compatibilidade com regras legadas com category_group (com ou sem
-            # source_categories): o grupo legado entra nas origens e é comparado
-            # pelo mesmo critério de caminho.
             legacy_group = _normalize_massive_category(rule.get("category_group", ""))
             if legacy_group:
                 normalized_sources.add(legacy_group)
 
             if any(_massive_path_matches(hierarchy_path, src) for src in normalized_sources):
-                return parent
+                return (parent, mode) if return_rule_type else parent
             continue
 
-        # Compatibilidade com regras antigas guardadas apenas como category_group.
         group = _normalize_massive_category(rule.get("category_group", ""))
         if group and any(group in value for value in source_values):
-            return parent
-    return ""
+            return (parent, mode) if return_rule_type else parent
+    return ("", 2) if return_rule_type else ""
 
 
 

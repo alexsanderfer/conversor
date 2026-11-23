@@ -431,37 +431,66 @@ def build_categories(
             pass
 
     # ---- Mapeamento Massivo (CATEGORIAS M) ----
-    # Aplica as regras massivas com base nas categorias originais do fornheiro.
-    # Se houver correspondência, a categoria pai definida na regra substitui
-    # toda a hierarquia, mantendo as subcategoria originais abaixo dela.
     try:
-        massive_parent = apply_massive_category_rules(
+        massive_parent, mapping_mode = apply_massive_category_rules(
             familia,
             sub_familia,
             sub_sub_familia,
+            return_rule_type=True,
         )
         if massive_parent:
-            # Constrói a hierarquia sob a nova categoria pai
-            result = [massive_parent]
-            if familia:
-                prefixed = f"{massive_parent}/{familia}"
-                if prefixed not in result:
-                    result.append(prefixed)
-            if sub_familia and familia:
-                cat2 = f"{massive_parent}/{familia}/{sub_familia}"
-                parts = cat2.split('/')
-                if len(parts) > 4:
-                    cat2 = '/'.join(parts[:4])
-                if cat2 not in result:
+            if mapping_mode == 1:
+                # Mapeamento 1: Não envia a categoria única, apenas as subcategorias (Pai > Subcategorias)
+                result = []
+                if sub_familia:
+                    cat2 = f"{massive_parent}/{sub_familia}"
+                    parts = cat2.split('/')
+                    if len(parts) > 4:
+                        cat2 = '/'.join(parts[:4])
                     result.append(cat2)
-            if sub_sub_familia and familia and sub_familia:
-                cat3 = f"{massive_parent}/{familia}/{sub_familia}/{sub_sub_familia}"
-                parts = cat3.split('/')
-                if len(parts) > 4:
-                    cat3 = '/'.join(parts[:4])
-                if cat3 not in result:
+                if sub_sub_familia and sub_familia:
+                    cat3 = f"{massive_parent}/{sub_familia}/{sub_sub_familia}"
+                    parts = cat3.split('/')
+                    if len(parts) > 4:
+                        cat3 = '/'.join(parts[:4])
                     result.append(cat3)
-            return format_and_sort_categories(result)
+                if not result:
+                    result = [massive_parent]
+                return format_and_sort_categories(result)
+            elif mapping_mode == 3:
+                # Mapeamento 3: Envia apenas a subcategoria diretamente sob a categoria pai (Pai > Subcategoria)
+                result = []
+                if sub_familia:
+                    cat2 = f"{massive_parent}/{sub_familia}"
+                    parts = cat2.split('/')
+                    if len(parts) > 4:
+                        cat2 = '/'.join(parts[:4])
+                    result.append(cat2)
+                if not result:
+                    result = [massive_parent]
+                return format_and_sort_categories(result)
+            else:
+                # Mapeamento 2 (Padrão): Categoria única e subcategorias sob a categoria pai
+                result = [massive_parent]
+                if familia:
+                    prefixed = f"{massive_parent}/{familia}"
+                    if prefixed not in result:
+                        result.append(prefixed)
+                if sub_familia and familia:
+                    cat2 = f"{massive_parent}/{familia}/{sub_familia}"
+                    parts = cat2.split('/')
+                    if len(parts) > 4:
+                        cat2 = '/'.join(parts[:4])
+                    if cat2 not in result:
+                        result.append(cat2)
+                if sub_sub_familia and familia and sub_familia:
+                    cat3 = f"{massive_parent}/{familia}/{sub_familia}/{sub_sub_familia}"
+                    parts = cat3.split('/')
+                    if len(parts) > 4:
+                        cat3 = '/'.join(parts[:4])
+                    if cat3 not in result:
+                        result.append(cat3)
+                return format_and_sort_categories(result)
     except Exception:
         pass
 
@@ -579,23 +608,23 @@ def build_categories(
     except Exception:
         pass
 
-    # Mapeamento avançado por Categoria e Subcategoria (Mapeamento 1 e Mapeamento 2)
+    # Mapeamento avançado por Categoria e Subcategoria (Modos 1, 2 e 3)
     try:
         familia = get_mapped_value(row, "familia_principal", mapping)
         sub_familia = get_mapped_value(row, "sub_familia", mapping)
+        sub_sub_familia = get_mapped_value(row, "sub_sub_familia", mapping)
         if compiled_rules is not None:
-            kw_parent, rule_type = apply_compiled_keyword_rules(
+            kw_parent, rule_type, mapping_mode = apply_compiled_keyword_rules(
                 familia, sub_familia, compiled_rules, return_rule_type=True
             )
         else:
-            kw_parent, rule_type = apply_keyword_rules(
+            kw_parent, rule_type, mapping_mode = apply_keyword_rules(
                 familia, sub_familia, return_rule_type=True
             )
         if kw_parent:
-            if rule_type == "category_direct":
-                # Mapeamento 1: substituição direta da categoria única pela categoria pai.
-                # A categoria única (familia) é substituída pelo nome da categoria pai.
-                result = [kw_parent]
+            if mapping_mode == 1:
+                # Mapeamento 1: Não envia a categoria única, apenas as subcategorias sob a categoria pai (Pai > Subcategorias)
+                result = []
                 if sub_familia:
                     cat2 = f"{kw_parent}/{sub_familia}"
                     parts = cat2.split('/')
@@ -608,21 +637,51 @@ def build_categories(
                     if len(parts) > 4:
                         cat3 = '/'.join(parts[:4])
                     result.append(cat3)
+                if not result:
+                    result = [kw_parent]
+                return format_and_sort_categories(result)
+            elif mapping_mode == 3:
+                # Mapeamento 3: Envia apenas a subcategoria para a categoria pai escolhida (Pai > Subcategoria)
+                result = []
+                if sub_familia:
+                    cat2 = f"{kw_parent}/{sub_familia}"
+                    parts = cat2.split('/')
+                    if len(parts) > 4:
+                        cat2 = '/'.join(parts[:4])
+                    result.append(cat2)
+                if not result:
+                    result = [kw_parent]
                 return format_and_sort_categories(result)
             else:
-                # Mapeamento 2 ou regras com subcategoria/keywords: agrupa a hierarquia completa
-                if cat_settings.get("use_parent", True):
+                # Mapeamento 2 (Padrão): Categoria única passa a ser filha da pai e arrasta as subcategorias
+                if rule_type == "category_direct":
                     result = [kw_parent]
-                    for cat_path in categories:
-                        cp = (cat_path or "").strip().strip("/")
-                        if not cp:
-                            continue
-                        prefixed = f"{kw_parent}/{cp}"
-                        if prefixed not in result:
-                            result.append(prefixed)
+                    if sub_familia:
+                        cat2 = f"{kw_parent}/{sub_familia}"
+                        parts = cat2.split('/')
+                        if len(parts) > 4:
+                            cat2 = '/'.join(parts[:4])
+                        result.append(cat2)
+                    if sub_sub_familia and sub_familia:
+                        cat3 = f"{kw_parent}/{sub_familia}/{sub_sub_familia}"
+                        parts = cat3.split('/')
+                        if len(parts) > 4:
+                            cat3 = '/'.join(parts[:4])
+                        result.append(cat3)
                     return format_and_sort_categories(result)
                 else:
-                    return kw_parent
+                    if cat_settings.get("use_parent", True):
+                        result = [kw_parent]
+                        for cat_path in categories:
+                            cp = (cat_path or "").strip().strip("/")
+                            if not cp:
+                                continue
+                            prefixed = f"{kw_parent}/{cp}"
+                            if prefixed not in result:
+                                result.append(prefixed)
+                        return format_and_sort_categories(result)
+                    else:
+                        return kw_parent
     except Exception:
         pass
 
@@ -2402,21 +2461,21 @@ class App(Tk):
         ttk.Label(sel_row, text=translate("Categoria Pai:", self.language)).pack(side="left", padx=(0, 4))
         self._massive_cat_pai_var = tk.StringVar()
         self._massive_cat_pai_combo = ttk.Combobox(
-            sel_row, textvariable=self._massive_cat_pai_var, state="readonly", width=30
+            sel_row, textvariable=self._massive_cat_pai_var, state="readonly", width=25
         )
         self._massive_cat_pai_combo.pack(side="left", padx=(0, 10))
 
         ttk.Label(sel_row, text=translate("Área:", self.language)).pack(side="left", padx=(0, 4))
         self._massive_area_var = tk.StringVar()
         self._massive_area_combo = ttk.Combobox(
-            sel_row, textvariable=self._massive_area_var, state="readonly", width=30
+            sel_row, textvariable=self._massive_area_var, state="readonly", width=25
         )
         self._massive_area_combo.pack(side="left", padx=(0, 10))
 
         ttk.Label(sel_row, text=translate("Coluna:", self.language)).pack(side="left", padx=(0, 4))
         self._massive_coluna_var = tk.StringVar(value="Categorias Únicas")
         self._massive_coluna_combo = ttk.Combobox(
-            sel_row, textvariable=self._massive_coluna_var, state="readonly", width=35,
+            sel_row, textvariable=self._massive_coluna_var, state="readonly", width=30,
             values=[
                 translate("Categorias únicas", self.language),
                 translate("Categorias únicas + Subcategorias", self.language),
@@ -2424,6 +2483,25 @@ class App(Tk):
             ]
         )
         self._massive_coluna_combo.pack(side="left", padx=(0, 10))
+
+        # Linha para os 3 Modos de Mapeamento solicitados pelo cliente
+        mode_row = ttk.Frame(frm)
+        mode_row.pack(fill="x", pady=(0, 8))
+        ttk.Label(mode_row, text=translate("Modo de Mapeamento:", self.language), font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 8))
+
+        self._massive_mapping_mode_var = tk.IntVar(value=2) # Padrão: Modo 2
+        ttk.Radiobutton(
+            mode_row, text=translate("Mapeamento 1 (Agrupar subcategorias sem categoria única)", self.language),
+            variable=self._massive_mapping_mode_var, value=1
+        ).pack(side="left", padx=(0, 10))
+        ttk.Radiobutton(
+            mode_row, text=translate("Mapeamento 2 (Categoria única + subcategorias)", self.language),
+            variable=self._massive_mapping_mode_var, value=2
+        ).pack(side="left", padx=(0, 10))
+        ttk.Radiobutton(
+            mode_row, text=translate("Mapeamento 3 (Apenas subcategoria direta)", self.language),
+            variable=self._massive_mapping_mode_var, value=3
+        ).pack(side="left", padx=(0, 10))
 
         btn_sel_row = ttk.Frame(frm)
         btn_sel_row.pack(fill="x", pady=(0, 10))
@@ -2440,6 +2518,10 @@ class App(Tk):
         ttk.Button(
             btn_sel_row, text=translate("Apagar Tudo", self.language),
             command=self._remove_massive_all, width=14
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            btn_sel_row, text=translate("MAPA DE CATEGORIAS", self.language),
+            command=self._open_category_map_dialog, width=20
         ).pack(side="left")
 
         # Instrução
@@ -2791,6 +2873,7 @@ class App(Tk):
         cat_pai = self._massive_cat_pai_var.get().strip()
         area = self._massive_area_var.get().strip()
         coluna = self._massive_coluna_var.get().strip()
+        mapping_mode = int(self._massive_mapping_mode_var.get()) if hasattr(self, "_massive_mapping_mode_var") else 2
 
         if not cat_pai or not area:
             messagebox.showwarning(
@@ -2801,9 +2884,9 @@ class App(Tk):
             return
 
         # A "área" é o conjunto de categorias a agrupar sob cat_pai
-        description = f"{cat_pai} - {area}"
+        description = f"{cat_pai} - {area} [Modo {mapping_mode}]"
         sources = [area]
-        if save_massive_category_rule(description, sources, cat_pai):
+        if save_massive_category_rule(description, sources, cat_pai, mapping_mode=mapping_mode):
             self._refresh_massive_rules_list()
             self._massive_cat_pai_var.set("")
             self._massive_area_var.set("")
@@ -2819,6 +2902,65 @@ class App(Tk):
                 translate("Não foi possível guardar a regra.", self.language),
                 parent=self,
             )
+
+    def _open_category_map_dialog(self):
+        """Abre uma janela exterior com o Mapa de Categorias consolidado."""
+        dialog = tk.Toplevel(self)
+        dialog.title(translate("Mapa de Categorias", self.language))
+        dialog.geometry("600x500")
+        dialog.transient(self)
+        dialog.grab_set()
+
+        frm = ttk.Frame(dialog, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(
+            frm,
+            text=translate("Mapa Consolidado de Categorias (Categorias Pai e Agrupamentos)", self.language),
+            font=("Segoe UI", 11, "bold"),
+        ).pack(anchor="w", pady=(0, 8))
+
+        ttk.Label(
+            frm,
+            text=translate("Mostra as categorias pai e as categorias/áreas associadas, sem subcategorias profundas.", self.language),
+            font=("Segoe UI", 9), foreground=GRAY_600,
+        ).pack(anchor="w", pady=(0, 8))
+
+        text_box = tk.Text(frm, wrap="word", font=("Consolas", 9), bg=GRAY_100, relief="sunken")
+        scroll = ttk.Scrollbar(frm, orient="vertical", command=text_box.yview)
+        text_box.configure(yscrollcommand=scroll.set)
+        text_box.pack(side="left", fill="both", expand=True, pady=(0, 8))
+        scroll.pack(side="right", fill="y", pady=(0, 8))
+
+        # Compilar o mapa a partir das regras massivas
+        rules = get_massive_category_rules()
+        map_data = {}
+        for rule in rules:
+            parent = str(rule.get("parent_category", "")).strip()
+            sources = rule.get("source_categories", [])
+            mode = rule.get("mapping_mode", 2)
+            if not parent:
+                continue
+            map_data.setdefault(parent, []).append((sources, mode))
+
+        content = ""
+        if not map_data:
+            content = translate("Nenhuma regra de mapeamento configurada.", self.language)
+        else:
+            for parent, items in sorted(map_data.items()):
+                content += f"📁 Categoria Pai: {parent}\n"
+                for sources, mode in items:
+                    mode_label = f"Mapeamento {mode}"
+                    for src in sources:
+                        content += f"    └── {src}  ({mode_label})\n"
+                content += "\n"
+
+        text_box.insert("1.0", content)
+        text_box.config(state="disabled")
+
+        ttk.Button(
+            frm, text=translate("Fechar", self.language), command=dialog.destroy
+        ).pack(anchor="e")
 
     def _apply_grouping_suggestions(self, suggestions_aprovadas: dict) -> int:
         """Grava regras massivas a partir das sugestões aprovadas na UI.

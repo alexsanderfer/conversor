@@ -16,7 +16,13 @@
 ;   uv run python build_release.py
 ;
 ; Instalação silenciosa (usada pelo sistema de atualização):
-;   ConversorJumpseller-Setup-v0.5.14-x64.exe /VERYSILENT /SUPPRESSMSGBOXES
+;   ConversorJumpseller-Setup-v0.6.0-x64.exe /VERYSILENT /SUPPRESSMSGBOXES
+;
+; O exe é copiado para {app} com nome FIXO (CsvFast-FileConverter.exe), não
+; com o nome da versão. É o que torna o ciclo de atualização e desinstalação
+; fiável: o Inno Setup regista o ficheiro instalado e, em cada atualização,
+; substitui o mesmo caminho, em vez de acumular um exe por versão (que
+; ficava para sempre em Program Files e continuava a arrancar).
 ;
 ; Nota sobre o `SourcePath` do ISPP: neste Inno Setup (6.7.4) o
 ; `SourcePath` devolve vazio, por isso o script vive na raiz do repositório
@@ -26,7 +32,7 @@
 ;   uv run python build_release.py
 ; ============================================================================
 
-; --- Versão lida de VERSION.txt (contém apenas "v0.5.14") -----------------
+; --- Versão lida de VERSION.txt (contém apenas "v0.6.0") ------------------
 ; FileRead devolve a linha sem a quebra de linha final. O prefixo "v" é
 ; removido: o nome do executável de origem mantém "v", mas o VersionInfo
 ; do Inno Setup só aceita números.
@@ -82,9 +88,9 @@ SolidCompression=yes
 ; SetupIconFile é o ícone do próprio assistente; os restantes assets
 ; (logo/fundo) são copiados para {app}\assets\ e usados pelo assistente.
 SetupIconFile=assets\icon.ico
-; O executável instalado mantém o "v" da versão (RawVersion), tal como o
-; [Files] o copia de SourceExe.
-UninstallDisplayIcon={app}\CsvFast-FileConverter-{#RawVersion}-x64.exe
+; O executável instalado usa nome fixo (ver [Files]), por isso o ícone de
+; desinstalação aponta para esse nome.
+UninstallDisplayIcon={app}\CsvFast-FileConverter.exe
 WizardStyle=modern
 DisableProgramGroupPage=yes
 DisableReadyPage=no
@@ -102,20 +108,20 @@ CloseApplications=yes
 RestartApplications=no
 
 ; --- Atalhos -------------------------------------------------------------
-; O [Files] copia SourceExe mantendo o nome original, que inclui o "v"
-; (RawVersion). Por isso atalhos e [Run] usam RawVersion, e nao AppVersionStr.
+; O [Files] copia SourceExe para um nome fixo, por isso atalhos usam esse nome.
 [Icons]
-Name: "{autoprograms}\ConversorJumpseller"; Filename: "{app}\CsvFast-FileConverter-{#RawVersion}-x64.exe"; WorkingDir: "{app}"
-Name: "{autodesktop}\ConversorJumpseller"; Filename: "{app}\CsvFast-FileConverter-{#RawVersion}-x64.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autoprograms}\ConversorJumpseller"; Filename: "{app}\CsvFast-FileConverter.exe"; WorkingDir: "{app}"
+Name: "{autodesktop}\ConversorJumpseller"; Filename: "{app}\CsvFast-FileConverter.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 ; --- Ficheiros -----------------------------------------------------------
 ; O build do PyInstaller é "onefile": o exe é autocontido, por isso não há
-; pasta internal\ a copiar.
+; pasta internal\ a copiar. O nome de origem (SourceExe) inclui a versão,
+; mas o destino é fixo: ver o comentário no topo do script.
 [Files]
-Source: "{#SourceExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceExe}"; DestDir: "{app}"; DestName: "CsvFast-FileConverter.exe"; Flags: ignoreversion
 ; Marcador de versão instalada (base do sistema de atualização).
 ; Nota: o .spec também embute VERSION.txt no exe onefile; esta cópia em {app}
 ; serve como marcador legível da versão instalada e é usada pelo updater.
@@ -127,7 +133,7 @@ Source: "assets\fundo.png"; DestDir: "{app}\assets"; Flags: ignoreversion skipif
 
 ; --- Arranque opcional ---------------------------------------------------
 [Run]
-Filename: "{app}\CsvFast-FileConverter-{#RawVersion}-x64.exe"; Description: "{cm:LaunchProgram,ConversorJumpseller}"; Flags: nowait postinstall skipifsilent unchecked
+Filename: "{app}\CsvFast-FileConverter.exe"; Description: "{cm:LaunchProgram,ConversorJumpseller}"; Flags: nowait postinstall skipifsilent unchecked
 
 ; --- Mensagens em português europeu -------------------------------------
 [Languages]
@@ -141,7 +147,15 @@ Name: "ptpt"; MessagesFile: "compiler:Languages\Portuguese.isl"
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\internal"
 Type: filesandordirs; Name: "{app}\_MEI*"
+; Exe com nome de versão, deixado para trás por instaladores anteriores
+; (anteriores à mudança para nome fixo). São órfãos: o desinstalador não os
+; conhece e o ficheiro continua a arrancar.
+Type: files; Name: "{app}\CsvFast-FileConverter-v*-x64.exe"
+Type: files; Name: "{app}\CsvFast-FileConverter-v*-x86.exe"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\internal"
+; O mesmo para quem desinstala sem reinstalar.
+Type: files; Name: "{app}\CsvFast-FileConverter-v*-x64.exe"
+Type: files; Name: "{app}\CsvFast-FileConverter-v*-x86.exe"
 
