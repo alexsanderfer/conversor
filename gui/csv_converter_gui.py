@@ -5079,6 +5079,10 @@ class App(Tk):
         )
         notas.pack(fill="both", expand=True)
         notas.insert("1.0", """
+        v0.6.0 (2026-11-23)
+        - Instalador Windows com Inno Setup: a aplicação passa a ser distribuída em ConversorJumpseller-Setup-v0.6.0-x64.exe, com atalhos no menu iniciar e no ambiente de trabalho.
+        - Atualização automática: ao detetar uma nova versão, a aplicação descarrega o instalador, instala silenciosamente (/VERYSILENT /SUPPRESSMSGBOXES /NORESTART) e reinicia sozinha, sem abrir o navegador.
+        - O estado da licença em %LOCALAPPDATA%\\ConversorJumpseller\\ é preservado na instalação, atualização e desinstalação.
         v0.5.14 (2026-11-22)
         - Licença: o botão "Gerar Código" copia o código e abre o ShopSync já com o código preenchido.
         - SaaS: o ecrã de ativação regista o código automaticamente antes de mostrar o botão de autorização.
