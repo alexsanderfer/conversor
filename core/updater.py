@@ -184,25 +184,28 @@ def install_update_and_restart(latest_version: str, parent=None, language: str =
 
 
 def start_auto_update_flow(latest_version: str, parent=None, language: str = DEFAULT_LANGUAGE) -> None:
-    """Inicia o download/instalação numa thread para não bloquear a interface."""
+    """Inicia o download/instalação numa thread e fecha a app para permitir a substituição."""
     def worker():
-        success, msg = install_update(latest_version)
-        if success:
-            def _restart():
-                messagebox.showinfo(
-                    translate("Atualização", language),
-                    translate("A reiniciar aplicação...", language),
-                    parent=parent,
-                )
-                restart_conversor()
+        installer_path, error = download_installer(latest_version)
+        if error:
             if parent is not None and hasattr(parent, "after"):
-                parent.after(0, _restart)
+                parent.after(0, lambda: messagebox.showerror(translate("Erro", language), error, parent=parent))
             else:
-                restart_conversor()
-        else:
+                print(error)
+            return
+
+        try:
+            # Lança o instalador em modo detached
+            subprocess.Popen(
+                [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+            )
+            # Fecha a aplicação imediatamente para libertar o ficheiro .exe para o instalador
+            os._exit(0)
+        except Exception as e:
+            msg = f"{translate('Erro na instalação:', language)} {str(e)}"
             if parent is not None and hasattr(parent, "after"):
-                parent.after(0, lambda: messagebox.showerror(
-                    translate("Erro", language), msg, parent=parent))
+                parent.after(0, lambda: messagebox.showerror(translate("Erro", language), msg, parent=parent))
             else:
                 print(msg)
 

@@ -101,11 +101,9 @@ MinVersion=6.1sp1
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 Uninstallable=yes
-; Fecha a aplicação se estiver aberta (necessário para substituir o exe numa
-; atualização). Em modo interativo o Inno Setup avisa o utilizador por omissão
-; e pede para fechar; em modo /VERYSILENT fecha sem diálogo, que é o
-; comportamento pretendido para a atualização automática.
-CloseApplications=yes
+; O encerramento da aplicação é gerido diretamente pela aplicação antes de
+; invocar o instalador (evita o erro 5 do RestartManager).
+CloseApplications=no
 RestartApplications=no
 
 ; --- Atalhos -------------------------------------------------------------
