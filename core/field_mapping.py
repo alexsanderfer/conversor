@@ -350,9 +350,24 @@ def set_price_settings(profit_percentage=None, iva_percentage=None, shipping_cos
             # Substitui todas as linhas
             price_settings["price_lines"] = price_lines
         elif price_line is not None:
-            # Adiciona uma linha individual
+            # Adiciona ou atualiza uma linha individual sem duplicar fórmulas
             existing_lines = price_settings.get("price_lines", [])
-            existing_lines.append(price_line)
+            formula = price_line.get("price_formula")
+            is_active = price_line.get("active", False)
+
+            # Se esta linha está ativa, desativar as outras linhas para garantir exclusividade
+            if is_active:
+                for l in existing_lines:
+                    l["active"] = False
+
+            updated = False
+            for idx, l in enumerate(existing_lines):
+                if l.get("price_formula") == formula:
+                    existing_lines[idx] = price_line
+                    updated = True
+                    break
+            if not updated:
+                existing_lines.append(price_line)
             price_settings["price_lines"] = existing_lines
         else:
             # Modo legado: cria/atualiza uma única linha

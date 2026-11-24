@@ -205,11 +205,11 @@ def _calc_price(raw_preco: str) -> str:
                     price += shipping
             return str(round(price, 2))
 
-        # Aplicar múltiplas linhas de preço em sequência
+        # Aplicar a linha de preço ativa (apenas uma)
         price = preco
+        applied = False
         for line in price_lines:
-            # Verificar se a linha está ativa
-            if not line.get("active", True):
+            if not line.get("active", False):
                 continue
             profit_pct = float(line.get("profit_percentage", 0.0))
             iva_pct = float(line.get("iva_percentage", 0.0))
@@ -237,6 +237,37 @@ def _calc_price(raw_preco: str) -> str:
                     price = price * (1.0 + iva_pct / 100.0)
                 if shipping and shipping > 0:
                     price += shipping
+            applied = True
+            break
+
+        if not applied and price_lines:
+            line = price_lines[0]
+            profit_pct = float(line.get("profit_percentage", 0.0))
+            iva_pct = float(line.get("iva_percentage", 0.0))
+            shipping = float(line.get("shipping_cost", 0.0))
+            order = line.get("price_formula", "Lucro, IVA, Portes")
+            if order == "Lucro, IVA, Portes":
+                if profit_pct and profit_pct > 0:
+                    price = price * (1.0 + profit_pct / 100.0)
+                if iva_pct and iva_pct > 0:
+                    price = price * (1.0 + iva_pct / 100.0)
+                if shipping and shipping > 0:
+                    price += shipping
+            elif order == "IVA, Portes, Lucro":
+                if iva_pct and iva_pct > 0:
+                    price = price * (1.0 + iva_pct / 100.0)
+                if shipping and shipping > 0:
+                    price += shipping
+                if profit_pct and profit_pct > 0:
+                    price = price * (1.0 + profit_pct / 100.0)
+            else:
+                if profit_pct and profit_pct > 0:
+                    price = price * (1.0 + profit_pct / 100.0)
+                if iva_pct and iva_pct > 0:
+                    price = price * (1.0 + iva_pct / 100.0)
+                if shipping and shipping > 0:
+                    price += shipping
+
         return str(round(price, 2))
     except Exception:
         try:
