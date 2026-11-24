@@ -32,7 +32,16 @@
         "profit_margin": 1.4,
         "iva_percentage": 23.0,
         "shipping_cost": 6.5,
-        "price_formula": "margin"
+        "price_formula": "margin",
+        "price_lines": [
+          {
+            "profit_percentage": 15.0,
+            "iva_percentage": 23.0,
+            "shipping_cost": 0.0,
+            "price_formula": "Lucro, IVA, Portes",
+            "active": true
+          }
+        ]
       }
     }
   },
