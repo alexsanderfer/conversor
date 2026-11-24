@@ -2865,6 +2865,8 @@ class App(Tk):
 
     def _refresh_massive_area_combo(self):
         """Preenche o dropdown de Área com as categorias pai disponíveis."""
+        if not hasattr(self, "_massive_area_combo") or not hasattr(self, "_massive_area_var"):
+            return
         settings = get_category_settings()
         values = [v.strip() for v in settings.get("new_categories", []) if v.strip()]
         self._massive_area_combo["values"] = values
