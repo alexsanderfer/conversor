@@ -75,6 +75,34 @@ class TestCategoryMappingModes(unittest.TestCase):
         # Modo 3 espera apenas "Tecnologia/Portateis"
         self.assertEqual(res, "Tecnologia/Portateis")
 
+    def test_filter_to_rules_only(self):
+        """Verifica se process_csv com filter_to_rules_only=True converte apenas linhas com regras."""
+        import tempfile
+        from gui.csv_converter_gui import process_csv
+        add_massive_category_rule(
+            category_group="Informatica",
+            parent_category="Tecnologia",
+            mapping_mode=2
+        )
+        rules = get_massive_category_rules()
+        rules[0]["source_categories"] = ["Informatica"]
+        set_massive_category_rules(rules)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = Path(tmpdir) / "input.csv"
+            csv_path.write_text(
+                "Referência;Nome;Preço;Stock;Família Principal;Sub-Família\n"
+                "REF1;Portátil;100;10;Informatica;Portáteis\n"
+                "REF2;Camisa;50;5;Moda;Vestuário\n",
+                encoding="utf-8-sig"
+            )
+            n, out_path, removed_unav, removed_not_mapped, removed_not_rule = process_csv(
+                str(csv_path), output_dir=tmpdir, filter_to_rules_only=True
+            )
+            # Apenas 1 linha (Informatica) deve passar, Moda deve ser filtrada
+            self.assertEqual(n, 1)
+            self.assertEqual(removed_not_rule, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

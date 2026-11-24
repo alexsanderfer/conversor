@@ -800,7 +800,8 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
                 sub_familia = get_mapped_value(row, "sub_familia", mapping)
                 sub_sub_familia = get_mapped_value(row, "sub_sub_familia", mapping)
                 matched = False
-                # Regras do separador M (massive_category_rules)
+
+                # 1. Regras do separador M (massive_category_rules)
                 try:
                     massive_parent, _ = apply_massive_category_rules(
                         familia, sub_familia, sub_sub_familia, return_rule_type=True
@@ -809,17 +810,32 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
                         matched = True
                 except Exception:
                     pass
-                # Regras do separador i (categoria_mapping.new_categories / cat_keywords)
+
+                # 2. Regras do separador i (regras avançadas de palavra-chave / categoria)
+                if not matched:
+                    try:
+                        if compiled_rules is not None:
+                            kw_parent, _, _ = apply_compiled_keyword_rules(
+                                familia, sub_familia, compiled_rules, return_rule_type=True
+                            )
+                        else:
+                            kw_parent, _, _ = apply_keyword_rules(
+                                familia, sub_familia, return_rule_type=True
+                            )
+                        if kw_parent:
+                            matched = True
+                    except Exception:
+                        pass
+
+                # 3. Fallback para listas simples do separador i (new_categories / cat_keywords)
                 if not matched:
                     try:
                         cat_settings = get_category_settings()
                         new_cats = [c.strip() for c in cat_settings.get("new_categories", []) if c.strip()]
                         cat_kws = cat_settings.get("cat_keywords", [])
-                        # Verificar categoria direta (familia)
                         if familia and familia in new_cats:
                             matched = True
-                        # Verificar palavras-chave no nome do produto ou categorias
-                        if not matched and cat_kws:
+                        elif cat_kws:
                             product_name = get_mapped_value(row, "design", mapping)
                             text = f"{product_name} {familia} {sub_familia} {sub_sub_familia}".lower()
                             for i_cat, parent_cat in enumerate(new_cats):
@@ -835,6 +851,7 @@ def process_csv(input_path: str, output_dir: str = None, exclude_unavailable: bo
                                     break
                     except Exception:
                         pass
+
                 if not matched:
                     removed_not_rule += 1
                     continue
