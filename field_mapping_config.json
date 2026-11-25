@@ -28,10 +28,10 @@
     },
     "Default": {
       "price_settings": {
-        "profit_percentage": 40.0,
-        "profit_margin": 1.4,
+        "profit_percentage": 15.0,
+        "profit_margin": 1.15,
         "iva_percentage": 23.0,
-        "shipping_cost": 6.5,
+        "shipping_cost": 0.0,
         "price_formula": "margin",
         "price_lines": [
           {
@@ -81,12 +81,12 @@
     "language": "pt-PT",
     "massive_category_rules": [
       {
-        "category_group": "Informatica",
-        "parent_category": "Tecnologia",
+        "category_group": "Recondicionados",
+        "parent_category": "Computadores e Eletrónica",
         "priority": 1,
-        "mapping_mode": 3,
+        "mapping_mode": 2,
         "source_categories": [
-          "Informatica"
+          "Recondicionados"
         ]
       }
     ]
